@@ -1,0 +1,20 @@
+{
+  "name": "@dawney/clinic-auth",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Dependency-free Supabase Auth integration contract for future React/TypeScript UI",
+  "exports": {
+    ".": {
+      "types": "./src/client.d.mts",
+      "default": "./src/client.mjs"
+    }
+  },
+  "scripts": {
+    "test": "node --test tests/unit.test.mjs",
+    "test:live": "node --test tests/live.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

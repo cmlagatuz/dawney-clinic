@@ -127,3 +127,14 @@ Additional open integration concerns:
 **ChatGPT next:** user invitation flow and role-bootstrap (trusted server-only), appointment status/transition constraints, clinic timezone/hours rules, real JWT end-to-end RLS tests, private storage policy, import rehearsal/restore test and frontend integration contract. **Claude next:** independently repair draft PR #1; do not edit migrations/tests/security docs. **Owner:** no intervention required for this schema baseline; real-data import and onboarding are blocked until source MySQL access, clinic timezone/legal/privacy policy and recovery verification are available.
 
 **Not done:** real client login and API tests, browser UI integration, migration of historical records, secure managed role-assignment UI, real backup export or restore, Cloudflare deployment and clinic go-live. These remain explicit gates.
+
+## Phase 2 Auth integration addendum — 2026-11-13
+
+**Supersedes earlier "two migrations" and "Auth pending" statements above as to the database foundation only.** PR #4 adds and applies a third, additive migration: `20261113074938_phase2_verified_auth_and_staff_bootstrap.sql`. The original two migrations are unchanged.
+
+- Auth-aware RLS now requires a **confirmed, non-anonymous, active/non-banned user** from `auth.users`, checked in a locked-down private helper. Active staff checks call the same verified-user gate.
+- The one-time initial administrator and confirmed staff assignment functions are private **SECURITY INVOKER** operators with no API/browser EXECUTE grants; they have not been invoked for a real user. No owner/staff accounts or clinical records have been added.
+- Previous Phase 2 rollback-only SQL fixtures were updated to mark their synthetic Auth accounts confirmed. Both prior RLS suites passed again, as did the new `supabase/tests/phase2_verified_auth_bootstrap.sql` and `supabase/tests/phase2_auth_schema_verify.sql`.
+- An independent ESM client contract and TypeScript declaration (`packages/clinic-auth/`) implement signup/login/logout/OTP/resend/refresh/profile creation without storing privileged credentials. GitHub Actions executes unit tests without secrets; real two-account HTTPS/Auth/DB persistence tests remain **blocked until the owner provides two verified test mailboxes and sets repository Actions secrets**, and must not be asserted complete.
+- Full implementation evidence, exact safe owner steps and React integration contract: [docs/PHASE2_AUTH_INTEGRATION.md](PHASE2_AUTH_INTEGRATION.md).
+- The private legacy mapping table's lack of RLS policy remains intentional; it has no anon/authenticated table grants. Security advisor reports INFO only. Real data migration and full backup/restore drills are still pending.
