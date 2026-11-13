@@ -4,3 +4,15 @@
 @media(max-width:650px){.sidebar{display:none;position:fixed;inset:60px auto 0 0;width:min(90vw,285px);height:calc(100vh - 60px);min-height:0;z-index:20;box-shadow:18px 0 50px #0d1c386b}.sidebar.is-open{display:flex}.mobile-toggle{display:inline-flex}.topbar{min-height:60px;padding:.5rem 1rem}.topbar-status{font-size:.7rem}.form-row{grid-template-columns:1fr}.auth-panel{border-radius:14px;padding:1.3rem}.public-header{min-height:75px}.workarea{padding:1.2rem}.page-heading{margin-bottom:1.3rem}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 @media(prefers-color-scheme:dark){:root{color:#e0e7f3;background:#131c2e}.public-layout{background:radial-gradient(ellipse at 80% 0%,#203252 0%,transparent 52%),#131c2e}.auth-panel,.card,.topbar{background:#1d2940;border-color:#36455e;color:#e0e7f3}.card-muted{background:#243653}.subtitle,.small-help{color:#adbad0}label{color:#dce6f8}input,textarea{background:#131e32;border-color:#566682;color:#e6eefb}.form-links a,a{color:#a6c7ff}.alert-error{background:#442636;border-color:#834559;color:#ffd5dd}.alert-success{background:#20483b;border-color:#447b6a;color:#c4f3df}.tag{background:#263955;border-color:#4b5e79;color:#c6dcf4}.summary-list>div{border-color:#44516a}.main-nav a{color:#c3d2eb}.public-header .brand{color:#d8e6fb}.button-secondary{background:#34445f;color:#f3f6ff;border-color:#546789}.button-secondary:hover{background:#465779}}
+
+/* Phase 3 clinical workflows */
+select{font:inherit;width:100%;background:#fff;color:#182942;border:1px solid #b6c3d6;border-radius:10px;padding:.73rem .82rem;min-height:45px}
+select:focus-visible{outline:3px solid #6a89d1;outline-offset:3px}
+.patient-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:1rem}
+.patient-card{display:flex;flex-direction:column;align-items:start;gap:.8rem}
+.patient-card h2{margin:.2rem 0 .5rem}.patient-card p{margin:0 0 .3rem}
+.patient-card .button{margin-top:auto}.patient-avatar{background:#eaf1fb;color:#4064ab;display:grid;place-items:center;width:52px;height:52px;border-radius:12px;font-size:1.3rem}
+.patient-detail{font-size:.85rem;color:#64758e}.form-card{margin-bottom:1.4rem}.section-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1rem}.section-heading h2{margin:0}
+.booking-list{display:grid;gap:.7rem}.booking-item{border-bottom:1px solid #dde5f0;padding:0 0 1rem}.booking-item:last-child{border-bottom:0}
+.booking-item-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}.booking-item time{display:block;margin:.5rem 0;color:#60718e;font-size:.87rem}.booking-item p{margin:.25rem 0 .85rem}
+@media(prefers-color-scheme:dark){select{background:#131e32;border-color:#566682;color:#e6eefb}.patient-avatar{background:#334765;color:#c3dcff}.patient-detail{color:#afbbcf}.booking-item{border-color:#44516a}}

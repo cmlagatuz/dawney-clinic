@@ -2,7 +2,9 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router'
 import { AuthProvider, useAuth } from './hooks/AuthProvider'
 import { AppLayout, PublicLayout } from './components/Layout'
 import { CallbackPage, ForgotPasswordPage, LoginPage, RecoveryPage, SignUpPage, VerifyPage } from './pages/AuthPages'
-import { ComingSoonPage, ProfilePage } from './pages/ProfilePage'
+import { ProfilePage } from './pages/ProfilePage'
+import { PetsPage } from './pages/PetsPage'
+import { AppointmentsPage } from './pages/AppointmentsPage'
 import { configured } from './lib/supabase'
 
 function Guard() {
@@ -21,7 +23,7 @@ export function App() {
       <Route path="/auth/verify" element={<VerifyPage/>}/><Route path="/auth/forgot" element={<ForgotPasswordPage/>}/>
       <Route path="/auth/recovery" element={<RecoveryPage/>}/><Route path="/auth/callback" element={<CallbackPage/>}/></Route>
     <Route element={<Guard/>}><Route element={<AppLayout/>}><Route path="/app/profile" element={<ProfilePage/>}/>
-      <Route path="/app/pets" element={<ComingSoonPage kind="patients"/>}/>
-      <Route path="/app/appointments" element={<ComingSoonPage kind="appointments"/>}/></Route></Route>
+      <Route path="/app/pets" element={<PetsPage/>}/>
+      <Route path="/app/appointments" element={<AppointmentsPage/>}/></Route></Route>
     <Route path="*" element={<Root/>}/></Routes></AuthProvider></BrowserRouter>
 }
