@@ -86,7 +86,7 @@ async function run() {
   const ownerAfterRestore=expect(await restoredA.from('owners').select('id').eq('id',ownerA.id).single(),
     'Profile after new client reauthentication');
   invariant(ownerAfterRestore.id===ownerA.id,'owner persists after session restoration');
-  await restoredA.auth.signOut({scope:'local'});
+  // Do not revoke the shared test session before performing clinical probes.
   console.log('PASS: owner RLS isolation and SDK session rehydration');
 
   if(operation==='read-only') {
