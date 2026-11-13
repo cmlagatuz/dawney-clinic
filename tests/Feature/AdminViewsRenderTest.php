@@ -102,7 +102,8 @@ class AdminViewsRenderTest extends TestCase
 
         $this->get(route('admin.appointment.list'))
             ->assertStatus(200)
-            ->assertSee('Test Owner');
+            ->assertSee('Test Owner')
+            ->assertDontSee('Remind'); // GET + paid-SMS action must stay out of the UI until the backend is fixed
 
         $this->get(route('admin.patient.view', $pet->id))
             ->assertStatus(200)
@@ -129,6 +130,35 @@ class AdminViewsRenderTest extends TestCase
         $this->get(route('admin.appointment.list'))
             ->assertStatus(200)
             ->assertSee('No upcoming appointments');
+    }
+
+    public function testRecordNotesAreNeverRenderedAsHtml()
+    {
+        $admin = $this->person('admin@example.test', true);
+        $client = $this->person('client@example.test');
+        $pet = $this->petFor($client);
+
+        // Legacy Summernote HTML mixed with hostile payloads and an entity-encoded tag.
+        $record = PetRecord::create([
+            'pet_id' => $pet->id,
+            'procedure' => 'Hostile note check',
+            'temperature' => '38.5',
+            'weight' => '12',
+            'comments' => '<p>Legacy note</p><script>alert(1)</script><img src=x onerror=alert(1)>'
+                . '<svg onload=alert(1)><br>line two &lt;b&gt;literal&lt;/b&gt;',
+        ]);
+
+        $html = $this->actingAs($admin)
+            ->get(route('admin.patient.record.view', ['id' => $pet->id, 'rId' => $record->id]))
+            ->assertStatus(200)
+            ->getContent();
+
+        foreach (['<script>alert', '<img src=x', '<svg onload', 'onerror=alert'] as $needle) {
+            $this->assertFalse(strpos($html, $needle) !== false, 'Raw payload leaked into the page: ' . $needle);
+        }
+        $this->assertTrue(strpos($html, 'Legacy note') !== false, 'Legacy note text should stay readable.');
+        $this->assertTrue(strpos($html, '&lt;b&gt;literal&lt;/b&gt;') !== false, 'Decoded entity text must be escaped on output.');
+        $this->assertFalse(strpos($html, '<b>literal') !== false, 'Entity-encoded tag must not become a real element.');
     }
 
     public function testPatientListShowsPaginationLinksBeyondFirstPage()

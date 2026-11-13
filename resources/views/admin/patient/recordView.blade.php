@@ -32,9 +32,19 @@
     </div>
     <div class="card-body">
         <h2 class="h5">Notes</h2>
-        {{-- Rich text from Summernote, rendered unescaped as before.
-             SECURITY (for lead): sanitise server-side on save/render (e.g. HTMLPurifier); unescaped output is a stored-XSS risk. --}}
-        <div class="record-notes">{!! $record->comments !!}</div>
+        @php
+            // SECURITY: stored notes are never interpreted as HTML. Legacy notes were saved as Summernote HTML, so
+            // turn block/line-break tags into newlines, drop every tag, decode entities, and let Blade ESCAPE the
+            // result on output (so decoded "&lt;script&gt;" is shown as text, never executed). Formatting such as
+            // bold/lists is intentionally not rendered; a sanitized rich-text path is the lead's decision.
+            $plainNotes = html_entity_decode(
+                strip_tags(preg_replace('/<\/(p|div|li|h[1-6])>|<br\s*\/?>/i', "\n", (string) $record->comments)),
+                ENT_QUOTES | ENT_HTML5,
+                'UTF-8'
+            );
+            $plainNotes = trim(preg_replace("/\n{3,}/", "\n\n", $plainNotes));
+        @endphp
+        <div class="record-notes">{{ $plainNotes }}</div>
     </div>
 </div>
 @endsection

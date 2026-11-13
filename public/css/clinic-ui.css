@@ -294,7 +294,7 @@ main:focus { outline: none; }
 .facts dt { color: var(--c-muted); font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .facts dd { margin: 0; font-weight: 600; font-size: 1.02rem; }
 .vitals { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
-.record-notes { background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: var(--radius-sm); padding: 1rem 1.25rem; overflow-wrap: anywhere; }
+.record-notes { background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: var(--radius-sm); padding: 1rem 1.25rem; overflow-wrap: anywhere; white-space: pre-wrap; }
 
 /* ---------- Pagination ---------- */
 .page-link { background: var(--c-surface); border-color: var(--c-border); color: var(--c-primary); }

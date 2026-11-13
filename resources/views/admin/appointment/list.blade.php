@@ -28,7 +28,6 @@
                     <th scope="col">Concern</th>
                     <th scope="col">Start Time</th>
                     <th scope="col">End Time</th>
-                    <th scope="col"><span class="visually-hidden">Action</span></th>
                 </tr>
             </thead>
             <tbody>
@@ -39,17 +38,14 @@
                         <td data-label="Concern">{{ $appointment->concern_name }}</td>
                         <td data-label="Start">{{ $appointment->appointment_start->format('h:i A') }}</td>
                         <td data-label="End">{{ $appointment->appointment_end->format('h:i A') }}</td>
-                        <td>
-                            <a href="{{ route('admin.appointment.remind', $appointment->id) }}" class="btn btn-sm btn-secondary"
-                               aria-label="Send reminder to {{ $appointment->user->owner->full_name }} for {{ $appointment->appointment_start->format('M d Y') }}">
-                                Remind
-                            </a>
-                        </td>
                     </tr>
+                    {{-- The "Remind" action is deliberately NOT rendered: admin.appointment.remind is a GET route with a
+                         paid-SMS (Nexmo) side effect. Re-add only after the lead moves it to an authorized POST + CSRF
+                         or a free notification workflow. --}}
                 @endforeach
                 @if (count($appointments) == 0)
                     <tr data-filter-ignore>
-                        <td colspan="6" class="cu-empty-cell">
+                        <td colspan="5" class="cu-empty-cell">
                             @component('components.empty-state', [
                                 'title' => 'No upcoming appointments',
                                 'message' => 'Bookings made by clients will appear here.',
@@ -60,7 +56,7 @@
                     </tr>
                 @endif
                 <tr data-filter-ignore data-filter-nomatch hidden>
-                    <td colspan="6" class="cu-empty-cell text-center text-muted py-4">No appointments on this page match your filter.</td>
+                    <td colspan="5" class="cu-empty-cell text-center text-muted py-4">No appointments on this page match your filter.</td>
                 </tr>
             </tbody>
         </table>
