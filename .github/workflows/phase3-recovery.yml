@@ -1,0 +1,26 @@
+name: Phase 3 recovery scripts
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/recovery/**'
+      - '.github/workflows/phase3-recovery.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/recovery/**'
+      - '.github/workflows/phase3-recovery.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check Bash syntax and mock offline backup/verification
+        run: node --test scripts/recovery/tests/recovery.test.mjs
