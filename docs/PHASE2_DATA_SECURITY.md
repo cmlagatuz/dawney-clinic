@@ -52,7 +52,7 @@ clinic_private.legacy_user_links: legacy numeric login -> Auth UUID, trusted imp
 
 ## Verified SQL integration checks
 
-Test source: `supabase/tests/phase2_rls_regression.sql`. Executed against connected Supabase via SQL connector, using controlled `authenticated` and `anon` SQL roles and request JWT claims. All synthetic Auth users, pets, owners, appointments, notes, staff grants and cancellation events were created inside **BEGIN ... ROLLBACK**, so they leave no persisted user/medical data. This is a policy-level simulation; it is **not** end-to-end sign-up/login or HTTP REST verification.
+Test sources: `supabase/tests/phase2_rls_regression.sql` and `supabase/tests/phase2_staff_roles_regression.sql`. Executed against connected Supabase via SQL connector, using controlled `authenticated` and `anon` SQL roles and request JWT claims. All synthetic Auth users, pets, owners, appointments, notes, staff grants and cancellation events were created inside **BEGIN ... ROLLBACK**, so they leave no persisted user/medical data. This is a policy-level simulation; it is **not** end-to-end sign-up/login or HTTP REST verification.
 
 | Test | Outcome |
 | --- | --- |
@@ -68,6 +68,10 @@ Test source: `supabase/tests/phase2_rls_regression.sql`. Executed against connec
 | Inactive/revoked veterinarian loses access immediately | Passed |
 | Trigger logs booking and cancellation | Passed |
 | Fixture count after rollback: 0 Auth users, 0 owners/pets/clinical records/appointments/events/staff | Verified |
+| Active administrator can read membership and pass role helper | Passed |
+| Administrator accessing via browser role cannot insert/promote staff | Passed (table permission denied) |
+| Non-staff account cannot read administrator membership | Passed |
+| Supabase anonymous Auth claim cannot pass permanent-user check | Passed |
 
 **Remaining verification:** Real API tokens issued by Supabase Auth, real owner invitation/verification, two simultaneous network clients (race), UI form persistence and persisted upgrade/rollback drill. RLS policies apply in Postgres even if a client bypasses frontend route guards; still test real JWT flows before public launch.
 
