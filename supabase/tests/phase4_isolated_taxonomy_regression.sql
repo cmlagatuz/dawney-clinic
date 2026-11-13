@@ -137,6 +137,36 @@ do $$begin
  exception when insufficient_privilege then null;
  end;
 end $$;
+-- Catalog write restrictions and clinic paths must remain privileged.
+reset role;
+insert into storage.objects(bucket_id,name,metadata) values
+ ('clinical-attachments',
+  'pets/55555555-5555-4555-8555-555555555555/clinic/dddddddd-dddd-4ddd-8ddd-dddddddddddd.pdf',
+  '{"mimetype":"application/pdf","size":5}'::jsonb);
+set role authenticated;
+select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',false);
+do $$begin
+ begin
+  insert into public.breed_catalog(id,species_id,label,kind,source_name)
+  values('dog-fake-staff-only','dog','Unreviewed owner addition','recognized','spoof');
+  raise exception 'Owner inserted unreviewed breed';
+ exception when insufficient_privilege then null;
+ end;
+ begin
+  update public.species_catalog set clinic_supported=true where id='dog';
+  raise exception 'Owner approved clinic treatments without a trusted operator';
+ exception when insufficient_privilege then null;
+ end;
+ begin
+  insert into public.pet_attachments(pet_id,category,object_path,original_filename,mime_type,size_bytes)
+  values ('55555555-5555-4555-8555-555555555555','health_card',
+    'pets/55555555-5555-4555-8555-555555555555/clinic/dddddddd-dddd-4ddd-8ddd-dddddddddddd.pdf',
+    'forged-clinic.pdf','application/pdf',5);
+  raise exception 'Owner wrote unauthorized clinic-path metadata';
+ exception when insufficient_privilege then null;
+ end;
+end $$;
+
 -- Owner B sees no owner A private metadata and cannot forge storage paths.
 select set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',false);
 do $$begin
@@ -157,6 +187,14 @@ do $$begin
  begin
   perform count(*) from public.pet_attachments;
   raise exception 'Anonymous metadata view accepted';
+ exception when insufficient_privilege then null;
+ end;
+end $$;
+-- Verify private Storage object access itself is not anonymous, beyond metadata RLS.
+do $$begin
+ begin
+  perform count(*) from storage.objects;
+  raise exception 'Anonymous private Storage rows unexpectedly visible';
  exception when insufficient_privilege then null;
  end;
 end $$;
