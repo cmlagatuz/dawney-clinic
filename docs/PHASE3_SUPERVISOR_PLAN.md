@@ -2,6 +2,10 @@
 
 **Checkpoint:** 2026-11-13, approximately 16:43 Asia/Riyadh. Use current GitHub/Supabase data to refresh before executing. **No live deployment or clinical go-live approval.** This supersedes older dated checkpoints in the longer handoff.
 
+## Addendum — owner Auth test verified, 2026-11-13 17:00+ Asia/Riyadh
+
+**This addendum supersedes the earlier owner Step 1 and any earlier claim that Auth `test` has not been dispatched.** Owner-triggered [run 43438147911](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438147911) and [run 43438358753](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438358753) both passed `operation=test` with 1/1 live authenticated HTTP test. Connected Supabase now confirms 2 verified accounts, **2 persisted owner profiles**, zero pets/appointments/staff/private objects, 1 active resource and the configured private bucket. **Next owner step**: trigger `Phase 3 authenticated security smoke` on `master`, `operation=read-only`, `allow_synthetic_writes=false` (no clinical/storage consent). Do not repeat registration. Separate browser, clinical/Storage, operational scheduling, full recovery and Pages URL verification remain pending. See [live acceptance gates](PHASE3_LIVE_BROWSER_ACCEPTANCE.md).
+
 ## Current verified source-of-truth
 
 - GitHub `master` @ `9233c9cceb356b617cac02d0632e4c9b80d5b7ba`. **PRs #2–#16 merged**, including Astra PRs #12–#16: HTTP/Storage smoke-test tooling, free static release readiness, actual PostgreSQL 17/GPG **synthetic isolated** restore, integration audit, and non-network syntax checks. Latest affected Actions CI green. No real hosted clinical security smoke run or production Pages URL is verified.
