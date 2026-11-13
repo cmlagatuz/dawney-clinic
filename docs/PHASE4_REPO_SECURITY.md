@@ -16,6 +16,8 @@
 | Cloudflare | No verified Pages project/URL/provider deployment was available at the checkpoint | Connect only Free Git integration, verify actual URL and browser/rollback externally |
 | Supabase | Auth two-account and read-only RLS smoke already passed; private Storage HTTP deny and full recovery remain pending | No DB/schema changes in this audit |
 
+**Additional advisory evidence:** [PR #25](https://github.com/cmlagatuz/dawney-clinic/pull/25) added a read-only locked-npm `npm audit --audit-level=high` CI step. [Run 43449999430](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43449999430) **PASSED** and reported **0 vulnerabilities** at this checkpoint. This does not clear Composer/PHP legacy risks or future advisories. Run audit after dependency changes.
+
 ## Security guard behavior
 
 Run from repo root:
