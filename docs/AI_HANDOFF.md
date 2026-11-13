@@ -1,5 +1,19 @@
 # Dawney Clinic — Shared AI Handoff
 
+
+## Supervisor recovery checkpoint — 2026-11-13 16:43 Asia/Riyadh (CURRENT)
+
+**If the old ChatGPT Astra conversation cannot load, resume from the latest [docs/PHASE3_SUPERVISOR_PLAN.md](PHASE3_SUPERVISOR_PLAN.md). Do not rely on outdated earlier checkpoints below.** Current verified `master` preceding this checkpoint: `9233c9cc`.
+
+- ChatGPT Astra has **merged PRs #12–#16** since last supervisor review (live smoke tooling, deployment/release preparation, PostgreSQL17/GPG **synthetic** isolated restore, integration audit, smoke syntax CI). All five are merged and relevant CI passed; no live clinical workflow test, Cloudflare production deployment or GitHub Release verified.
+- Supabase healthy: seven public RLS tables, six applied migrations; **two confirmed disposable Auth accounts**; 0 owner/pet/appointment/staff records.
+- `clinical-attachments` private bucket verified: `public=false`, 5 MiB, `application/pdf,image/png,image/jpeg`, 0 objects. Storage real JWT negative tests remain pending.
+- **Owner next:** Run `Clinic Auth contract` `master` `operation=test`, not either registration mode. Afterwards run authenticated smoke `read-only`; authorize synthetic `clinical`/`storage` tests explicitly with controlled cleanup. Then link Cloudflare Pages Free and verify live HTTPS. Use plan/runbooks for exact steps.
+- Claude still unavailable until owner-reported 7:20 PM; PR #1 is old Blade UI, open/unmerged. Claude's next useful task is fresh scoped React UI work, not repeating old Blade merge.
+- Open security adviser warnings: disabled leaked-password protection (Pro-only according to earlier dashboard), informational no-public-policy on trusted private audit/mapping tables. No paid upgrade.
+- Source-of-truth recovery: `AGENTS.md` + current plan + live PR/CI/Supabase; no need to reconstruct inaccessible private chat or repeat completed PRs.
+
+
 ## Supervisor current checkpoint — 2026-11-13 15:28 Asia/Riyadh (LATEST)
 **Use [docs/PHASE3_SUPERVISOR_PLAN.md](PHASE3_SUPERVISOR_PLAN.md) as authoritative current task list; historical handoff entries below are superseded where conflicting.**
 
