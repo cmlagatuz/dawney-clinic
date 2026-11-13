@@ -1,6 +1,6 @@
 # Dawney Clinic — Shared AI Handoff
 
-Updated: 2026-11-13 (supervisor checkpoint; Phase 1 merged, Phase 2 database baseline merged; Auth integration pending). Shared source of truth: GitHub master + active PRs. Read AGENTS.md and CLAUDE.md first. No deployment is verified.
+Updated: 2026-11-13 (supervisor checkpoint; Phase 2 Auth code merged, real HTTP test pending; Phase 3 planned). Shared source of truth: GitHub master + active PRs. Read AGENTS.md and CLAUDE.md first. No deployment is verified.
 
 ## Confirmed baseline
 - Repo: https://github.com/cmlagatuz/dawney-clinic ; default branch master.
@@ -83,3 +83,13 @@ No API credentials, medical records, password hashes, patient contact details or
 - **Still pending:** live sign-up/verification/login/logout HTTP results, real JWT RLS proof, actual owner persistence check with two accounts, private storage RLS, app session persistence/PKCE, production staff-management endpoint and authorization audit, owner MySQL export/restore, frontend integration, deployment and go-live. No production readiness claimed.
 - **Claude remains independent:** [draft PR #1](https://github.com/cmlagatuz/dawney-clinic/pull/1) must be resynced/reviewed by Claude; existing XSS and paid SMS GET risks remain. Do not merge PR #1 without review. Claude must reconcile its older AI_HANDOFF edits with this latest checkpoint.
 - Security advisors after Auth migration: INFO only for intentionally inaccessible private legacy mapping table (https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy); no critical/high notices observed.
+
+## Supervisor execution plan — 2026-11-13 (most recent; overrides older "next task" text)
+- Shared detailed plan: **[docs/PHASE3_SUPERVISOR_PLAN.md](PHASE3_SUPERVISOR_PLAN.md)**.
+- PR #4 merged; seven public RLS tables and three applied Supabase migrations. Supabase **ACTIVE_HEALTHY**.
+- **Read-only verified at this checkpoint:** Auth accounts = **2**, email-confirmed = **2**, owners = **0**, pets = **0**, appointments = **0**, active staff records = **0**. Do not publish the test email addresses.
+- GitHub Actions registration-mode run [43398422483](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43398422483) **succeeded**. Its logs show registration workflow (not live `test`). Despite earlier failed registration runs, no live authenticated two-account HTTP/RLS/persistence test pass has been verified. Owner should now select `operation=test` on workflow `master`; do not register again.
+- Security advisor now has an additional **WARN**: `auth_leaked_password_protection` disabled. Verify Free-plan support and suitable security fallback; do not authorize a subscription. The private mapping RLS info finding remains intentionally non-public.
+- Claude [PR #1](https://github.com/cmlagatuz/dawney-clinic/pull/1) is still OPEN/DRAFT and conflicted with newer master. Its Blade changes are legacy, not the target for free static React deployment. Do not edit/merge until usefulness is reviewed; salvage styling and component patterns into future `web/`.
+- **ChatGPT next:** On a fresh isolated branch implement `web/` React+TS+Vite and safe auth/profile persistence plus automated builds/tests and Cloudflare Pages free deploy readiness, after checking results of owner-triggered live `test`. Can develop independent features concurrently with Claude unavailable, but only in separately verified PR-sized milestones. Then pet/appointments and backend security/storage/restore per supervisor plan.
+- No live application URL or complete release gate yet. Do not conflate mock unit tests/SQL rollbacks with real HTTP tests or static hosting readiness.
