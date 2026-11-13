@@ -1,0 +1,37 @@
+name: Phase 4 repository safety (no secrets or writes)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/security/**'
+      - 'web/package.json'
+      - 'web/package-lock.json'
+      - '.github/workflows/**'
+      - 'scripts/release/**'
+      - 'scripts/recovery/**'
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/security/**'
+      - 'web/package.json'
+      - 'web/package-lock.json'
+      - '.github/workflows/**'
+      - 'scripts/release/**'
+      - 'scripts/recovery/**'
+
+permissions:
+  contents: read
+
+jobs:
+  tracked-source-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Unit-test offline repository guard
+        run: node --test scripts/security/tests/*.test.mjs
+      - name: Fail on tracked sensitive artifacts, likely credentials or floating npm versions
+        run: node scripts/security/repository-guard.mjs

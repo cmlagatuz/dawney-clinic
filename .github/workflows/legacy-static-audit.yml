@@ -6,6 +6,10 @@ on:
     branches: [master]
   workflow_dispatch:
 
+# Legacy PHP job is an isolated regression guard, never a deployment.
+permissions:
+  contents: read
+
 jobs:
   php-syntax:
     runs-on: ubuntu-latest
