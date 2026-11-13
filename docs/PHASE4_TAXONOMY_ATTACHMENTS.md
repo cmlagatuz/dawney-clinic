@@ -1,7 +1,7 @@
 # Phase 4 P0 — Animal taxonomy and private patient attachment contract
 
 **Scope:** backend, database, tests and TypeScript adapters only. **No React components modified.**
-**Status:** migration/seed and adapters staged for CI; **do not assume they are deployed in connected Supabase** until reviewed migration application and schema verification. Existing pet and appointment data must survive.
+**Status:** [PR #29](https://github.com/cmlagatuz/dawney-clinic/pull/29) merged and [isolated PostgreSQL17 + Node/TypeScript CI #43483917460](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43483917460) **PASSED**. Connected Supabase still has only six applied migrations; these two new migration files **have NOT been applied**. App page integration and live HTTP/Storage denial tests remain pending owner/Claude coordination. Existing pet and appointment data must survive.
 
 ## Animal catalog API — Claude integration
 
