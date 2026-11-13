@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/phase4-pages-public-smoke.yml'
       - 'scripts/release/check-pages.mjs'
+      - 'scripts/browser/pages-anonymous.mjs'
+      - 'scripts/browser/cdp.mjs'
   workflow_dispatch:
 
 permissions:
@@ -23,3 +25,5 @@ jobs:
           node-version: '22'
       - name: Verify actual deployed Pages HTTPS routes and browser security headers
         run: node scripts/release/check-pages.mjs https://dawney-clinic.pages.dev
+      - name: Verify rendered deployed React and protected anonymous routes in real Chromium
+        run: node scripts/browser/pages-anonymous.mjs https://dawney-clinic.pages.dev
