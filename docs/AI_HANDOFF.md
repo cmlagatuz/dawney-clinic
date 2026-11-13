@@ -1,5 +1,16 @@
 # Dawney Clinic — Shared AI Handoff
 
+## 2026-11-13 20:57 Asia/Riyadh — Phase 4 Product Quality Direction (CURRENT)
+
+**START HERE (token-efficient):** [Concise supervisor brief](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) and [Phase 4 Product & QA Spec](PHASE4_PRODUCT_QA_SPEC.md). Supersedes older "next tasks" below; retrieve historic checkpoints only as needed. These new feature requirements are NOT implemented yet.
+
+- Public site `https://dawney-clinic.pages.dev` is verified at public HTTPS/anonymous Chromium level, with user-provided authenticated screenshots showing baseline owner portal. 27 merged PRs (#2–#28); old Claude Blade PR #1 remains open/unmerged, no new React UI PR detected. Six Supabase migrations, seven RLS app tables, two confirmed owner records, **1 existing pet, 1 appointment, 1 appointment event**, 0 private Storage objects. **Preserve live test records**.
+- **User QA feedback:** current interface is too minimal, old plus-sign instead of Dawney kangaroo/Australia-map logo, only owner Profile/Patients/Appointments, free-text species/breed, missing patient photos/health-card/vaccination-card uploads, missing real clinic staff modules. User expects complete modernization, not an elaborate login prototype. Specific acceptance tests QA-01…QA-12 are in the new spec.
+- **Astra** owns normalized/extensible species–breed model, RLS-enforced relational validation, non-destructive existing pet migration, private attachments metadata and secure upload/read API + offline/real tests; branch `ai/chatgpt/phase4-animal-taxonomy-attachments`. Do not edit Claude's React presentation assets.
+- **Claude** owns original user-supplied logo import/integration, responsive modern React shell/dashboard, species/breed dependent UI and uploads, accessibility and screenshot proof; branch `ai/claude/phase4-react-modern-ui`. Do not alter Supabase migrations/privileged backend. Asset is attached in current supervisor chat, **not yet available inside GitHub**—owner may need to re-upload it to Claude. Merge backend contract first, then Claude integrates; a visuals-only PR can precede independently.
+- **Neither AI** may run clinical/Storage synthetic-write smoke modes, create real staff roles, delete existing pet/appointment, publish PII or claim clinical go-live without explicit owner approval and documented negative tests.
+
+
 ## Verified public Cloudflare Pages deployment — November 13, 2026 (LATEST)
 
 - **Owner-reported Cloudflare Pages deployment succeeded**; public production origin **[https://dawney-clinic.pages.dev](https://dawney-clinic.pages.dev)**. The screenshot shows provider success; the exact Cloudflare deployment ID/active commit and deployment configuration were **not independently retrieved from the Cloudflare dashboard**.
