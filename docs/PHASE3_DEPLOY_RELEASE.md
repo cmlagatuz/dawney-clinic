@@ -38,6 +38,8 @@ Open **Cloudflare Pages project → Deployments → All deployments**, find the 
 - A GitHub Release is a **build archive**, **not** proof of a Cloudflare Pages deployment or clinic go-live. Do not tag a real clinic release until the owner approves the test gates. Archive filenames are checksum-protected; no database backups or secret credentials are included.
 - To prepare a safe build-only rehearsal now: [Actions → Phase 3 static release preparation](https://github.com/cmlagatuz/dawney-clinic/actions/workflows/phase3-release.yml) → **Run workflow** → `master`, optional approved Pages URL if available. Inspect the run and artifact. No tag, release or deployment is created by a manual run.
 
+**Post-Auth acceptance update:** The owner-dispatched baseline A/B Auth contract has passed; this does not itself verify Pages hosting or private clinical documents. The HTTPS probe now covers all ten explicit React entry routes (root, six Auth, three protected pages). Follow [browser, staff, scheduling and recovery acceptance gates](PHASE3_LIVE_BROWSER_ACCEPTANCE.md) after a real Pages origin exists. No clinical records or credentials are needed for this public HTTP probe.
+
 ### Optional live Pages header/deep-link smoke
 
 After owner provides the verified `https://<project>.pages.dev` URL, use:
