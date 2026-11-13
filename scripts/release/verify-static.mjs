@@ -7,13 +7,14 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const forbidden = [
-  /sb_secret_/i,
-  /SUPABASE_SERVICE_ROLE_KEY/i,
-  /DAWNEY_TEST_[AB]_PASSWORD/i,
-  /DAWNEY_TEST_[AB]_EMAIL/i,
-  // Supabase JS includes the public role identifier "service_role" in SDK code;
-  // that literal alone is not a secret. Detect real privileged key formats instead.
-  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i,
+  // The SDK includes bare `sb_secret_` and `service_role` identifiers. They
+  // are NOT credentials; require a realistic nonempty secret-key token suffix.
+  {label:'Supabase private-key token',pattern:/sb_secret_[A-Za-z0-9_-]{16,}/},
+  {label:'Server secret-key variable',pattern:/SUPABASE_SERVICE_ROLE_KEY/i},
+  {label:'Test password variable',pattern:/DAWNEY_TEST_[AB]_PASSWORD/i},
+  {label:'Test email variable',pattern:/DAWNEY_TEST_[AB]_EMAIL/i},
+  {label:'Embedded PEM key',pattern:/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i},
+  {label:'Embedded JWT signing token',pattern:/eyJ[A-Za-z0-9_-]{18,}\\.[A-Za-z0-9_-]{18,}\\.[A-Za-z0-9_-]{12,}/},
 ];
 function filesUnder(dir, base = '') {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
@@ -44,8 +45,9 @@ export function verifyStaticBuild(dir) {
     }
     const bytes=readFileSync(item.filename);
     const data=bytes.toString('utf8');
-    if (forbidden.some(p=>p.test(data))) {
-      throw Error('Possible privileged key material in frontend asset: '+item.name);
+    const match=forbidden.find(entry=>entry.pattern.test(data));
+    if (match) {
+      throw Error('Possible '+match.label+' in frontend asset: '+item.name);
     }
   }
   return { files: assets.length };
