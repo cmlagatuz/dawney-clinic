@@ -191,15 +191,15 @@ do $$begin
  end;
 end $$;
 -- Verify private Storage object access itself is not anonymous, beyond metadata RLS.
-do $begin
+do $$begin
  begin
   perform count(*) from storage.objects;
   raise exception 'Anonymous private Storage rows unexpectedly visible';
  exception when insufficient_privilege then null;
  end;
-end $;
+end $$;
 reset role;
-do $begin
+do $$begin
  if (select count(*) from public.pet_attachments)<>2 then
   raise exception 'Denied writes created stray metadata';
  end if;
