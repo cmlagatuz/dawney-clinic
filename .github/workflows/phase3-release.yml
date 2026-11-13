@@ -1,0 +1,111 @@
+name: Phase 3 static release preparation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/phase3-release.yml'
+      - 'scripts/release/**'
+      - 'web/**'
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      # PRs use an inert public test config; actual release/manual builds use
+      # the publishable API key already configured in repository Actions Secrets.
+      VITE_SUPABASE_URL: ${{ github.event_name == 'pull_request' && 'https://lgimhirgvresvbsdugac.supabase.co' || secrets.DAWNEY_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ github.event_name == 'pull_request' && 'sb_publishable_pull_request_dummy' || secrets.DAWNEY_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Prevent releases from tags outside master or malformed names
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Expected vMAJOR.MINOR.PATCH tag'; exit 1; }
+            git fetch origin master
+            git merge-base --is-ancestor "$GITHUB_SHA" origin/master || {
+              echo 'Release tag must point to an ancestor of master'
+              exit 1
+            }
+          fi
+      - name: Validate public-only build environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VITE_SUPABASE_URL" =~ ^https://[a-z0-9-]+\.supabase\.co/?$ ]] || {
+            echo 'Invalid public Supabase URL'
+            exit 1
+          }
+          [[ "$VITE_SUPABASE_PUBLISHABLE_KEY" == sb_publishable_* ]] || {
+            echo 'Expected only a Supabase publishable key; refuse secret/service_role keys'
+            exit 1
+          }
+      - name: Install pinned dependency graph
+        working-directory: web
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Domain unit and release guard tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd web && npm test && cd ..
+          node --test scripts/release/tests/verify-static.test.mjs
+      - name: Build static React application
+        working-directory: web
+        run: npm run build
+      - name: Check static output and secret-free headers
+        run: node scripts/release/verify-static.mjs web/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dawney-vite-build
+          path: web/dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  github-release:
+    needs: verify
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: dawney-vite-build
+          path: dist/
+      - name: Publish checksum-protected static GitHub release, not a live deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="dawney-clinic-${GITHUB_REF_NAME}-static.tar.gz"
+          tar -czf "$archive" -C dist .
+          sha256sum "$archive" > "$archive.sha256"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo 'A release already exists for this tag. Refusing to overwrite artifacts.'
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" "$archive" "$archive.sha256" \
+            --verify-tag \
+            --title "Dawney Clinic ${GITHUB_REF_NAME} — static build" \
+            --notes "Verified build artifact only. Cloudflare Pages must be connected separately; this is NOT a live clinical release. Keep onboarding disabled until JWT, RLS, Storage, full restore and owner approval pass."
