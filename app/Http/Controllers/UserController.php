@@ -73,7 +73,7 @@ class UserController extends Controller{
     }
 
     public function viewAppoint($id){
-        $appointment = Appointment::findOrFail($id);
+        $appointment = Appointment::where('user_id', auth()->id())->findOrFail($id);
 
         return view('user.appointment.view', compact('appointment'));
     }
