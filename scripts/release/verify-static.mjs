@@ -11,7 +11,8 @@ const forbidden = [
   /SUPABASE_SERVICE_ROLE_KEY/i,
   /DAWNEY_TEST_[AB]_PASSWORD/i,
   /DAWNEY_TEST_[AB]_EMAIL/i,
-  /service_role/i,
+  // Supabase JS includes the public role identifier "service_role" in SDK code;
+  // that literal alone is not a secret. Detect real privileged key formats instead.
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i,
 ];
 function filesUnder(dir, base = '') {
