@@ -6,7 +6,7 @@
 
 **A. Existing baseline Auth contract** (must be run first):
 
-[Actions → Clinic Auth contract](https://github.com/cmlagatuz/dawney-clinic/actions/workflows/clinic-auth.yml), select branch `master`, operation **`test`**. It signs in two existing test users, writes at most their synthetic **owner profiles**, verifies owner-to-owner reads and admin escalation denies, signs out and logs back in. **DO NOT run registration again.** The last observed successful dispatch was `register-a`, not a successful real `test` run. An earlier credential mismatch was fixed through owner-private secrets; the latest real result must be inspected before claiming completion.
+[Actions → Clinic Auth contract](https://github.com/cmlagatuz/dawney-clinic/actions/workflows/clinic-auth.yml), select branch `master`, operation **`test`**. It signs in two existing test users, writes at most their synthetic **owner profiles**, verifies owner-to-owner reads and admin escalation denies, signs out and logs back in. **DO NOT run registration again.** **Verified live PASS:** `operation=test` on `master` succeeded in [run 43438147911](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438147911) and [run 43438358753](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438358753), 1/1 authenticated HTTPS test each. This created two persisted synthetic owner profiles. **Do not repeat registration or baseline test unnecessarily.** Next run the separate `read-only` security smoke; no synthetic clinical/Storage writes are authorized.
 
 **B. Additional manual Security Smoke workflow**:
 

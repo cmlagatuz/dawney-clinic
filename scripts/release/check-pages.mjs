@@ -15,7 +15,8 @@ export function validatePagesOrigin(value) {
 }
 export async function checkPages(origin, fetchImpl=fetch) {
   const base=validatePagesOrigin(origin);
-  const paths=['/','/auth/signin','/auth/callback','/auth/recovery','/app/profile','/app/pets'];
+  const paths=['/','/auth/signin','/auth/signup','/auth/verify','/auth/forgot',
+    '/auth/callback','/auth/recovery','/app/profile','/app/pets','/app/appointments'];
   for(const path of paths) {
     const res=await fetchImpl(base+path,{redirect:'error',headers:{Accept:'text/html'}});
     if(res.status!==200) throw Error('Unexpected HTTP status on app route '+path);

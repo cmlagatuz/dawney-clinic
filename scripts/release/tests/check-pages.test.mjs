@@ -26,8 +26,13 @@ test('Pages probe verifies security headers and SPA fallback for deep links',asy
    };
  };
  const count=await checkPages('https://dawney-test.pages.dev',fake);
- assert.equal(count,6);
+ assert.equal(count,10);
+ assert.equal(requests.length,10);
  assert.ok(requests.some(v=>v.endsWith('/app/profile')));
+ assert.ok(requests.some(v=>v.endsWith('/app/appointments')));
+ assert.ok(requests.some(v=>v.endsWith('/auth/signup')));
+ assert.ok(requests.some(v=>v.endsWith('/auth/verify')));
+ assert.ok(requests.some(v=>v.endsWith('/auth/forgot')));
  assert.ok(requests.some(v=>v.endsWith('/auth/recovery')));
 });
 test('Pages probe fails on deep-link 404 or missing CSP',async()=>{
@@ -36,6 +41,11 @@ test('Pages probe fails on deep-link 404 or missing CSP',async()=>{
    async text(){return '<div id="root"></div><script src="/assets/main.js"></script>';}
  });
  await assert.rejects(checkPages('https://dawney-test.pages.dev',fake),/app route/);
+ const missingAppointments=async url=>({status:url.endsWith('/app/appointments')?404:200,
+   headers:new Map([['content-type','text/html'],['x-content-type-options','nosniff'],['content-security-policy',"default-src 'self'"]]),
+   async text(){return '<div id="root"></div><script src="/assets/main.js"></script>';}
+ });
+ await assert.rejects(checkPages('https://dawney-test.pages.dev',missingAppointments),/app\/appointments/);
  const missingCsp=async()=>({status:200,
    headers:new Map([['content-type','text/html'],['x-content-type-options','nosniff']]),
    async text(){return '<div id="root"></div><script src="/assets/main.js"></script>';}
