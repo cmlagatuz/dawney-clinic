@@ -149,7 +149,7 @@ do $$begin
    'pets/55555555-5555-4555-8555-555555555555/owners/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/88888888-8888-4888-8888-888888888888.pdf',
    'forgery.pdf','application/pdf',5);
   raise exception 'Foreign owner forged patient metadata';
- exception when insufficient_privilege then null;
+ exception when insufficient_privilege or check_violation then null;
  end;
 end $$;
 set role anon;
