@@ -3,7 +3,7 @@
 # GitHub Actions only; never contacts the actual Supabase project.
 set -Eeuo pipefail
 umask 077
-[[ "\${GITHUB_ACTIONS:-}" == "true" ]] || {
+[[ "${GITHUB_ACTIONS:-}" == "true" ]] || {
   echo "Refusing to run outside the disposable GitHub Actions environment" >&2
   exit 1
 }
@@ -11,7 +11,7 @@ for executable in docker gpg sha256sum mktemp stat bash; do
   command -v "$executable" >/dev/null 2>&1 || { echo "Missing $executable"; exit 1; }
 done
 
-work=$(mktemp -d "\${RUNNER_TEMP:-/tmp}/dawney-restore-drill.XXXXXXXX")
+work=$(mktemp -d "${RUNNER_TEMP:-/tmp}/dawney-restore-drill.XXXXXXXX")
 trap 'rm -rf -- "$work"' EXIT
 export DAWNEY_CI_WORK="$work" TMPDIR="$work"
 export GNUPGHOME="$work/gnupg"
@@ -63,10 +63,10 @@ export DAWNEY_BACKUP_DIR="$work/backups"
 bash scripts/recovery/backup-clinic.sh >/dev/null
 shopt -s nullglob
 archives=("$work"/backups/*.pgdump.gpg)
-[[ "\${#archives[@]}" -eq 1 ]] || {
+[[ "${#archives[@]}" -eq 1 ]] || {
   echo "Expected exactly one encrypted synthetic archive" >&2; exit 1;
 }
-archive="\${archives[0]}"
+archive="${archives[0]}"
 bash scripts/recovery/verify-archive.sh "$archive" >/dev/null
 
 # Tampered ciphertext must fail checksum before decryption.
