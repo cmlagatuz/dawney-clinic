@@ -23,7 +23,7 @@ Updated: 2026-11-13 (Phase 1). Shared source of truth: GitHub master + active PR
 - Next ChatGPT task: verified MySQL export strategy, versioned Postgres model and RLS deny tests, booking concurrency and zero-paid notification design; stay on a NEW ChatGPT branch.
 
 **Claude Sonnet Free — RESERVED, READY TO START**
-- Sole scope: UI/UX audit and design parity. Branch ai/claude/phase1-ui-inventory from up-to-date master.
+- Sole scope: UI/UX audit and design parity. Branch ai/claude/phase1-ui-inventory **already created** from master after Phase 1 merger; Claude should use this reserved branch.
 - New output only: docs/UI_PARITY_AND_DESIGN.md. Review Blade resources/views, resources/js and resources/sass for screen inventory, accessible form patterns, responsive desktop/mobile, dark/light visual design and React component inventory.
 - Do not edit Laravel controllers/routes, DB, migrations, docs/PHASE1_LEGACY_AUDIT.md or ChatGPT's CI and tests. Open separate PR and request review before merge. Keep concise and economical with token use.
 - Before editing this shared handoff, reread current master; avoid conflict and append only verified status. No autonomous running has been initiated here: the owner must pass this scoped task to Claude.
