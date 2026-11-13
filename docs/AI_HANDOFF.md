@@ -1,5 +1,13 @@
 # Dawney Clinic — Shared AI Handoff
 
+## Astra resumed checkpoint — 2026-11-13 17:00+ Asia/Riyadh (NEWEST)
+
+- **LIVE Auth contract PASS**: owner-dispatched `operation=test` on `master` succeeded twice: [run 43438147911](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438147911) and [run 43438358753](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438358753). Both authenticated-HTTP jobs logged **1/1 test pass**. Real HTTPS A/B confirmed JWT sessions, idempotently persisted two owner profiles, cross-account owner SELECT deny, direct administrator self-grant deny, logout/re-login persistence. **Do not register or rerun baseline unless diagnosing a regression.**
+- **Fresh connected Supabase SELECT**: ACTIVE_HEALTHY PostgreSQL 17; six applied migrations; 7 public RLS tables, 2 confirmed users, **2 owners**, 0 pets/appointments/staff, 1 active appointment resource, private 5 MiB `clinical-attachments` bucket with **0 objects**. Owner profiles changed from 0 to 2 because the approved baseline Auth test writes them.
+- **Next owner action**: [Phase 3 authenticated security smoke](https://github.com/cmlagatuz/dawney-clinic/actions/workflows/phase3-security-smoke.yml) → branch `master`, `operation=read-only`, `allow_synthetic_writes=false`; capture its run ID and result. **Neither clinical nor Storage synthetic-write mode is authorized.** No Pages URL/browser validation or full Supabase Auth+Storage restore is verified.
+- **Independent ChatGPT branch**: `ai/chatgpt/phase3-auth-baseline-browser-gates`, extends non-auth Pages deep-link probe to all explicit React paths and tests, and adds [owner-controlled browser, staff, scheduling and recovery acceptance](PHASE3_LIVE_BROWSER_ACCEPTANCE.md). No changes to Claude React presentation files, Supabase migrations, credentials or clinical rows. PR/CI/merge results must be appended after verification.
+
+
 
 ## Supervisor recovery checkpoint — 2026-11-13 16:43 Asia/Riyadh (CURRENT)
 
