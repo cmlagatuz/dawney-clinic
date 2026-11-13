@@ -20,3 +20,8 @@ export function safeAuthReturnPath(value) {
 export function isVerifiedUser(user) {
   return Boolean(user && user.id && user.email_confirmed_at && user.is_anonymous !== true)
 }
+/** Minimum requested policy: eight characters with at least one letter and digit. */
+export function isValidNewPassword(value) {
+  return typeof value === 'string' && value.length >= 8 && value.length <= 1024
+    && /[A-Za-z]/.test(value) && /[0-9]/.test(value)
+}
