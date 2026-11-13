@@ -1,0 +1,27 @@
+name: Phase 4 staff security (offline)
+
+on:
+  pull_request:
+    paths:
+      - 'packages/clinic-staff/**'
+      - '.github/workflows/phase4-staff-security.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'packages/clinic-staff/**'
+      - '.github/workflows/phase4-staff-security.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deny-and-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify staff privilege preflight denies untrusted intents
+        run: node --test packages/clinic-staff/tests/*.test.mjs
