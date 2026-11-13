@@ -1,0 +1,71 @@
+name: Phase 3 React web
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - '.github/workflows/phase3-web.yml'
+  push:
+    branches:
+      - 'ai/chatgpt/phase3-web-foundation'
+      - 'master'
+    paths:
+      - 'web/**'
+      - '.github/workflows/phase3-web.yml'
+
+jobs:
+  generate-lock-on-owned-branch:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/ai/chatgpt/phase3-web-foundation'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate dependency lock once on isolated bootstrap branch
+        shell: bash
+        run: |
+          if [ ! -f web/package-lock.json ]; then
+            cd web
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+            cd ..
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add web/package-lock.json
+            git commit -m "build(web): lock exact Phase 3 dependency graph"
+            git push origin HEAD:ai/chatgpt/phase3-web-foundation
+          else
+            echo "Versioned lockfile already exists; no changes"
+          fi
+
+  build-and-test:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Reproducible dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Domain unit tests
+        run: npm test
+      - name: Typecheck and production Vite build
+        run: npm run build
+      - name: Assert no backend credentials shipped
+        shell: bash
+        run: |
+          if grep -RE '(service_role|sb_secret_|SUPABASE_SERVICE_ROLE_KEY)' dist; then
+            echo "A privileged credential marker is present in frontend bundle"
+            exit 1
+          fi
+          test -s dist/index.html

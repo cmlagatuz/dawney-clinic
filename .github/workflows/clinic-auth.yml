@@ -1,0 +1,77 @@
+name: Clinic Auth contract
+
+on:
+  pull_request:
+    paths:
+      - 'packages/clinic-auth/**'
+      - '.github/workflows/clinic-auth.yml'
+      - 'supabase/**'
+  push:
+    branches: [master]
+    paths:
+      - 'packages/clinic-auth/**'
+      - '.github/workflows/clinic-auth.yml'
+      - 'supabase/**'
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        description: 'Register ONLY the missing test account, confirm its email, then run the real HTTP test'
+        required: true
+        default: test
+        options:
+          - test
+          - register-a
+          - register-b
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test offline contract and mock RLS
+        run: node --test packages/clinic-auth/tests/unit.test.mjs packages/clinic-auth/tests/registration.test.mjs
+
+  authenticated-http:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate configuration without disclosing values
+        env:
+          SUPABASE_URL: ${{ secrets.DAWNEY_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DAWNEY_SUPABASE_PUBLISHABLE_KEY }}
+          DAWNEY_TEST_A_EMAIL: ${{ secrets.DAWNEY_TEST_A_EMAIL }}
+          DAWNEY_TEST_A_PASSWORD: ${{ secrets.DAWNEY_TEST_A_PASSWORD }}
+          DAWNEY_TEST_B_EMAIL: ${{ secrets.DAWNEY_TEST_B_EMAIL }}
+          DAWNEY_TEST_B_PASSWORD: ${{ secrets.DAWNEY_TEST_B_PASSWORD }}
+        run: |
+          for key in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY; do
+            if [ -z "${!key}" ]; then echo "Missing GitHub Actions secret: $key"; exit 1; fi
+          done
+          case "${{ inputs.operation }}" in
+            register-a)
+              DAWNEY_REGISTER_TARGET=A node packages/clinic-auth/tests/register-live.mjs
+              ;;
+            register-b)
+              DAWNEY_REGISTER_TARGET=B node packages/clinic-auth/tests/register-live.mjs
+              ;;
+            test)
+              for key in DAWNEY_TEST_A_EMAIL DAWNEY_TEST_A_PASSWORD DAWNEY_TEST_B_EMAIL DAWNEY_TEST_B_PASSWORD; do
+                if [ -z "${!key}" ]; then echo "Missing GitHub Actions secret: $key"; exit 1; fi
+              done
+              node --test packages/clinic-auth/tests/live.test.mjs
+              ;;
+            *)
+              echo "Unsupported operation"; exit 1
+              ;;
+          esac
