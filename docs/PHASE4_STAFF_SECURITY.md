@@ -1,0 +1,24 @@
+# Phase 4 staff authorization: privileged service acceptance contract
+
+**Current state:** Supabase staff ledger / triggers / trusted helpers exist. **No real staff memberships have been created; no admin onboarding or browser endpoint is approved.** The offline `packages/clinic-staff/src/intent.mjs` is a *server-only policy preflight prototype*, not an activated security boundary.
+
+## Existing verified database layer (do not repeat migrations)
+
+- `clinic_private.bootstrap_first_administrator(verified_user_id)` and `clinic_private.grant_verified_staff(verified_user_id, role, authorizing_admin_id)` require trusted SQL operation; do not expose them through PostgREST or the browser.
+- `clinic_private.staff_role_events` is private RLS-enabled audit; member-change trigger tracks role/activity, prior/new values, DB role and time. Triggered while a trusted operator modifies staff, not on test accounts.
+- A transaction advisory lock and trigger check prevent demotion/revocation/deletion of the last active administrator. Unverified/banned/deleted/anonymous users cannot become active staff. Existing test fixtures were rollback-only.
+- Limitations: `assigned_by` may be stale; database `auth.uid()` may be null for SQL Editor actions. Ledger may not prove the human requester or approving reviewer, and an elevated operator can bypass triggers. No real MFA step-up or two-person approval has been integrated.
+
+## Future backend workflow (NOT implemented)
+
+1. **Identity and invitation:** clinic owner nominates known human; operator verifies clinic employment and email out-of-band. Invite via Supabase Auth under approved URL/SMTP/email-confirmation settings. Do not mass-enrol production staff into a preview or use the two disposable Auth test users.
+2. **MFA:** require Supabase-verified AAL2 for both requester and independent reviewer of any administrator promotion, privileged role change, revocation or break-glass recovery. Reverify fresh Auth identity via server and require session expiry / step-up as appropriate; never trust `user_metadata`, client body flags like `aal2`, or a frontend `isAdmin` boolean.
+3. **Intent review:** a future trusted backend may reuse `reviewStaffIntent(input,serverVerifiedContext)` after it **independently** loads actors, target verified state, role, active-admin count and AAL2 evidence from trusted Auth and database. It rejects missing audit reason/ticket, self changes, banned/unverified identities, unreviewed privileged actions and simulated last-admin removal. Its return value is **not authorization** to execute SQL.
+4. **Atomic transaction:** new server-only authenticated endpoint/service must issue a single reviewed request with actor/reviewer IDs, reason and ticket ID, verify reviewer independence, acquire the same DB advisory transaction lock, re-query current roles and identity freshness **inside the transaction**, then call narrowly authorized private functions and persist a separate human-approval audit. Existing `staff_role_events` is an additional technical ledger. Never make a `SECURITY DEFINER` or service-role endpoint publicly callable to bypass RLS.
+5. **Revocation:** on staff exit, lock staff access in database immediately, verify RLS denies new private medical operations with old and refreshed JWTs, separately revoke GoTrue sessions or apply Auth ban if required; note **existing JWTs can remain cryptographically valid** until expiry and must never be the sole authority for clinical access. Review shared device sessions, Storage grants, invitations and emergency accounts.
+6. **Break-glass:** two distinct verified trusted operators on owner-controlled media, encrypted recovery records, emergency reason/ticket, short expiry, minimum access and an independent audit/reconciliation afterward. Avoid any single secret superuser embedded in a Vite bundle or GitHub Actions. If there are zero active administrators, **only the owner-controlled trusted SQL bootstrap** can establish the first one; this offline intent validator intentionally does not bootstrap.
+7. **Tests before Phase 4 go-live:** two-staff positive and denial matrices, unverified/banned/anonymous targets, self-promotion, last-admin attempt, concurrent role-change transactions, on/off-boarding, AAL1/expired token, independent reviewer, cross-owner clinical access, Storage denies, post-revocation stale JWT behavior, audit reason attribution, and real browser sign-out.
+
+## Test scope
+
+`node --test packages/clinic-staff/tests/*.test.mjs` and its CI workflow execute only offline simulated contexts. **They do not invite staff, deploy APIs, issue JWTs, mutate Supabase or prove real MFA.** Treat this module as a testable decision contract for an eventual server-side implementation, not as completed staff security. No clinic go-live until verified privileged service, operator MFA, audit and recovery.
