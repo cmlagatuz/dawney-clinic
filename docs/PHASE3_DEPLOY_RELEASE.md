@@ -24,6 +24,18 @@ As Cloudflare does not have a connected management action in this session, owner
 8. Open the deployed root and **directly refresh** `/auth/signin`, `/app/profile`, `/app/pets`, `/app/appointments`; inspect network/CSP headers, installability and mobile viewport. The app is a client-side SPA, so fallback deep links must deliver `index.html`. A non-authenticated HTTP probe is available in this repo (see below).
 9. Do **not** invite real owners or accept patient documents until real A/B JWT security, end-to-end clinical persistence, private Storage deny testing, complete data/identity/Storage backup, measured isolated restore and owner privacy sign-off have passed.
 
+### Read-only static fingerprint acceptance before/after Pages rollback
+
+**Do not perform rollback unless the owner authorizes it.** For an already **successful production deployment**, record its exact Cloudflare deployment ID, commit SHA and origin in a private operator log, then run:
+```bash
+node scripts/release/pages-fingerprint.mjs capture https://<actual-project>.pages.dev
+```
+The command checks all 10 SPA routes/security headers and prints the SHA-256 of the served index HTML. Keep the fingerprint associated with that exact deployment (the source Git commit alone does not prove what Pages actually served). After a later unsuccessful release, the owner may use the Pages dashboard to roll back to that **previous successful production deployment**, never a preview deployment. Then run:
+```bash
+node scripts/release/pages-fingerprint.mjs verify https://<actual-project>.pages.dev <previously-captured-64-hex-sha256>
+```
+A match validates the returned static index and expected headers/routes **only**. It does not verify full static asset bytes, backend/schema reversions, patient history, logged-in browser functionality or that the selected deployment ID is truly the one requested. The operator must additionally inspect the dashboard's active deployment ID and execute the approved post-rollback browser checks. A changed Cloudflare HTML transform may cause a conservative false-negative and should be investigated, never bypassed without evidence.
+
 ### Rollback
 
 Open **Cloudflare Pages project → Deployments → All deployments**, find the previous **successful production** deployment, three-dot menu → **Rollback to this deployment**. The rollback changes **static frontend content only**; it does not undo Supabase migrations, Auth users, clinical rows or Storage. Never run destructive DB restoration in the active project. Keep a separate migration and recovery decision record.

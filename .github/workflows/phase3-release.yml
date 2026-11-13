@@ -70,7 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           cd web && npm test && cd ..
-          node --test scripts/release/tests/verify-static.test.mjs scripts/release/tests/check-pages.test.mjs
+          node --test scripts/release/tests/*.test.mjs
       - name: Build static React application
         working-directory: web
         run: npm run build
