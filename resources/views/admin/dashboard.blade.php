@@ -4,10 +4,17 @@
 
 @section('content')
 @php
-    // View-only summary of the data the controller already supplies (upcoming appointments grouped by day).
-    $upcomingTotal = $appointments->sum(function ($day) { return count($day); });
-    $todayRemaining = $appointments->sum(function ($day) {
-        return $day->filter(function ($a) { return $a->appointment_start->isToday(); })->count();
+    // View-only summary of the grouped appointments the controller supplies.
+    // The rule is stated here rather than inherited from the controller's query: an appointment only counts as
+    // "upcoming" / "still to come" if it has not started yet, so the tiles stay truthful even if that query changes.
+    $notStarted = function ($a) { return $a->appointment_start->isFuture(); };
+    $upcomingTotal = $appointments->sum(function ($day) use ($notStarted) {
+        return $day->filter($notStarted)->count();
+    });
+    $todayRemaining = $appointments->sum(function ($day) use ($notStarted) {
+        return $day->filter(function ($a) use ($notStarted) {
+            return $a->appointment_start->isToday() && $notStarted($a);
+        })->count();
     });
 @endphp
 

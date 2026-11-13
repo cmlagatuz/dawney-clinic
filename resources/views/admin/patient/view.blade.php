@@ -16,7 +16,7 @@
 @include('components.flash')
 
 <div class="card mb-4">
-    <div class="card-header">Patient Info</div>
+    <h2 class="card-header h6 mb-0">Patient Info</h2>
     <dl class="facts">
         <div><dt>ID</dt><dd>{{ $patient->id }}</dd></div>
         <div><dt>Name</dt><dd>{{ $patient->name }}</dd></div>
@@ -30,7 +30,7 @@
 </div>
 
 <div class="card mb-4">
-    <div class="card-header">Patient History</div>
+    <h2 class="card-header h6 mb-0">Patient History</h2>
     <div class="card-body p-0">
         <table class="table table-clinic table-hover table-stack mb-0">
             <caption class="visually-hidden">Medical records for {{ $patient->name }}</caption>
@@ -76,7 +76,7 @@
 </div>
 
 <div class="card mb-4">
-    <div class="card-header">Patient Appointments</div>
+    <h2 class="card-header h6 mb-0">Patient Appointments</h2>
     <div class="card-body p-0">
         <table class="table table-clinic table-stack mb-0">
             <caption class="visually-hidden">Appointments for {{ $patient->name }}</caption>

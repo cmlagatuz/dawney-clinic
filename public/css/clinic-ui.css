@@ -82,6 +82,20 @@ hr { border-top-color: var(--c-border); }
   border-radius: 4px;
 }
 
+/* Bootstrap 4 sets `.btn:focus { outline: 0 }` and `.form-control:focus { outline: 0 }` with higher specificity than
+   the bare :focus-visible rule above, which left buttons and inputs on its legacy blue glow. Re-assert one consistent,
+   tokenized keyboard ring on them, and drop the glow so there is a single indicator. */
+.btn:focus-visible,
+.btn-primary:focus-visible, .btn-secondary:focus-visible, .btn-success:focus-visible, .btn-outline-primary:focus-visible,
+.form-control:focus-visible, .custom-select:focus-visible,
+.nav-link:focus-visible, .dropdown-item:focus-visible, .page-link:focus-visible {
+  outline: 3px solid var(--c-focus);
+  outline-offset: 2px;
+}
+.btn:focus, .btn.focus,
+.btn-primary:focus, .btn-secondary:focus, .btn-success:focus, .btn-outline-primary:focus,
+.page-link:focus { box-shadow: none; }
+
 .skip-link {
   position: absolute;
   left: .75rem;

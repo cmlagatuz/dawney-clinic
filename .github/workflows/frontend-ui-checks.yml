@@ -1,0 +1,58 @@
+name: Frontend UI checks
+
+# Owner: Claude (frontend). Separate from legacy-static-audit.yml, which is lead-owned and untouched.
+# Free GitHub-hosted runners only. Covers the Blade/CSS/JS layer, not authorization or business rules.
+
+on:
+  pull_request:
+    paths:
+      - 'resources/views/**'
+      - 'public/css/**'
+      - 'public/js/**'
+      - 'tests/Feature/AdminViewsRenderTest.php'
+      - 'tests/frontend/**'
+      - '.github/workflows/frontend-ui-checks.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'resources/views/**'
+      - 'public/css/**'
+      - 'public/js/**'
+  workflow_dispatch:
+
+jobs:
+  contrast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: WCAG contrast gate for light and dark theme tokens
+        run: python3 tests/frontend/contrast_check.py
+
+  blade-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          extensions: mbstring, pdo_sqlite, tokenizer, xml, ctype
+          coverage: none
+      - name: Use legacy Composer 1 for the existing locked plugin
+        run: composer self-update --1
+      - name: Install locked PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Prepare isolated test configuration
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions
+      - name: Compile every Blade view (catches syntax and directive errors)
+        run: php artisan view:cache
+      - name: Render admin pages against in-memory SQLite (empty, populated, paginated)
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+          MAIL_DRIVER: array
+          CACHE_DRIVER: array
+          SESSION_DRIVER: array
+        run: vendor/bin/phpunit --filter AdminViewsRenderTest
