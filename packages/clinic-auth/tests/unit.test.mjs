@@ -9,7 +9,7 @@ const EMAIL_B = "b@example.invalid";
 const PASSWORD = "unique-test-password-12";
 const apiUrl = "https://unit-test.supabase.invalid";
 
-function fixture({ confirmed = true, failLogout = false } = {}) {
+function fixture({ confirmed = true, failLogout = false, signupRateLimited = false } = {}) {
   const users = new Map([
     [EMAIL_A, { id: ID_A, email: EMAIL_A, email_confirmed_at: confirmed ? "2026-01-01T00:00:00Z" : null,
       user_metadata: { first_name: "Owner", last_name: "Alpha" }, is_anonymous: false }],
@@ -33,6 +33,7 @@ function fixture({ confirmed = true, failLogout = false } = {}) {
     const body = options.body === undefined ? null : JSON.parse(options.body);
     calls.push({ path: url.pathname, method: options.method, body, headers, query: url.search });
     assert.equal(headers.apikey, "public-test-key");
+    if (url.pathname === "/auth/v1/signup" && signupRateLimited) return resp(429, { code: "over_email_send_rate_limit" });
     if (url.pathname === "/auth/v1/signup") return resp(200, {
       user: { id: users.get(body.email)?.id ?? ID_A, email: body.email },
       session: null
@@ -159,4 +160,34 @@ test("malformed inputs are rejected without submitting HTTP requests", async () 
   await assert.rejects(auth.verifyEmailCode({ email: EMAIL_A, token: "000" }),
     (e) => e.code === "invalid_otp");
   assert.equal(env.calls.length, 0);
+});
+
+test("eight-character alphanumeric signup accepted and too-short or single-class rejected locally", async () => {
+  const env = fixture();
+  const auth = env.create();
+  const ok = await auth.signUp({
+    email: EMAIL_A, password: "alpha123", firstName: "Owner", lastName: "Alpha"
+  });
+  assert.equal(ok.status, "verification_required");
+  for (const password of ["abc1234", "abcdefgh", "12345678", "", "x".repeat(1025)]) {
+    await assert.rejects(auth.signUp({ email: EMAIL_A, password, firstName: "Owner", lastName: "Alpha" }),
+      (e) => e.code === "invalid_password");
+  }
+  assert.equal(env.calls.filter(x => x.path === "/auth/v1/signup").length, 1);
+});
+
+test("HTTP 429 signup reports rate limit and does not retry", async () => {
+  const env = fixture({ signupRateLimited: true });
+  await assert.rejects(env.create().signUp({
+    email: EMAIL_A, password: "alpha123", firstName: "Owner", lastName: "Alpha"
+  }), (e) => e.status === 429 && e.code === "rate_limited");
+  assert.equal(env.calls.filter(x => x.path === "/auth/v1/signup").length, 1);
+});
+
+test("sign-in does not block existing older passwords based on new signup strength", async () => {
+  const env = fixture();
+  const auth = env.create();
+  await assert.rejects(auth.signIn({ email: EMAIL_A, password: "oldpwd" }),
+    (e) => e.code === "invalid_credentials");
+  assert.equal(env.calls.filter(x => x.path === "/auth/v1/token").length, 1);
 });
