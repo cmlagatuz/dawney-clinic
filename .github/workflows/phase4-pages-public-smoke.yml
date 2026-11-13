@@ -1,0 +1,25 @@
+name: Cloudflare Pages public read-only verification
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/phase4-pages-public-smoke.yml'
+      - 'scripts/release/check-pages.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pages-public-https:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify actual deployed Pages HTTPS routes and browser security headers
+        run: node scripts/release/check-pages.mjs https://dawney-clinic.pages.dev
