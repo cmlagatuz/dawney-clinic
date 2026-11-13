@@ -1,5 +1,8 @@
 # Dawney Clinic — Current Supervisor Execution Plan
 
+**New Phase 4 checkpoint:** PRs #19–#25 merged with passing scoped CI; see [top of AI handoff](AI_HANDOFF.md). Live two-account Auth and owner read-only security smoke #43443472697 are complete. No further registration/test dispatch required. Next owner action is Cloudflare Pages Free setup and actual URL, followed by approved hosted read-only browser testing, clinic scheduling parameters and full isolated recovery rehearsal. Existing clinical/Storage synthetic-write modes are **NOT authorized**. All older instructions below to run baseline Auth or the read-only smoke are superseded. There is no verified Pages deployment or live clinic go-live.
+
+
 ## Latest verified supervisor checkpoint — 2026-11-13 (after live read-only smoke)
 
 - `master` @ `97b925f104` before this documentation update; **PRs #2–#18 merged**, Claude old Blade PR #1 remains open/unmerged; no new React UX PR yet. No verified Cloudflare Pages live deployment or GitHub Release.
