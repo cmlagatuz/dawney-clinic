@@ -1,10 +1,10 @@
 -- Phase 2 RLS + exclusion-constraint regression. ALL fixtures rollback.
 -- Run with a trusted SQL editor/connector only; never use production patient records.
 begin;
-insert into auth.users(id,aud,role,email) values
-('11111111-1111-4111-8111-111111111111','authenticated','authenticated','phase2-a@example.invalid'),
-('22222222-2222-4222-8222-222222222222','authenticated','authenticated','phase2-b@example.invalid'),
-('33333333-3333-4333-8333-333333333333','authenticated','authenticated','phase2-vet@example.invalid');
+insert into auth.users(id,aud,role,email,email_confirmed_at) values
+('11111111-1111-4111-8111-111111111111','authenticated','authenticated','phase2-a@example.invalid',now()),
+('22222222-2222-4222-8222-222222222222','authenticated','authenticated','phase2-b@example.invalid',now()),
+('33333333-3333-4333-8333-333333333333','authenticated','authenticated','phase2-vet@example.invalid',now());
 insert into public.owners(id,user_id,first_name,last_name) values
 ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111','Fixture','A'),
 ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','22222222-2222-4222-8222-222222222222','Fixture','B');
