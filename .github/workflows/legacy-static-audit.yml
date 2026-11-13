@@ -1,0 +1,44 @@
+name: Legacy PHP checks
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  php-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP version
+        run: php --version
+      - name: Lint PHP source, migrations, routes and tests
+        run: |
+          find app database routes tests -type f -name '*.php' -print0 | xargs -0 -n 1 php -l
+
+  legacy-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          extensions: mbstring, pdo_sqlite, tokenizer, xml, ctype
+          coverage: none
+      - name: Use legacy Composer 1 for existing locked plugin
+        run: composer self-update --1
+      - name: Install locked PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Prepare isolated test configuration
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      - name: Test patient/appointment isolation against in-memory SQLite
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+          MAIL_DRIVER: array
+          CACHE_DRIVER: array
+          SESSION_DRIVER: array
+        run: vendor/bin/phpunit --filter AccountIsolationTest
