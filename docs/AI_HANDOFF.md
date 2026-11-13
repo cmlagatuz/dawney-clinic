@@ -1,5 +1,17 @@
 # Dawney Clinic — Shared AI Handoff
 
+## Supervisor current checkpoint — 2026-11-13 15:28 Asia/Riyadh (LATEST)
+**Use [docs/PHASE3_SUPERVISOR_PLAN.md](PHASE3_SUPERVISOR_PLAN.md) as authoritative current task list; historical handoff entries below are superseded where conflicting.**
+
+- Merged PR #2–#11; modern React `web/` + clinical UI, security/recovery code and six Supabase migrations applied. No Cloudflare Pages deployment verified. Source build/tests do not imply production readiness.
+- [Auth registration run 43425109459](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43425109459) succeeded in **register-a** mode and says `verification_required`. Read-only Auth count: **2 users, 1 confirmed**. **Do not register either account again**. Owner must confirm A from mailbox then execute `operation=test` on `master`; no verified live A/B HTTP RLS/persistence test pass yet.
+- Private clinical Storage bucket `clinical-attachments` **absent**, despite applied policy migration; owner must create private 5MB PDF/PNG/JPEG bucket, then run real Storage API deny tests.
+- Claude [PR #1](https://github.com/cmlagatuz/dawney-clinic/pull/1) is OPEN, **not draft**, passing branch CI, UNMERGED; old Laravel Blade UI, not the modern React release target. Do not merge now. Claude returns to a **new React-only UX branch**; Astra owns backend/integration/deployment and avoids Claude's presentation files.
+- Latest `master` contains unusual unrelated-history merge `65032983`; check before branch merges, no force push.
+- Supabase advisor: INFO notices for isolated private tables, WARN leaked-password protection disabled (free-plan constraint; no paid upgrade).
+- **Assignments:** Claude: React accessible, responsive visual polish on own branch; Astra: confirm live HTTP test after owner run, private bucket checks, recovery/clinic policies, free Cloudflare release readiness. Separate code scopes and PRs.
+
+
 Updated: 2026-11-13 (supervisor checkpoint; Phase 2 Auth code merged, real HTTP test pending; Phase 3 planned). Shared source of truth: GitHub master + active PRs. Read AGENTS.md and CLAUDE.md first. No deployment is verified.
 
 ## Confirmed baseline
