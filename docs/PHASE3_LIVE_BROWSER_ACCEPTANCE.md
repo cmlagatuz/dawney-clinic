@@ -3,6 +3,8 @@
 **Checkpoint:** 2026-11-13 (Asia/Riyadh). **Preview/testing only; never enter real clinic records.**
 This is an executable acceptance checklist, **not evidence that a browser, hosted application or real clinical Storage recovery has passed**. See [supervisor plan](PHASE3_SUPERVISOR_PLAN.md), [HTTP smoke](PHASE3_HTTP_STORAGE_SMOKE.md), and [Pages release](PHASE3_DEPLOY_RELEASE.md).
 
+**Latest gate update (2026-11-13):** Additional read-only Auth/security smoke [#43443472697](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43443472697) **PASSED**, no clinical writes. Local Chromium anonymous route/mobile checks [#43448470107](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43448470107) **PASSED**; hosted browser still pending. Earlier owner-dispatch instructions for read-only testing below are historical, **do not repeat**. See [Phase 4 browser script](PHASE4_BROWSER_TESTS.md).
+
 ## Evidence already verified
 
 - [Clinic Auth contract #43438147911](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438147911) and [#43438358753](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438358753): `master`, `operation=test`, both successful. Each authenticated HTTP job logged 1/1 passing real HTTPS test, with distinct confirmed disposable A/B identities, two persisted owner profiles, owner SELECT isolation, denied direct staff self-escalation, logout and re-login persistence. This workflow **does create owner profiles**; it did not create pets or appointments.
@@ -70,7 +72,7 @@ Rehearse **isolated** restoration in dependency order (Auth identities → schem
 | Gate | Current status |
 | --- | --- |
 | Real A/B Auth + owner HTTP RLS and persisted owner profile | **PASSED** (two owner-dispatched actions) |
-| Additional read-only Auth/security smoke | **PENDING OWNER DISPATCH** |
+| Additional read-only Auth/security smoke | **PASSED** — run #43443472697 |
 | Cloudflare preview and real Chromium browser | **PENDING** |
 | Pet/appointment real JWT writes/denials | **PENDING OWNER APPROVAL** |
 | Private Storage authenticated A/B and anonymous deny tests | **PENDING OWNER APPROVAL** |
