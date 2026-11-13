@@ -20,6 +20,13 @@ class AppointmentController extends Controller{
     }
 
     public function store(Request $request){
+        $user = $request->user();
+        $owner = $user->owner;
+
+        if (!$owner) {
+            abort(403);
+        }
+
         // $request->validate([
         //     'pet_id' => 'required_without:name,gender,color,breed,species,date_birth',
         //     'name' => ['required_without:pet_id'],
@@ -33,7 +40,7 @@ class AppointmentController extends Controller{
         // ]);
 
         $validator = Validator::make($request->all(), [
-            'pet_id' => 'required_without:name,gender,color,breed,species,date_birth',
+            'pet_id' => ['required_without:name,gender,color,breed,species,date_birth', 'nullable', 'integer', Rule::exists('pets', 'id')->where('owner_id', $owner->id)],
             'name' => ['required_without:pet_id'],
             'gender' => 'required_without:pet_id',
             'color' => 'required_without:pet_id',
@@ -41,12 +48,12 @@ class AppointmentController extends Controller{
             'species' => 'required_without:pet_id',
             'date_birth' => ['required_without:pet_id', 'nullable', 'date'],
             'appointment_time' => 'required|date',
-            'concern' => 'required',
+            'concern' => ['required', Rule::in([1, 2, 3, 4, 5, 10])],
             'concern_others' => Rule::requiredIf(function () use ($request) {
                 return $request->concern == 10;
             }),
             'message' => 'nullable',
-            'hour' => 'required'
+            'hour' => 'required|integer|between:0,15'
         ]);
 
         if ($validator->fails()) {
@@ -121,10 +128,8 @@ class AppointmentController extends Controller{
         //     ]);
         // }
 
-        $user = $request->user();
-
         if($request->pet_id){
-            $pet = Pet::find($request->pet_id);
+            $pet = Pet::where('owner_id', $owner->id)->findOrFail($request->pet_id);
         }else{
             $pet = Pet::create([
                 'owner_id' => $user->owner->id,
