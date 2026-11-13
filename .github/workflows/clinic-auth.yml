@@ -55,7 +55,7 @@ jobs:
           DAWNEY_TEST_B_EMAIL: ${{ secrets.DAWNEY_TEST_B_EMAIL }}
           DAWNEY_TEST_B_PASSWORD: ${{ secrets.DAWNEY_TEST_B_PASSWORD }}
         run: |
-          for key in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY DAWNEY_TEST_A_EMAIL DAWNEY_TEST_A_PASSWORD DAWNEY_TEST_B_EMAIL DAWNEY_TEST_B_PASSWORD; do
+          for key in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY; do
             if [ -z "${!key}" ]; then echo "Missing GitHub Actions secret: $key"; exit 1; fi
           done
           case "${{ inputs.operation }}" in
@@ -66,6 +66,9 @@ jobs:
               DAWNEY_REGISTER_TARGET=B node packages/clinic-auth/tests/register-live.mjs
               ;;
             test)
+              for key in DAWNEY_TEST_A_EMAIL DAWNEY_TEST_A_PASSWORD DAWNEY_TEST_B_EMAIL DAWNEY_TEST_B_PASSWORD; do
+                if [ -z "${!key}" ]; then echo "Missing GitHub Actions secret: $key"; exit 1; fi
+              done
               node --test packages/clinic-auth/tests/live.test.mjs
               ;;
             *)
