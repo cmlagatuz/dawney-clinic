@@ -145,7 +145,7 @@ insert into storage.objects(bucket_id,name,metadata) values
   '{"mimetype":"application/pdf","size":5}'::jsonb);
 set role authenticated;
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',false);
-do $begin
+do $$begin
  begin
   insert into public.breed_catalog(id,species_id,label,kind,source_name)
   values('dog-fake-staff-only','dog','Unreviewed owner addition','recognized','spoof');
@@ -165,7 +165,7 @@ do $begin
   raise exception 'Owner wrote unauthorized clinic-path metadata';
  exception when insufficient_privilege then null;
  end;
-end $;
+end $$;
 
 -- Owner B sees no owner A private metadata and cannot forge storage paths.
 select set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',false);
