@@ -33,8 +33,9 @@ await withChromium(async browser=>{
  for(const [route,heading] of [['/app/pets','My patients'],['/app/appointments','Appointments']]){
   await browser.goto(base+route);
   await browser.until(`document.querySelector('h1')?.textContent === ${JSON.stringify(heading)}`,25000);
-  const good=await browser.value("!document.querySelector('[role=alert].alert-error') && !document.body.innerText.includes('Loading your patients') && !document.body.innerText.includes('Loading appointments')");
-  if(!good)throw Error('Read-only patients/appointments view not ready');
+  await browser.until("!document.body.innerText.includes('Loading your patients') && !document.body.innerText.includes('Loading appointments')",12000);
+  const good=await browser.value("!document.querySelector('[role=alert].alert-error')");
+  if(!good)throw Error('Read-only patients/appointments view returned an error');
  }
  console.log('PASS: existing patient list and appointment list read without data mutation');
  const signedOut=await browser.value("Boolean((()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent?.trim()==='Sign out');if(!b)return false;b.click();return true;})())");
