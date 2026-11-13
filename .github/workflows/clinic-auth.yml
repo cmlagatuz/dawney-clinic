@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: '22'
       - name: Test offline contract and mock RLS
-        run: node --test packages/clinic-auth/tests/unit.test.mjs packages/clinic-auth/tests/registration.test.mjs
+        run: node --test packages/clinic-auth/tests/unit.test.mjs packages/clinic-auth/tests/registration.test.mjs packages/clinic-auth/tests/smoke-guards.test.mjs
 
   authenticated-http:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
