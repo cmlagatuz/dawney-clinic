@@ -2,6 +2,8 @@
 
 **Veterinary clinic management system — modernization in progress**
 
+> **Phase 4 product/QA direction:** The current deployed React UI is a **working pet-owner prototype, not a complete staff-facing veterinary clinic system**. P0 work required: exact owner-supplied Dawney brand logo, searchable species with species-matched locked breed choices (including cattle/livestock), private patient photo/health-card/vaccination-card uploads, and explicit testable UX/privacy acceptance. P1/P2: role-aware staff workspace, encounter workflow, treatment/vaccination/prescription, inventory and billing. See [Phase 4 QA spec](docs/PHASE4_PRODUCT_QA_SPEC.md) and [current concise supervisor brief](docs/PHASE4_CURRENT_SUPERVISOR_BRIEF.md). These features are **requirements, not completed implementations**.
+
 > **Project status (13 November 2026): Phases 1–2 security foundations and Phase 3 React frontend, pet/appointment workflows, staff safeguards, private Storage RLS, and recovery tools are merged. Six Supabase migrations are applied. Real two-account Auth/JWT owner-row RLS and owner-profile persistence **passed**; the separate read-only HTTPS security smoke **passed** (#43443472697). Offline Phase 4 scheduling, staff, recovery-set, Chromium and dependency-security safeguards are merged and CI-tested. Cloudflare Pages public deployment is verified at https://dawney-clinic.pages.dev with 10 HTTPS routes and real anonymous Chromium guards passing; **authenticated hosted-browser persistence**, clinical/Storage synthetic-write security tests, clinical data migration, and full real Auth/Storage restore remain pending.** Not approved for real clinic records.
 
 ## Overview
