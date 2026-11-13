@@ -89,7 +89,12 @@ export function createClinicAuth({ url, publishableKey, fetchImpl = globalThis.f
 
   async function getCurrentUser() {
     if (!session) return null;
-    const user = await request("/auth/v1/user", { authenticated: true });
+    let user;
+    try { user = await request("/auth/v1/user", { authenticated: true }); }
+    catch (error) {
+      if (error instanceof ClinicAuthError && (error.status === 401 || error.status === 403)) session = null;
+      throw error;
+    }
     if (!user?.id || !user.email_confirmed_at || user.is_anonymous === true) {
       throw new ClinicAuthError("A verified email account is required.", "email_unverified", 403);
     }
@@ -107,7 +112,8 @@ export function createClinicAuth({ url, publishableKey, fetchImpl = globalThis.f
     if (response?.access_token && response?.refresh_token) {
       // Even if the Auth server auto-issues a session, verification is still checked via getUser.
       adoptSession(response);
-      await getCurrentUser();
+      try { await getCurrentUser(); }
+      catch (error) { session = null; throw error; }
       return { status: "signed_in", userId: response.user?.id ?? null };
     }
     return { status: "verification_required", userId: response?.user?.id ?? null };
@@ -140,11 +146,16 @@ export function createClinicAuth({ url, publishableKey, fetchImpl = globalThis.f
 
   async function refreshSession() {
     if (!session?.refresh_token) throw new ClinicAuthError("Please sign in again.", "no_session", 401);
-    const response = await request("/auth/v1/token?grant_type=refresh_token", {
-      method: "POST", body: { refresh_token: session.refresh_token }
-    });
-    adoptSession(response);
-    return getCurrentUser();
+    try {
+      const response = await request("/auth/v1/token?grant_type=refresh_token", {
+        method: "POST", body: { refresh_token: session.refresh_token }
+      });
+      adoptSession(response);
+      return await getCurrentUser();
+    } catch (error) {
+      session = null;
+      throw error;
+    }
   }
 
   async function signOut() {
