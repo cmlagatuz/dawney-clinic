@@ -59,6 +59,8 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Domain unit tests
         run: npm test
+      - name: Validate opt-in HTTP security smoke syntax (no network or writes)
+        run: node --check tests/integration/smoke.mjs
       - name: Typecheck and production Vite build
         run: npm run build
       - name: Assert no backend credentials shipped
