@@ -2,6 +2,9 @@
  * Non-authenticated live Cloudflare Pages deep-link and header probe.
  * Does NOT log in, verify patient data, or replace a browser end-to-end test.
  */
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+
 export function validatePagesOrigin(value) {
   const u = new URL(value);
   if (u.protocol !== 'https:' || u.username || u.password || u.port || u.search || u.hash ||
@@ -30,7 +33,7 @@ export async function checkPages(origin, fetchImpl=fetch) {
   }
   return paths.length;
 }
-if(process.argv[1] && import.meta.url===new URL('file://'+process.argv[1]).href) {
+if(process.argv[1] && import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href) {
   try {
     const n=await checkPages(process.argv[2]);
     console.log('Pages HTTPS SPA fallback/header check passed on '+n+' paths.');
