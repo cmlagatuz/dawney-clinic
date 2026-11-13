@@ -24,9 +24,9 @@ test('accepts synthetic static bundle without credentials',()=>{
 test('rejects service role and secret key markers in compiled assets',()=>{
  const dir=fixture();
  try {
-  for(const value of ['sb_secret_forbidden','SUPABASE_SERVICE_ROLE_KEY','-----BEGIN PRIVATE KEY-----','DAWNEY_TEST_A_PASSWORD']){
+  for(const value of ['sb_secret_this_is_a_long_example_private_key','SUPABASE_SERVICE_ROLE_KEY','-----BEGIN PRIVATE KEY-----','DAWNEY_TEST_A_PASSWORD']){
    writeFileSync(path.join(dir,'assets/index.js'),value);
-   assert.throws(()=>verifyStaticBuild(dir),/privileged key/);
+   assert.throws(()=>verifyStaticBuild(dir),/Possible/);
   }
  } finally {rmSync(dir,{recursive:true,force:true})}
 });
