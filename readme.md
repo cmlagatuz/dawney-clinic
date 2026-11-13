@@ -2,7 +2,7 @@
 
 **Veterinary clinic management system — modernization in progress**
 
-> **Project status (13 November 2026): Phases 1–2 security foundations and Phase 3 React frontend, pet/appointment workflows, staff safeguards, private Storage RLS, and recovery tools are merged. Six Supabase migrations are applied. Real two-account Auth/JWT owner-row RLS and owner-profile persistence **passed** on November 13; further clinical/Storage JWT deny testing, clinical data migration, full Auth/Storage restore, deployed browser verification and deployment remain pending.** Not approved for real clinic records.
+> **Project status (13 November 2026): Phases 1–2 security foundations and Phase 3 React frontend, pet/appointment workflows, staff safeguards, private Storage RLS, and recovery tools are merged. Six Supabase migrations are applied. Real two-account Auth/JWT owner-row RLS and owner-profile persistence **passed**; the separate read-only HTTPS security smoke **passed** (#43443472697). Offline Phase 4 scheduling, staff, recovery-set, Chromium and dependency-security safeguards are merged and CI-tested. Clinical/Storage synthetic-write denial tests, clinical data migration, real Auth/Storage restore, hosted-browser verification and Cloudflare deployment remain pending.** Not approved for real clinic records.
 
 ## Overview
 
@@ -33,6 +33,9 @@ The checked-in **legacy application** uses Laravel 5.8, PHP 7.1-era requirements
 **Audit scope:** Source review and targeted regression tests, not a full browser-based security test or a validated production environment. Do not enter real clinic records into an unverified deployment.
 
 ## Progress and evidence
+
+- **Phase 4 readiness (PRs #19–#25):** [#19 Pages rollback fingerprint](https://github.com/cmlagatuz/dawney-clinic/pull/19), [#20 offline five-part encrypted recovery checks](https://github.com/cmlagatuz/dawney-clinic/pull/20), [#21 scheduling contract](https://github.com/cmlagatuz/dawney-clinic/pull/21), [#22 staff intent guards](https://github.com/cmlagatuz/dawney-clinic/pull/22), [#23 real local Chromium anonymous acceptance](https://github.com/cmlagatuz/dawney-clinic/pull/23), [#24 repository guard/least-privilege CI](https://github.com/cmlagatuz/dawney-clinic/pull/24), [#25 pinned npm advisory check](https://github.com/cmlagatuz/dawney-clinic/pull/25). All relevant scoped PR CI passed; npm audit reported 0 vulnerabilities in the locked web graph. **These are offline/preview-readiness safeguards, not live clinical proof.** See [full recovery](docs/PHASE3_FULL_RECOVERY_PLAN.md), [staff](docs/PHASE4_STAFF_SECURITY.md), [scheduling](docs/PHASE4_SCHEDULING_POLICY.md), [browser](docs/PHASE4_BROWSER_TESTS.md), and [repository](docs/PHASE4_REPO_SECURITY.md) runbooks.
+- **Read-only Auth security smoke PASSED:** [workflow #43443472697](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43443472697), real A/B HTTPS sessions, owner isolation, SDK session rehydration and anonymous privacy. No clinical/Storage synthetic write occurred.
 
 - **Phase 1 completed (2026-11-13):** [Legacy audit and modernization gates](docs/PHASE1_LEGACY_AUDIT.md), security hardening for patient appointment ownership and forged foreign-pet bookings, bounded booking inputs, regression tests and GitHub Actions legacy PHP checks.
 - **[PR #2](https://github.com/cmlagatuz/dawney-clinic/pull/2):** Phase 1 merged to `master`; CI passed **5 tests / 11 assertions**, with PHP 7.4 and a compatibility install. See [the passing Actions run](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43378768881). This is targeted coverage, not a guarantee of full-system correctness.
