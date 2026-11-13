@@ -1,115 +1,83 @@
 @extends('layouts.admin')
 
+@section('title', 'Dashboard')
 
 @section('content')
-<div class="card">
-    <div class="card-header">
-        Appointments
+@php
+    // View-only summary of the data the controller already supplies (upcoming appointments grouped by day).
+    $upcomingTotal = $appointments->sum(function ($day) { return count($day); });
+    $todayRemaining = $appointments->sum(function ($day) {
+        return $day->filter(function ($a) { return $a->appointment_start->isToday(); })->count();
+    });
+@endphp
+
+@component('components.page-header', [
+    'title' => 'Dashboard',
+    'subtitle' => 'Upcoming appointments, soonest first',
+])
+    @slot('actions')
+        <a href="{{ route('admin.appointment.list') }}" class="btn btn-secondary">All appointments</a>
+        <a href="{{ route('admin.patient.create') }}" class="btn btn-primary">Add client</a>
+    @endslot
+@endcomponent
+
+<div class="stat-grid" role="list" aria-label="Appointment summary">
+    <div class="stat" role="listitem">
+        <span class="stat__value">{{ $upcomingTotal }}</span>
+        <span class="stat__label">Upcoming appointments</span>
     </div>
-    <div class="card-body p-0">
-        <div class="table-responsive agenda">
-            <table class="table table-condensed table-bordered mb-0">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Time</th>
-                        <th>Appointment</th>
-                        <th>Concern</th>
-                        <th>Message</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Single event in a single day -->
-                    @foreach ($appointments as $appointment)
-
-                        <tr class="{{ $appointment[0]->appointment_start->format('Y-m-d') == Carbon\Carbon::now()->format('Y-m-d') ? 'table-success' : '' }}">
-                            <td class="agenda-date" class="active" rowspan="{{ count($appointment) }}">
-                                <div class="dayofmonth">{{ $appointment[0]->appointment_start->day }}</div>
-                                <div class="dayofweek">{{ $appointment[0]->appointment_start->format('l') }}</div>
-                                <div class="shortdate text-muted">{{ $appointment[0]->appointment_start->format('F, Y') }}</div>
-                            </td>
-                            @php
-                                $first = $appointment->first();
-                            @endphp
-                            <td class="agenda-time">
-                                {{ $first->appointment_start->format('h:i A') }} - {{ $first->appointment_end->format('h:i A') }}
-                            </td>
-
-                            <td class="agenda-events">
-                                <div class="agenda-event">
-                                    <a href="{{ route('admin.patient.view', $first->pet->id) }}">{{ $first->user->owner->full_name }} - {{ $first->pet->name }}</a>
-                                </div>
-                            </td>
-                            <td class="agenda-message">
-                                {{ $first->concern_name }}
-                            </td>
-                            <td class="agenda-message">
-                                {{ $first->reason ?? '-' }}
-                            </td>
-                        </tr>
-                        @foreach ($appointment as $key => $appoint)
-                            @if($key != 0)
-                                <tr class="{{ $appoint->appointment_start->format('Y-m-d') == Carbon\Carbon::now()->format('Y-m-d') ? 'table-success' : '' }}">
-                                    <td class="agenda-time">
-                                        {{ $appoint->appointment_start->format('h:i A') }} - {{ $appoint->appointment_end->format('h:i A') }}
-                                    </td>
-                                    <td class="agenda-events">
-                                        <div class="agenda-event">
-                                        <a href="{{ route('admin.patient.view', $appoint->pet->id) }}">{{ $appoint->user->owner->full_name }} - {{ $appoint->pet->name }}</a>
-                                        </div>
-                                    </td>
-                                    <td class="agenda-message">
-                                        {{ $appoint->concern_name }}
-                                    </td>
-                                    <td class="agenda-message">
-                                        {{ $first->reason }}
-                                    </td>
-                                </tr>
-                            @endif
-                        @endforeach
-
-                    @endforeach
-
-                    <!-- Multiple events in a single day (note the rowspan) -->
-                    {{-- <tr>
-                        <td class="agenda-date" class="active" rowspan="3">
-                            <div class="dayofmonth">24</div>
-                            <div class="dayofweek">Thursday</div>
-                            <div class="shortdate text-muted">July, 2014</div>
-                        </td>
-                        <td class="agenda-time">
-                            8:00 - 9:00 AM
-                        </td>
-                        <td class="agenda-events">
-                            <div class="agenda-event">
-                                Doctor's Appointment
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="agenda-time">
-                            10:15 AM - 12:00 PM
-                        </td>
-                        <td class="agenda-events">
-                            <div class="agenda-event">
-                                Meeting with executives
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="agenda-time">
-                            7:00 - 9:00 PM
-                        </td>
-                        <td class="agenda-events">
-                            <div class="agenda-event">
-                                Aria's dance recital
-                            </div>
-                        </td>
-                    </tr> --}}
-                </tbody>
-            </table>
-        </div>
+    <div class="stat" role="listitem">
+        <span class="stat__value">{{ $todayRemaining }}</span>
+        <span class="stat__label">Still to come today</span>
+    </div>
+    <div class="stat" role="listitem">
+        <span class="stat__value">{{ $appointments->count() }}</span>
+        <span class="stat__label">Days with bookings</span>
     </div>
 </div>
 
+@forelse ($appointments as $day)
+    @php
+        $first = $day->first();
+        $isToday = $first->appointment_start->isToday();
+    @endphp
+    <section class="day-group {{ $isToday ? 'day-group--today' : '' }}" aria-labelledby="day-{{ $loop->index }}">
+        <header class="day-group__date">
+            <span class="day-group__num">{{ $first->appointment_start->day }}</span>
+            <h2 class="day-group__weekday h6 mb-0" id="day-{{ $loop->index }}">{{ $first->appointment_start->format('l') }}</h2>
+            <span class="day-group__month">{{ $first->appointment_start->format('F, Y') }}</span>
+            @if ($isToday)
+                <span class="badge-soft badge-soft--today">Today</span>
+            @endif
+        </header>
+        <ul class="appt-list">
+            @foreach ($day as $appoint)
+                <li class="appt">
+                    <span class="appt__time">
+                        <span class="visually-hidden">Time: </span>{{ $appoint->appointment_start->format('h:i A') }} &ndash; {{ $appoint->appointment_end->format('h:i A') }}
+                    </span>
+                    <span class="appt__who">
+                        <a href="{{ route('admin.patient.view', $appoint->pet->id) }}">{{ $appoint->user->owner->full_name }} &ndash; {{ $appoint->pet->name }}</a>
+                    </span>
+                    <span class="appt__concern">
+                        <strong>{{ $appoint->concern_name }}</strong>
+                        @if ($appoint->reason)
+                            <br>{{ $appoint->reason }}
+                        @endif
+                    </span>
+                </li>
+            @endforeach
+        </ul>
+    </section>
+@empty
+    <div class="card">
+        @component('components.empty-state', [
+            'title' => 'No upcoming appointments',
+            'message' => 'Bookings made by clients will appear here.',
+            'icon' => 'calendar-o',
+        ])
+            <a href="{{ route('admin.appointment.list') }}" class="btn btn-secondary">View appointment list</a>
+        @endcomponent
+    </div>
+@endforelse
 @endsection
