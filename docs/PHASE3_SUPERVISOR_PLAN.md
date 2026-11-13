@@ -1,5 +1,17 @@
 # Dawney Clinic — Current Supervisor Execution Plan
 
+## Latest verified supervisor checkpoint — 2026-11-13 (after live read-only smoke)
+
+- `master` @ `97b925f104` before this documentation update; **PRs #2–#18 merged**, Claude old Blade PR #1 remains open/unmerged; no new React UX PR yet. No verified Cloudflare Pages live deployment or GitHub Release.
+- Baseline live Auth `operation=test` passed on runs [43438147911](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438147911) and [43438358753](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438358753). **Do not repeat registration or baseline test routinely.**
+- **NEW VERIFIED:** [Phase 3 authenticated security smoke run 43443472697](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43443472697) completed with `operation=read-only`, `allow_synthetic_writes=NO`. Actual job log: `PASS: two distinct verified HTTPS Auth sessions`; `PASS: owner RLS isolation and SDK session rehydration`; `PASS: authenticated read-only and anonymous privacy smoke; no records written`. This is not a real browser reload or clinical/Storage write proof.
+- Read-only Supabase confirmation after run: healthy, six migrations, seven public RLS application tables, **2 confirmed test Auth accounts / 2 owner profiles / 0 pets / 0 appointments / 0 staff / 0 private files**; `clinical-attachments` bucket remains private with 5 MiB PDF/PNG/JPEG allowlist.
+- **Next ChatGPT Astra tasks while Claude unavailable:** (1) prepare Cloudflare Pages preview smoke/rollback workflow and owner-safe setup without asserting a live URL; (2) plan and implement additional no-write CI or offline safety checks for full Auth+Storage+database recovery strategy; (3) prepare scheduling policy config/tests with owner-required timezone/hours/capacity values, do not assume; (4) review staff invitation/revocation/MFA threat model without granting real roles or deploying privileged endpoints; (5) final build/accessibility/security test automation that does not modify Claude-owned React presentation files. Small PRs and verified status only.
+- **Owner gate:** Connect Cloudflare Pages Free Git to repo `cmlagatuz/dawney-clinic` root `web`, branch `master`, React Vite, Node 22, `npm run build`, `dist`, public-only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; then share only its public `*.pages.dev` URL, never private keys. See [deployment guide](PHASE3_DEPLOY_RELEASE.md).
+- **IMPORTANT:** `clinical` and `storage` smoke operations persist synthetic patient/appointment/file data. **Not authorized.** Do not run them without a separate explicit owner approval and cleanup plan; read-only is done. No real clinic records, tags/releases, or production cutover approved.
+- **Claude at availability reset:** begin new `ai/claude/react-ux-foundation` branch based on latest master for accessible React UI styling/components. Avoid old Blade PR #1 merge until supervisor review. Astra must stay out of Claude's visual source files.
+
+
 **Checkpoint:** 2026-11-13, approximately 16:43 Asia/Riyadh. Use current GitHub/Supabase data to refresh before executing. **No live deployment or clinical go-live approval.** This supersedes older dated checkpoints in the longer handoff.
 
 ## Addendum — owner Auth test verified, 2026-11-13 17:00+ Asia/Riyadh
