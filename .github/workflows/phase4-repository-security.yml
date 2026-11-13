@@ -35,3 +35,16 @@ jobs:
         run: node --test scripts/security/tests/*.test.mjs
       - name: Fail on tracked sensitive artifacts, likely credentials or floating npm versions
         run: node scripts/security/repository-guard.mjs
+
+  npm-advisory-audit:
+    # Read-only npm registry advisory lookup; no install scripts, tokens or packages uploaded.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Audit locked production and development npm packages for high/critical advisories
+        working-directory: web
+        run: npm audit --audit-level=high
