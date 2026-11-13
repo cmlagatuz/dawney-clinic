@@ -44,7 +44,7 @@ The checked-in **legacy application** uses Laravel 5.8, PHP 7.1-era requirements
 - **Phase 3 integration readiness ([PR #12](https://github.com/cmlagatuz/dawney-clinic/pull/12), [#13](https://github.com/cmlagatuz/dawney-clinic/pull/13), [#14](https://github.com/cmlagatuz/dawney-clinic/pull/14)):** Manual real JWT clinical/Storage smoke tests (explicit synthetic-write opt-in), Cloudflare Pages Git preview and checksum-protected GitHub Release readiness, and a **passing genuine synthetic PostgreSQL 17/GPG restore and tamper-denial CI**. The synthetic restore **does not** recover real Supabase Auth/Storage. Docs: [HTTP and Storage smoke](docs/PHASE3_HTTP_STORAGE_SMOKE.md), [deployment/release](docs/PHASE3_DEPLOY_RELEASE.md), [synthetic restore](docs/PHASE3_SYNTHETIC_RESTORE_DRILL.md).
 - **Private Storage bucket verified:** `clinical-attachments` exists, `public=false`, 5 MB maximum, MIME allowlist PDF/PNG/JPEG, zero objects at last check. Existing two RLS policies and SQL verification passed. Live A/B Storage upload/download denies **not yet run**.
 - **Phase 3 merged:** [PR #5](https://github.com/cmlagatuz/dawney-clinic/pull/5) modern React/Vite app; [#6](https://github.com/cmlagatuz/dawney-clinic/pull/6) persisted pet/appointment workflows; [#7](https://github.com/cmlagatuz/dawney-clinic/pull/7) encrypted export tools; [#8](https://github.com/cmlagatuz/dawney-clinic/pull/8) private Storage policies; [#9](https://github.com/cmlagatuz/dawney-clinic/pull/9) staff safety/audit. See [web](docs/PHASE3_WEB_FOUNDATION.md), [clinical workflows](docs/PHASE3_CLINICAL_CORE.md), [private Storage](docs/PHASE3_PRIVATE_STORAGE.md), [staff safeguards](docs/PHASE3_STAFF_AUDIT.md) and [recovery](docs/PHASE3_FREE_RECOVERY.md). All PR GitHub checks passed; connected DB SQL tests were transaction scoped.
-- **Limitations:** The successful Auth registration action was not the live two-account `test` run. At last check two email-confirmed test users existed but zero owners, patients, appointments or staff. Storage bucket/objects absent. No full recovery snapshot.
+- **Limitations:** The successful Auth registration action was not the live two-account `test` run. At last check two confirmed users existed but zero owners, patients, appointments or staff. The private Storage bucket exists with zero stored files; cross-account file API testing is still pending. The isolated restore test used **synthetic PostgreSQL data only**, and no full Supabase Auth/Storage recovery snapshot exists.
 - **Deployment:** No confirmed Cloudflare Pages connection, domain, or deployed application URL.
 
 For live agent ownership and new changes, read **[docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)**. This README is a project overview rather than a replacement for the frequently updated handoff.
@@ -62,7 +62,7 @@ For live agent ownership and new changes, read **[docs/AI_HANDOFF.md](docs/AI_HA
 
 No phase is considered complete solely because screens, migrations or code were drafted; integration and verification gates are required.
 
-## Proposed free-only deployment architecture (not yet implemented)
+## Free-only deployment architecture (frontend and schema built; hosting not connected)
 
 ```text
 GitHub master + verified CI
