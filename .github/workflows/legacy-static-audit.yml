@@ -26,6 +26,8 @@ jobs:
           php-version: '7.4'
           extensions: mbstring, pdo_sqlite, tokenizer, xml, ctype
           coverage: none
+      - name: Use legacy Composer 1 for existing locked plugin
+        run: composer self-update --1
       - name: Install locked PHP dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
       - name: Prepare isolated test configuration
