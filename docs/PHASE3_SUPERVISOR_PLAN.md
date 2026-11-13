@@ -1,43 +1,38 @@
-# Dawney Clinic — Supervisor Execution Plan
+# Dawney Clinic — Current Supervisor Execution Plan
 
-**Latest verified checkpoint: 2026-11-13, 15:28 Asia/Riyadh.** Authoritative current priorities below supersede earlier historical task descriptions in `docs/AI_HANDOFF.md`. Project is NOT deployed or production approved.
+**Checkpoint:** 2026-11-13, approximately 16:43 Asia/Riyadh. Use current GitHub/Supabase data to refresh before executing. **No live deployment or clinical go-live approval.** This supersedes older dated checkpoints in the longer handoff.
 
-## Verified status
+## Current verified source-of-truth
 
-- `master` includes merged PRs #2–#11 (latest functional changes via PR #11). Modern `web/` React + TypeScript + Vite app exists, with Supabase Auth, persisted profile code, pets, appointment UI, npm lockfile, automated TS/unit/build checks. Source-level CI passed; **no successful hosted browser trial or real pet/appointment persistence trial** proven.
-- Supabase `lgimhirgvresvbsdugac` is `ACTIVE_HEALTHY`: **seven public RLS-enabled app tables**, **six applied migrations**, staff audit, lifecycle constraints, private Storage policies.
-- **Latest read-only Auth check**: two Auth accounts, **one confirmed**, zero owner/pet/appointment/staff rows. [Run 43425109459](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43425109459) was a successful **register-a**, reporting `verification_required` — NOT a passed operation `test`. **Do NOT run register-a or register-b again.** Owner should confirm the newly registered test A email (B already confirmed), then run [Clinic Auth contract](https://github.com/cmlagatuz/dawney-clinic/actions/workflows/clinic-auth.yml) on `master` with operation `test`. Review sanitized logs. Preserve disposable test account identities/secrets privately.
-- `storage.buckets` does **not** yet contain `clinical-attachments`. Owner must create it in [Supabase Storage](https://supabase.com/dashboard/project/lgimhirgvresvbsdugac/storage/buckets) as **private**, file limit 5 MB, allowed MIME `application/pdf,image/png,image/jpeg`, followed by real cross-account Storage API negative tests. Do not create storage.buckets via SQL.
-- Supabase security advisor: informational no-public-policy on two intentionally isolated `clinic_private` tables; warning leaked-password protection disabled, investigate Free-plan availability and fallback without paid upgrades.
-- Claude's [PR #1](https://github.com/cmlagatuz/dawney-clinic/pull/1) is **open, no longer draft**, with passing frontend/legacy CI, but **unmerged**. It modifies legacy Laravel Blade assets, not target React `web/`; latest `master` diverged from it. Do not auto-merge it or expend Claude's Free allowance on repeated old Blade conflict work. Preserve as design reference and close only after work is ported and reviewed.
-- No verified Cloudflare Pages deployment URL or comprehensive restore rehearsal. Application is not approved for real clinical information.
-- Two recent `master` commits `c4e45965` ("Initial commit") and `65032983` ("Complete merge of unrelated histories") changed Git history; the current file tree and workflows still exist. Before modifying Git history or merging old branches, inspect and assess those commits. Never force-push or reset `master`.
+- GitHub `master` @ `9233c9cceb356b617cac02d0632e4c9b80d5b7ba`. **PRs #2–#16 merged**, including Astra PRs #12–#16: HTTP/Storage smoke-test tooling, free static release readiness, actual PostgreSQL 17/GPG **synthetic isolated** restore, integration audit, and non-network syntax checks. Latest affected Actions CI green. No real hosted clinical security smoke run or production Pages URL is verified.
+- React + TypeScript + Vite client under `web/`; Supabase Auth/profile/pet/appointment source present, automated build and tests passed. Legacy Laravel stays historical reference; never deploy PHP through static Pages.
+- Connected Supabase project `lgimhirgvresvbsdugac` is healthy; **7 public app tables all RLS enabled; 6 applied migrations**. Read-only verification: **2 Auth accounts, 2 email-confirmed; 0 owner/pet/appointment/staff records**.
+- Private Storage bucket `clinical-attachments` **EXISTS**: `public=false`, **5,242,880 bytes (5 MiB)**, allowed `application/pdf,image/png,image/jpeg`, 0 stored objects. SQL Storage policy checks already passed per handoff. Actual JWT Storage access-denial workflow has NOT run.
+- `Clinic Auth contract` manual workflow: newest known manual run [43425109459](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43425109459) used **register-a**; two users are now email-confirmed. **DO NOT register either account again.** No subsequent manually dispatched `operation=test` was found among current retrieved GitHub Actions runs.
+- No GitHub Releases published. [Cloudflare Pages Free deployment setup](PHASE3_DEPLOY_RELEASE.md) is documented, but **Cloudflare live URL is unverified**.
+- [Claude PR #1](https://github.com/cmlagatuz/dawney-clinic/pull/1) remains OPEN/UNMERGED (not draft); changes outdated Laravel Blade screens, not React. Keep as design reference, do not merge without explicit review. No new React UX PR surfaced yet.
+- Auth password advisor WARN `auth_leaked_password_protection` disabled; avoid Pro/paid upgrades; two INFO findings for deliberately isolated private RLS tables. No secrets, fake live results, or real patient data.
+- Git history includes prior `65032983` unrelated-history merge with equal tracked trees. Do not rewrite/reset/force-push history.
 
-## Parallel AI ownership — next work
+## Owner immediate next actions — in order
 
-### Claude Sonnet (Free): modern React UX, new branch
+1. Run [Clinic Auth contract](https://github.com/cmlagatuz/dawney-clinic/actions/workflows/clinic-auth.yml) on `master`, **operation `test`**. It makes at most two synthetic owner profiles and checks real JWT login, A/B RLS, staff-escalation deny, logout and persistence. Accounts are confirmed; **do not register again**. On any error, inspect sanitized logs before making changes.
+2. After baseline Auth `test` PASSES, run [Phase 3 authenticated security smoke](https://github.com/cmlagatuz/dawney-clinic/actions/workflows/phase3-security-smoke.yml) on `master`, mode **`read-only`** (no writes). Only after verifying that, explicitly opt into `clinical` and `storage` synthetic modes, understanding they persist synthetic test data and require careful operator cleanup. Read [smoke runbook](PHASE3_HTTP_STORAGE_SMOKE.md). A failure of security isolation is a stop sign, not permission to weaken RLS.
+3. Connect a **test/preview** Cloudflare Pages Free Git deployment from `master` (root `web`, Node 22, `npm run build`, `dist`), public `VITE_SUPABASE_URL` + publishable-key-only `VITE_SUPABASE_PUBLISHABLE_KEY`. Follow [deployment runbook](PHASE3_DEPLOY_RELEASE.md). Add exact Supabase Auth callback/recovery redirect URLs once the real `*.pages.dev` URL is issued. Never expose service-role keys.
+4. Supply **actual clinic** timezone, weekly opening hours, closed days, booking duration(s), and practitioner/resource concurrency. User location must not be assumed to be clinic location.
 
-1. Read this plan, current `master`, `AGENTS.md`, React `web/` code, and PR #1 **for design reference only**.
-2. Start a new branch `ai/claude/react-ux-foundation` from current `master`, NOT the old PR #1 head. Own visual design and accessibility in `web/src/styles.css`, `web/src/components/Layout.tsx`, and optional *new presentational* components/files that do not overlap Astra's current changes.
-3. Deliver an accessible responsive clinic interface: light/dark neutral or slate/purple themes (avoid eye-straining green), mobile navigation, meaningful dashboards/empty/loading/error states, keyboard focus/reduced motion, readable forms/cards/tables, visible booking and patient status. Preserve all Supabase calls and RLS-backed functionality; no mock clinical data masquerading as live.
-4. Verify TS build, unit tests, Chromium viewport/a11y smoke tests when possible. Push a scoped PR with before/after screenshots if supported and add a concise handoff. Do not touch `supabase/`, Auth integration, GitHub Actions, legacy Blade, or Astra-owned clinical logic.
-5. Review and suggest whether old PR #1 should be closed after extracting useful design insights. Do not merge it.
+## Parallel AI task split (when available)
 
-### ChatGPT GPT-6 Astra: security/operations/deploy, separate branch(es)
+**ChatGPT GPT-6 Astra, new conversation if former chat won't load**:
+- Read `AGENTS.md`, `readme.md`, this plan, and newest section of `docs/AI_HANDOFF.md`. Reconstruct from actual GitHub/Supabase, not chat memory.
+- Verify exact workflow status/result after owner actions; debug concrete failures on new isolated `ai/chatgpt/*` PRs.
+- Investigate full owner-controlled Auth/Storage/clinical backup and isolated restore (current proven restore uses synthetic Postgres only); prepare secure browser live tests, staff admin onboarding/revocation, scheduling rules; configure/verify Pages only with an actual provider connection. Avoid Claude's React visual files.
+- Work in focused PRs with CI, track verified vs pending, update readme/handoff; no paid services and no fake success.
 
-1. Inspect the newest `master` and the unrelated-history merge; verify current workflows and Auth test state. When owner triggers operation `test`, review its actual HTTPS success/failure and fix verified issues, with no credential disclosure. Do not repeat registration.
-2. Continue owner-independent safety engineering in `supabase/`, `scripts/`, `.github/workflows/`, `docs/` and focused tests; **avoid Claude's `web/src/styles.css`, `web/src/components/Layout.tsx` and presentation-only components**. Prioritize actual JWT owner A/B, pet/appointment/Storage denies, attachment safety, clinic timezone/hours contracts, and complete backup/restore rehearsal (not just archive inspection).
-3. Prepare Cloudflare Pages Free hosting connection/preview/release with `web` root, `npm run build`, `dist`, Node 22, public-only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. These are public build config (never service-role). If provider dashboard access is unavailable, provide exact owner actions; do not claim hosted success.
-4. Audit unresolved legacy risks (GET paid Nexmo, raw HTML notes, admin plaintext invite). Do not expose obsolete PHP production environment. Require owner-provided schedule/timezone before final booking rule rollout.
-5. Small verified `ai/chatgpt/*` PRs only; inspect conflict/CI; merge safe work and update docs/README with verified milestones.
+**Claude Sonnet Free** (available after user-provided 7:20 PM reset):
+- Do **not** spend free turns merging legacy PR #1 simply to preserve old Blade UI. Start a fresh `ai/claude/react-ux-foundation` branch from newest master when available, scoped to `web/src/styles.css`, `web/src/components/Layout.tsx`, and new **presentational** components.
+- Improve responsive accessible React UX, light/dark colors, patient and appointment screen styling, keyboard/focus/reduced motion, real error/loading/empty states. Preserve Supabase/Auth/business logic and tests. Push PR for supervisor review, do not independently merge.
 
-## Owner tasks, in order
+## Release exit gate
 
-1. Confirm test **A** from its trusted mailbox (Supabase currently reports 1 confirmed of 2 users). Then [run test mode](https://github.com/cmlagatuz/dawney-clinic/actions/workflows/clinic-auth.yml), not register.
-2. Create the private `clinical-attachments` bucket exactly as described in `docs/PHASE3_PRIVATE_STORAGE.md`. Run follow-up verification via Astra.
-3. Connect Cloudflare Pages Free to `master` only when ready for a **test/preview environment**; use `docs/PHASE3_WEB_FOUNDATION.md`. Keep real patient records disabled until tested.
-4. Supply actual clinic timezone, operating hours and booking resource capacity when scheduling gates are ready. Do not assume Saudi Arabia based on owner's location.
-
-## Release gates
-
-Require passing real JWT multi-user HTTP isolation; real browser profile/pet/booking persistence and re-login; tested private Storage cross-account access denial; back-up and **isolated restore** including relevant Auth/Storage; authorized staff role lifecycle; privacy review; hosted HTTPS URL, deep links and rollback; owner go-live approval. Zero paid services; no guarantee of Free-tier always-on support.
+No clinic go-live until genuine Auth/JWT A/B isolation, real clinical/Storage deny tests, hosted browser profile/pet/booking persistence and deep-links, private files, staff authorizations, authorized data migration, **full relevant Auth+Storage+database restore rehearsal**, rollback, privacy review and owner approval are demonstrated. Free tiers have no guaranteed 24/7 uptime/backup SLA. 
