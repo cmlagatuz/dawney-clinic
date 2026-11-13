@@ -8,6 +8,7 @@ on:
       - 'supabase/tests/phase4_isolated_taxonomy_*.sql'
       - 'web/src/lib/taxonomy.ts'
       - 'web/src/lib/pet-attachments.ts'
+      - 'web/src/lib/staff-clinic.ts'
       - 'web/src/attachment-policy.mjs'
       - 'web/tests/attachment-policy.test.mjs'
       - '.github/workflows/phase4-taxonomy-attachments.yml'
