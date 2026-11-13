@@ -1,6 +1,8 @@
 # Phase 3 — Cloudflare Pages Free and versioned GitHub release readiness
 
-**Date:** 2026-11-13 · ChatGPT-owned engineering. **No Cloudflare Pages project or live URL verified.** The site is **NOT approved for clinical use** and must remain a test/preview until owner go-live authorization.
+**Updated:** 2026-11-13. **Public Cloudflare Pages is now verified at [https://dawney-clinic.pages.dev](https://dawney-clinic.pages.dev)** by owner deployment-success screenshot and [public read-only HTTP + Chromium Actions #43467749073](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43467749073). All 10 SPA routes, security headers, rendered sign-in page, anonymous private-route guards and 360px viewport passed. **This is not a live Auth login/clinical security/Storage/recovery/go-live approval.** Provider deployment ID/active commit, exact build variables and Auth redirects still require owner dashboard confirmation. No GitHub Release tag issued.
+
+**Owner's exact next Supabase Auth settings:** [Authentication → URL Configuration](https://supabase.com/dashboard/project/lgimhirgvresvbsdugac/auth/url-configuration) Site URL: `https://dawney-clinic.pages.dev`. Add exact redirect allowlist paths `https://dawney-clinic.pages.dev/auth/callback` and `https://dawney-clinic.pages.dev/auth/recovery`. Do not use broad wildcards. Browser test instructions: [Phase 4 read-only acceptance](PHASE4_BROWSER_TESTS.md). Keep the steps below as historical setup/reference for future rebuilds.
 
 ## Reconciled Git repository history
 
