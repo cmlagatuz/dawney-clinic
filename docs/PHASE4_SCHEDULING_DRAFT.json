@@ -1,0 +1,19 @@
+{
+  "approved": false,
+  "timezone": null,
+  "leadMinutes": null,
+  "maxAdvanceDays": null,
+  "slotStepMinutes": null,
+  "durationsMinutes": [],
+  "hours": {
+    "sun": [],
+    "mon": [],
+    "tue": [],
+    "wed": [],
+    "thu": [],
+    "fri": [],
+    "sat": []
+  },
+  "holidays": [],
+  "resources": []
+}

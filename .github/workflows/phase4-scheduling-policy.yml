@@ -1,0 +1,32 @@
+name: Phase 4 scheduling contract (offline)
+
+on:
+  pull_request:
+    paths:
+      - 'packages/clinic-scheduling/**'
+      - 'docs/PHASE4_SCHEDULING_DRAFT.json'
+      - '.github/workflows/phase4-scheduling-policy.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'packages/clinic-scheduling/**'
+      - 'docs/PHASE4_SCHEDULING_DRAFT.json'
+      - '.github/workflows/phase4-scheduling-policy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  policy-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test scheduling contract, DST, transitions and fail-closed policy
+        run: node --test packages/clinic-scheduling/tests/*.test.mjs
+      - name: Require the checked-in clinic draft to stay unapproved
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const p=JSON.parse(fs.readFileSync('docs/PHASE4_SCHEDULING_DRAFT.json','utf8')); if(p.approved!==false || p.timezone!==null)process.exit(1)"
