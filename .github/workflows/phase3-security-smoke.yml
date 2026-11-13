@@ -1,0 +1,72 @@
+name: Phase 3 authenticated security smoke
+
+# Manual only: synthetic data remains until operator-reviewed cleanup.
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        description: 'Read-only HTTP check, clinical inserts, or clinical + private Storage'
+        required: true
+        default: read-only
+        options:
+          - read-only
+          - clinical
+          - storage
+      allow_synthetic_writes:
+        type: boolean
+        description: 'I approve disposable test pets/appointments and optional documents remaining until cleanup'
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clinic-auth-security-smoke
+  cancel-in-progress: false
+
+jobs:
+  authenticated-smoke:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Verify read-only/clinical consent before network calls
+        shell: bash
+        env:
+          DAWNEY_SMOKE_OPERATION: ${{ inputs.operation }}
+          DAWNEY_ALLOW_SYNTHETIC_WRITES: ${{ inputs.allow_synthetic_writes && 'YES' || 'NO' }}
+        run: |
+          case "$DAWNEY_SMOKE_OPERATION" in
+            read-only) echo "Read-only Auth / owner checks" ;;
+            clinical|storage)
+              if [ "$DAWNEY_ALLOW_SYNTHETIC_WRITES" != "YES" ]; then
+                echo "This operation persists synthetic records; opt in explicitly."
+                exit 1
+              fi
+              ;;
+            *) echo "Unsupported smoke operation"; exit 1 ;;
+          esac
+      - name: Install pinned frontend SDK without privileged credentials
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Validate real HTTPS JWT and scoped database/Storage behavior
+        env:
+          SUPABASE_URL: ${{ secrets.DAWNEY_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DAWNEY_SUPABASE_PUBLISHABLE_KEY }}
+          DAWNEY_TEST_A_EMAIL: ${{ secrets.DAWNEY_TEST_A_EMAIL }}
+          DAWNEY_TEST_A_PASSWORD: ${{ secrets.DAWNEY_TEST_A_PASSWORD }}
+          DAWNEY_TEST_B_EMAIL: ${{ secrets.DAWNEY_TEST_B_EMAIL }}
+          DAWNEY_TEST_B_PASSWORD: ${{ secrets.DAWNEY_TEST_B_PASSWORD }}
+          DAWNEY_SMOKE_OPERATION: ${{ inputs.operation }}
+          DAWNEY_ALLOW_SYNTHETIC_WRITES: ${{ inputs.allow_synthetic_writes && 'YES' || 'NO' }}
+        run: node tests/integration/smoke.mjs
