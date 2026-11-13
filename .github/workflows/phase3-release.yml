@@ -9,6 +9,12 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      pages_url:
+        description: 'Optional HTTPS *.pages.dev URL for public deep-link/header smoke'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -64,12 +70,17 @@ jobs:
         run: |
           set -euo pipefail
           cd web && npm test && cd ..
-          node --test scripts/release/tests/verify-static.test.mjs
+          node --test scripts/release/tests/verify-static.test.mjs scripts/release/tests/check-pages.test.mjs
       - name: Build static React application
         working-directory: web
         run: npm run build
       - name: Check static output and secret-free headers
         run: node scripts/release/verify-static.mjs web/dist
+      - name: Probe deployed Pages HTTPS and deep links, if owner supplied URL
+        if: github.event_name == 'workflow_dispatch' && inputs.pages_url != ''
+        env:
+          DAWNEY_PAGES_URL: ${{ inputs.pages_url }}
+        run: node scripts/release/check-pages.mjs "$DAWNEY_PAGES_URL"
       - uses: actions/upload-artifact@v4
         with:
           name: dawney-vite-build
