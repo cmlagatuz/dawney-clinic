@@ -2,7 +2,7 @@
 
 **Veterinary clinic management system — modernization in progress**
 
-> **Project status (13 November 2026): Phase 1 legacy audit and targeted security hardening merged; modern application and live deployment are not yet complete.** This repository is not currently a production-ready or live Supabase-powered veterinary system.
+> **Project status (13 November 2026): Phase 1 security fixes merged; Phase 2 baseline Supabase schema and RLS applied and SQL policy tests passed. Real Auth/HTTP integration, migration and live deployment remain pending.** This repository is not currently a production-ready or live Supabase-powered veterinary system.
 
 ## Overview
 
@@ -26,7 +26,7 @@ The checked-in **legacy application** uses Laravel 5.8, PHP 7.1-era requirements
 | Admin dashboard | Legacy dashboards and patient/appointment views | Legacy source present; UI PR in progress |
 | Inventory / purchasing / orders | Models, controllers and views present; main routes commented out | Disabled; not safe to enable unchanged |
 | Modern Supabase-backed frontend | Proposed React + TypeScript + Vite migration | Not yet implemented |
-| Supabase schema | Connected project named **Dawney Animal Clinic Veterinary System**, healthy at last check, with zero application tables and zero migrations | Not configured for this application |
+| Supabase schema | Two version-controlled migrations applied to the connected Dawney project; 7 public RLS tables and one private mapping table | Baseline applied and SQL policy tests passed; not ready for live clinical use |
 | Cloud hosting and live URL | Cloudflare Pages Free proposed; no verified deployment URL | Not deployed |
 | Production backups, restore drill and cutover | Required before handling real operational records | Not verified |
 
@@ -37,7 +37,8 @@ The checked-in **legacy application** uses Laravel 5.8, PHP 7.1-era requirements
 - **Phase 1 completed (2026-11-13):** [Legacy audit and modernization gates](docs/PHASE1_LEGACY_AUDIT.md), security hardening for patient appointment ownership and forged foreign-pet bookings, bounded booking inputs, regression tests and GitHub Actions legacy PHP checks.
 - **[PR #2](https://github.com/cmlagatuz/dawney-clinic/pull/2):** Phase 1 merged to `master`; CI passed **5 tests / 11 assertions**, with PHP 7.4 and a compatibility install. See [the passing Actions run](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43378768881). This is targeted coverage, not a guarantee of full-system correctness.
 - **[PR #1](https://github.com/cmlagatuz/dawney-clinic/pull/1):** Claude's accessible UI foundation (dark/light mode, components, layouts, responsive styling) is **open and draft**, with integration/rendering verification outstanding. Do not describe it as merged or deployed.
-- **Supabase:** The connected free project is healthy at the last read-only check, but no `public` application tables or migrations exist. No live data migration has occurred.
+- **Phase 2 foundation (2026-11-13):** [Supabase schema, security tests and recovery contract](docs/PHASE2_DATA_SECURITY.md), [Phase 2 PR #3](https://github.com/cmlagatuz/dawney-clinic/pull/3). Two migrations applied, RLS and appointment overlap constraint verified with rollback-only test fixtures. Real Auth login/RLS HTTP checks and backup/restore rehearsal are still required.
+- **Supabase:** 7 public application tables have RLS enabled; no real user/patient data imported or stored in the application schema. No live data migration has occurred.
 - **Deployment:** No confirmed Cloudflare Pages connection, domain, or deployed application URL.
 
 For live agent ownership and new changes, read **[docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)**. This README is a project overview rather than a replacement for the frequently updated handoff.
@@ -47,7 +48,7 @@ For live agent ownership and new changes, read **[docs/AI_HANDOFF.md](docs/AI_HA
 | Phase | Goal | Gate / evidence |
 | --- | --- | --- |
 | **1 — Legacy assessment** | Feature inventory, security findings, minimal high-risk fixes, tests | **Merged**; focused CI green |
-| **2 — Data contract and access** | Legacy export/backup plan, Supabase schema migrations, authenticated roles, RLS allow/deny tests | Pending |
+| **2 — Data contract and access** | Legacy export/backup plan, Supabase schema migrations, authenticated roles, RLS allow/deny tests | Initial schema and policy SQL tests verified; live Auth, backup restore and import rehearsal pending |
 | **3 — Modern frontend foundation** | Separate React/TypeScript/Vite application, accessible responsive shell, authentication and first persisted workflow | Pending |
 | **4 — Core clinical parity** | Owners, pets, appointments with atomic conflict prevention, medical history and records | Pending |
 | **5 — Operations** | Vaccines, prescription flows, inventory stock ledger, invoices/receipts, reporting and audit logs | Pending |
@@ -96,7 +97,7 @@ The legacy project is an old Laravel/PHP application with dependencies that may 
 
 ## Outstanding security and operations risks
 
-Legacy code includes overlapping-booking race conditions, charged SMS behavior, unsafe password onboarding, disabled purchase flows, incomplete DB constraints and legacy dependency vulnerabilities. The new Supabase implementation must enforce row-level security (RLS), server-side role checks, ownership restrictions and private storage with two-account deny tests. Paid SMS must not be required. Before any real-world clinic launch: reconcile old IDs and records, export and restore backups, confirm data retention and secure staff permissions, run integration tests, and verify the live URL.
+Legacy code includes overlapping-booking race conditions, charged SMS behavior, unsafe password onboarding, disabled purchase flows, incomplete DB constraints and legacy dependency vulnerabilities. The baseline Supabase schema now enforces row-level security (RLS), trusted staff roles, client ownership and two-account SQL deny tests. Private storage, real Auth HTTP verification and migration rehearsal are still required. Paid SMS must not be required. Before any real-world clinic launch: reconcile old IDs and records, export and restore backups, confirm data retention and secure staff permissions, run integration tests, and verify the live URL.
 
 ## Project links
 
