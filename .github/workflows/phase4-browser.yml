@@ -1,0 +1,58 @@
+name: Phase 4 Chromium anonymous acceptance (no clinical writes)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/browser/**'
+      - '.github/workflows/phase4-browser.yml'
+      - 'web/**'
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/browser/**'
+      - '.github/workflows/phase4-browser.yml'
+      - 'web/**'
+
+permissions:
+  contents: read
+
+jobs:
+  anonymous-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      VITE_SUPABASE_URL: https://lgimhirgvresvbsdugac.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_offline_browser_test_dummy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install pinned static-app dependencies (never clinical secrets)
+        working-directory: web
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build Vite and TypeScript with inert publishable configuration
+        working-directory: web
+        run: npm run build
+      - name: Offline Chromium harness guards and syntax
+        run: |
+          node --test scripts/browser/tests/*.test.mjs
+          node --check scripts/browser/read-only.mjs
+      - name: Launch local Vite static preview and verify actual anonymous browser protections
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v google-chrome >/dev/null || command -v chromium >/dev/null || {
+            echo 'No Chrome/Chromium found on runner'; exit 1;
+          }
+          (cd web && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort) > "$RUNNER_TEMP/dawney-preview.log" 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:4173/ >/dev/null
+          node scripts/browser/anonymous.mjs http://127.0.0.1:4173
