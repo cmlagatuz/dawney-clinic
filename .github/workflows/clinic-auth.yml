@@ -16,12 +16,13 @@ on:
     inputs:
       operation:
         type: choice
-        description: 'Use dedicated test accounts; register, verify email manually, then run HTTP tests'
+        description: 'Register ONLY the missing test account, confirm its email, then run the real HTTP test'
         required: true
         default: test
         options:
-          - register
           - test
+          - register-a
+          - register-b
 
 permissions:
   contents: read
@@ -35,7 +36,7 @@ jobs:
         with:
           node-version: '22'
       - name: Test offline contract and mock RLS
-        run: node --test packages/clinic-auth/tests/unit.test.mjs
+        run: node --test packages/clinic-auth/tests/unit.test.mjs packages/clinic-auth/tests/registration.test.mjs
 
   authenticated-http:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
@@ -54,11 +55,23 @@ jobs:
           DAWNEY_TEST_B_EMAIL: ${{ secrets.DAWNEY_TEST_B_EMAIL }}
           DAWNEY_TEST_B_PASSWORD: ${{ secrets.DAWNEY_TEST_B_PASSWORD }}
         run: |
-          for key in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY DAWNEY_TEST_A_EMAIL DAWNEY_TEST_A_PASSWORD DAWNEY_TEST_B_EMAIL DAWNEY_TEST_B_PASSWORD; do
+          for key in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY; do
             if [ -z "${!key}" ]; then echo "Missing GitHub Actions secret: $key"; exit 1; fi
           done
-          if [ "${{ inputs.operation }}" = "register" ]; then
-            node packages/clinic-auth/tests/register-live.mjs
-          else
-            node --test packages/clinic-auth/tests/live.test.mjs
-          fi
+          case "${{ inputs.operation }}" in
+            register-a)
+              DAWNEY_REGISTER_TARGET=A node packages/clinic-auth/tests/register-live.mjs
+              ;;
+            register-b)
+              DAWNEY_REGISTER_TARGET=B node packages/clinic-auth/tests/register-live.mjs
+              ;;
+            test)
+              for key in DAWNEY_TEST_A_EMAIL DAWNEY_TEST_A_PASSWORD DAWNEY_TEST_B_EMAIL DAWNEY_TEST_B_PASSWORD; do
+                if [ -z "${!key}" ]; then echo "Missing GitHub Actions secret: $key"; exit 1; fi
+              done
+              node --test packages/clinic-auth/tests/live.test.mjs
+              ;;
+            *)
+              echo "Unsupported operation"; exit 1
+              ;;
+          esac

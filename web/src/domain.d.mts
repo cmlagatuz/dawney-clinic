@@ -6,3 +6,4 @@ export declare function cleanProfile(value: unknown): {
 }
 export declare function safeAuthReturnPath(value: unknown): string
 export declare function isVerifiedUser(value: unknown): boolean
+export declare function isValidNewPassword(value: unknown): boolean

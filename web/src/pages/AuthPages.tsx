@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/AuthProvider'
+import { isValidNewPassword } from '../domain.mjs'
 
 function Panel({ title, intro, children }: { title: string; intro: string; children: ReactNode }) {
   return <section className="auth-panel" aria-labelledby="auth-title"><div className="eyebrow">Dawney secure access</div><h1 id="auth-title">{title}</h1><p className="subtitle">{intro}</p>{children}</section>
@@ -14,7 +15,8 @@ function SuccessMessage({ message }: { message: string | null }) {
 }
 function normalizeError(error: unknown) {
   const text = error instanceof Error ? error.message : ''
-  if (text.includes('rate limit') || text.includes('429')) return 'Too many requests. Try again later.'
+  if (text.toLowerCase().includes('rate limit') || text.includes('429')) return 'Too many requests. Wait until the email limit resets before trying again.'
+  if (text.toLowerCase().includes('weak password') || text.toLowerCase().includes('weak_password')) return 'The password does not meet the server security policy. Try a longer, unique password.'
   if (text.includes('Email not confirmed')) return 'Check your inbox and verify your email first.'
   if (text.includes('Invalid login credentials')) return 'Email or password is incorrect.'
   return 'We could not complete the request. Please check your details and connection.'
@@ -46,7 +48,7 @@ export function LoginPage() {
     <ErrorMessage error={error}/>
     <form onSubmit={e => void submit(e)} className="form-stack">
       <label>Email address<input autoComplete="email" name="email" type="email" required value={email} onChange={e => setEmail(e.target.value)} /></label>
-      <label>Password<input autoComplete="current-password" name="password" type="password" required minLength={12} value={password} onChange={e => setPassword(e.target.value)} /></label>
+      <label>Password<input autoComplete="current-password" name="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
       <button className="button button-primary" disabled={pending}>{pending ? 'Signing in…' : 'Sign in'}</button>
     </form>
     <p className="form-links"><Link to="/auth/forgot">Forgot password?</Link><span>New to Dawney? <Link to="/auth/signup">Create an account</Link></span></p>
@@ -60,6 +62,10 @@ export function SignUpPage() {
   const [sent, setSent] = useState(false)
   async function submit(event: FormEvent) {
     event.preventDefault(); if (!supabase) return
+    if (!isValidNewPassword(values.password)) {
+      setError('Use at least 8 characters, including a letter and a number. Longer passwords are recommended.')
+      return
+    }
     setPending(true); setError(null)
     try {
       const { error } = await supabase.auth.signUp({ email: values.email.trim(), password: values.password,
@@ -77,7 +83,7 @@ export function SignUpPage() {
         <div className="form-row"><label>First name<input required maxLength={150} autoComplete="given-name" value={values.first} onChange={e=>field('first',e.target.value)} /></label>
           <label>Last name<input required maxLength={150} autoComplete="family-name" value={values.last} onChange={e=>field('last',e.target.value)} /></label></div>
         <label>Email address<input required type="email" autoComplete="email" value={values.email} onChange={e=>field('email',e.target.value)}/></label>
-        <label>Password <small>(at least 12 characters)</small><input required minLength={12} maxLength={1024} type="password" autoComplete="new-password" value={values.password} onChange={e=>field('password',e.target.value)}/></label>
+        <label>Password <small>(8+ characters, with letters and numbers; 12+ recommended)</small><input required minLength={8} maxLength={1024} pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,1024}" title="At least 8 characters including a letter and a number" type="password" autoComplete="new-password" value={values.password} onChange={e=>field('password',e.target.value)}/></label>
         <button className="button button-primary" disabled={pending}>{pending ? 'Creating…' : 'Create account'}</button>
       </form><p className="form-links">Already registered? <Link to="/auth/signin">Sign in</Link></p></>}
   </Panel>
@@ -147,6 +153,10 @@ export function RecoveryPage() {
   const [pending, setPending] = useState(false)
   async function submit(e:FormEvent) {
     e.preventDefault(); if(!supabase) return
+    if (!isValidNewPassword(password)) {
+      setError('Use at least 8 characters, including a letter and a number. Longer passwords are recommended.')
+      return
+    }
     setPending(true);setError(null)
     try {const {error}=await supabase.auth.updateUser({password})
       if(error) throw error
@@ -157,7 +167,7 @@ export function RecoveryPage() {
   return <Panel title="Set a new password" intro="Choose a strong, unique password for your clinic account.">
     <ErrorMessage error={error}/>{checking ? <p role="status">Checking recovery link…</p> : !user && !recovery ?
       <p className="alert alert-error">Recovery link has expired or has not been verified. <Link to="/auth/forgot">Request a new link</Link>.</p> :
-      <form className="form-stack" onSubmit={e=>void submit(e)}><label>New password<input type="password" minLength={12} maxLength={1024} required autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)}/></label>
+      <form className="form-stack" onSubmit={e=>void submit(e)}><label>New password <small>(8+ characters, with letters and numbers; 12+ recommended)</small><input type="password" minLength={8} maxLength={1024} pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,1024}" title="At least 8 characters including a letter and a number" required autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)}/></label>
         <button className="button button-primary" disabled={pending}>Update password</button></form>}
   </Panel>
 }

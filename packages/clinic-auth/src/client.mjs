@@ -24,9 +24,20 @@ const validEmail = (value) => {
   if (!emailPattern.test(email)) throw new ClinicAuthError("Invalid email", "invalid_email");
   return email;
 };
-const validPassword = (value) => {
-  if (typeof value !== "string" || value.length < 12 || value.length > 1024) {
-    throw new ClinicAuthError("Use a password between 12 and 1024 characters", "invalid_password");
+const validNewPassword = (value) => {
+  if (typeof value !== "string" || value.length < 8 || value.length > 1024 ||
+      !/[A-Za-z]/.test(value) || !/[0-9]/.test(value)) {
+    throw new ClinicAuthError(
+      "Use at least 8 characters including a letter and a number (maximum 1024).",
+      "invalid_password"
+    );
+  }
+  return value;
+};
+// Existing accounts can have older password rules; do not block valid sign-ins locally.
+const validLoginPassword = (value) => {
+  if (typeof value !== "string" || value.length === 0 || value.length > 1024) {
+    throw new ClinicAuthError("Enter your password.", "invalid_password");
   }
   return value;
 };
@@ -103,7 +114,7 @@ export function createClinicAuth({ url, publishableKey, fetchImpl = globalThis.f
 
   async function signUp({ email, password, firstName, lastName }) {
     email = validEmail(email);
-    password = validPassword(password);
+    password = validNewPassword(password);
     const given = safeText(firstName, 150), family = safeText(lastName, 150);
     const response = await request("/auth/v1/signup", {
       method: "POST",
@@ -137,7 +148,7 @@ export function createClinicAuth({ url, publishableKey, fetchImpl = globalThis.f
 
   async function signIn({ email, password }) {
     const response = await request("/auth/v1/token?grant_type=password", {
-      method: "POST", body: { email: validEmail(email), password: validPassword(password) }
+      method: "POST", body: { email: validEmail(email), password: validLoginPassword(password) }
     });
     adoptSession(response);
     try { return { user: await getCurrentUser(), session: { ...session } }; }
