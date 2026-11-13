@@ -1,8 +1,8 @@
 -- Trusted-role and anonymous-user regression. All fixtures roll back.
 begin;
-insert into auth.users(id,aud,role,email) values
-('44444444-4444-4444-8444-444444444444','authenticated','authenticated','phase2-admin@example.invalid'),
-('55555555-5555-4555-8555-555555555555','authenticated','authenticated','phase2-outsider@example.invalid');
+insert into auth.users(id,aud,role,email,email_confirmed_at) values
+('44444444-4444-4444-8444-444444444444','authenticated','authenticated','phase2-admin@example.invalid',now()),
+('55555555-5555-4555-8555-555555555555','authenticated','authenticated','phase2-outsider@example.invalid',now());
 insert into public.staff_memberships(user_id,role)
 values('44444444-4444-4444-8444-444444444444','administrator');
 set local role authenticated;
