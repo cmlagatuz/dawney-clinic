@@ -24,3 +24,26 @@ jobs:
           node-version: '22'
       - name: Check Bash syntax and mock offline backup/verification
         run: node --test scripts/recovery/tests/recovery.test.mjs
+
+  isolated-postgres-drill:
+    # Synthetic-only PostgreSQL instance. Does NOT connect to hosted Supabase.
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: dawney-ci-only
+          POSTGRES_DB: clinic_source
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clinic_source"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Real encrypted dump and isolated restore of synthetic PostgreSQL 17 records
+        run: bash scripts/recovery/tests/isolated-restore.sh
