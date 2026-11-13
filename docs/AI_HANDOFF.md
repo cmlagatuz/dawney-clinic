@@ -1,12 +1,12 @@
 # Dawney Clinic — Shared AI Handoff
 
-Updated: 2026-11-13 (supervisor checkpoint; Phase 1 merged, Phase 2 pending). Shared source of truth: GitHub master + active PRs. Read AGENTS.md and CLAUDE.md first. No deployment is verified.
+Updated: 2026-11-13 (supervisor checkpoint; Phase 1 merged, Phase 2 database baseline merged; Auth integration pending). Shared source of truth: GitHub master + active PRs. Read AGENTS.md and CLAUDE.md first. No deployment is verified.
 
 ## Confirmed baseline
 - Repo: https://github.com/cmlagatuz/dawney-clinic ; default branch master.
 - Legacy Laravel 5.8 / PHP 7.1-era / MySQL, Blade/Bootstrap 4/Vue 2; preservation required.
 - Existing working-in-code areas: authentication, owners, pets, basic medical history and appointments, admin dashboard; inventory/order code exists but routes are disabled. Not independently runtime verified.
-- Connected Supabase project is named **Dawney Animal Clinic Veterinary System**, checked healthy (Postgres 17) on 2026-11-13; public app tables: 0; security advisor: no current lints. **No Supabase writes or migrations performed.**
+- Connected Supabase project is named **Dawney Animal Clinic Veterinary System**, checked healthy (Postgres 17) on 2026-11-13; public app tables: 7 and two applied migrations as of latest Phase 2 checkpoint below; review the latest dated checkpoint before assuming state.
 - No verified Cloudflare Pages link, deployment, backups or production Laravel runtime.
 - Free architecture proposal: separate Vite/React/TypeScript SPA on Cloudflare Pages Free + Supabase Free Postgres/Auth/private Storage with RLS and limited server functions. See Phase 1 audit for quotas, risks, source findings and data mapping.
 - Source-level architecture and security audit: docs/PHASE1_LEGACY_AUDIT.md on master, merged via PR #2.
@@ -22,7 +22,7 @@ Updated: 2026-11-13 (supervisor checkpoint; Phase 1 merged, Phase 2 pending). Sh
 - PR #2 was squash-merged after the targeted tests passed. This is targeted security coverage, **not** a complete legacy functional/integration test or live deployment.
 - Next ChatGPT task: verified MySQL export strategy, versioned Postgres model and RLS deny tests, booking concurrency and zero-paid notification design; stay on a NEW ChatGPT branch.
 
-**Claude Sonnet Free — ACTIVE DRAFT PR #1; INTEGRATION FIXES NEXT**
+**Claude Sonnet Free — PR #1 CHECKS PASS, BUT OPEN/DRAFT AND CONFLICTED WITH UPDATED MASTER**
 - [PR #1](https://github.com/cmlagatuz/dawney-clinic/pull/1) from `ai/claude/admin-ui-foundation` is OPEN/DRAFT and GitHub reported `mergeable: false` at supervisor check. It was based on pre-Phase-1 master. Branch `ai/claude/phase1-ui-inventory` exists but is not yet the immediate task.
 - Existing PR adds admin theme/accessible components and restyles dashboard, patients, appointment and record views; source-only UI checks are described in its PR. Blade runtime render and actual integration are **not** verified.
 - **Immediate task:** update PR #1 branch from current `master`, resolve shared handoff conflict carefully, re-run checks, verify Blade rendering and real routes if tools permit; fix dashboard label/count mismatch: `isToday()` alone includes past appointments while metric claims "Still to come today".
@@ -63,3 +63,10 @@ No API credentials, medical records, password hashes, patient contact details or
 - **Claude PR #1** remains independent; security review comment: https://github.com/cmlagatuz/dawney-clinic/pull/1#issuecomment-6846659464 . Raw `{!! $record->comments !!}` remains a stored-XSS risk, plus GET/Nexmo reminder and stale-dashboard count. Claude must resolve before UI merge; do not overwrite their files.
 - **Still PENDING before Phase 2 exit:** real Supabase Auth sign-up/invite and real JWT HTTP cross-account tests; verified staff bootstrap workflow and role lifecycle; private Storage policies; clinic timezone/hours/status transitions; legacy MySQL export/import and identity linking; encrypted backup and full isolated restore rehearsal; end-to-end UI persistence; deployed application. No source MySQL or clinical data were accessed or migrated.
 - **Next owner:** ChatGPT should implement remaining Auth/RLS/restore integration on a new isolated branch. Claude should complete PR #1 UI tests independently. Owner does not need to intervene for the schema baseline; owner input will be required later for authorized legacy MySQL export, clinic timezone/privacy requirements, and release approval. Do not use paid services or put secrets in GitHub.
+
+## Supervisor latest status — 2026-11-13 (after Phase 2 merge)
+- **Claude PR #1 is NOT finished/merged**: GitHub API currently reports `state=open`, `draft=true`, `mergeable_state=dirty` for `ai/claude/admin-ui-foundation` @ `2a2dc66d7d54ec74d6b188565c18227c943d4752`. It last updated before Phase 2 merge. Claude did fix the dashboard count and add frontend tests; branch CI frontend and PHP checks both SUCCESS. PR body says mergeable, but live API disagrees: treat current live status as authoritative.
+- Claude usage unavailable until user-reported 2:10 PM. Do not consume Claude quota or start duplicate UI work. When available, ask Claude to resync latest `master`, resolve conflicts (especially this handoff and README, if any), re-run CI, make PR ready for final lead review; leave backend issues to ChatGPT.
+- Connected Supabase remains ACTIVE_HEALTHY. Verified **7 public tables with RLS**, 2 migrations (`20261113070302` / `20261113070834`), and **1 informational** security advisor entry for intentionally locked private `clinic_private.legacy_user_links`, not an actionable public RLS exposure. No live application or real Auth tests yet.
+- **Astra priority while Claude unavailable:** isolated Phase 2/3 integration branch for real Supabase Auth sign-up/login/owner creation, HTTP token-based cross-account RLS tests, staff onboarding workflow, and small modern frontend proof of persistence **only if safely scoped**. Do not merge or modify Claude PR #1 without resolving conflicts and review. Preserve Phase 2 applied migration history; avoid paid services and secrets. Record verified tests and push a focused PR.
+- Source of truth for latest project progress: merged Phase 2 PR #3, `docs/PHASE2_DATA_SECURITY.md`, current Supabase state, and active PR status; earlier superseded statements in this handoff are historical.
