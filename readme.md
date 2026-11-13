@@ -2,7 +2,7 @@
 
 **Veterinary clinic management system — modernization in progress**
 
-> **Project status (13 November 2026): Phase 1 merged; Phase 2 database security and verified-account gate applied, with mocked Auth and rollback-only SQL tests passing. Real user HTTP/JWT integration, clinical migration and deployment remain pending.** This repository is not currently a production-ready or live Supabase-powered veterinary system.
+> **Project status (13 November 2026): Phases 1–2 security foundations and Phase 3 React frontend, pet/appointment workflows, staff safeguards, private Storage RLS, and recovery tools are merged. Six Supabase migrations are applied. Real two-account Auth HTTP verification, clinical data migration, full backup/restore and deployment remain pending.** Not approved for real clinic records.
 
 ## Overview
 
@@ -25,10 +25,10 @@ The checked-in **legacy application** uses Laravel 5.8, PHP 7.1-era requirements
 | Appointments | Legacy create/list/detail flow; targeted owner-scoping and input validation fixes | Security fixes merged; conflict handling still needed |
 | Admin dashboard | Legacy dashboards and patient/appointment views | Legacy source present; UI PR in progress |
 | Inventory / purchasing / orders | Models, controllers and views present; main routes commented out | Disabled; not safe to enable unchanged |
-| Modern Supabase-backed frontend | Proposed React + TypeScript + Vite migration | Not yet implemented |
-| Supabase schema | Three applied and versioned migrations; 7 public RLS tables and private mapping; verified Auth and restricted staff-bootstrap helpers | Database security tests passed; real Auth HTTP test pending |
-| Cloud hosting and live URL | Cloudflare Pages Free proposed; no verified deployment URL | Not deployed |
-| Production backups, restore drill and cutover | Required before handling real operational records | Not verified |
+| Modern Supabase-backed frontend | Standalone `web/` React/TypeScript/Vite with Supabase Auth, profile, pets and booking workflows; TypeScript/Vite CI green | Source implemented; real browser/API persistence checks and deployment pending |
+| Supabase schema | Six applied migrations: 7 public RLS tables, staff audit, appointment lifecycle/overlap and private Storage object policies | SQL tests passed; live Auth and Storage API negative tests pending |
+| Cloud hosting and live URL | Vite static build and Cloudflare Pages Free Git setup runbook | Not connected or deployed |
+| Production backups, restore drill and cutover | GPG-encrypted app-schema export and archive-inspection tools merged | Mock tests passed; real export/complete Auth+Storage restore pending |
 
 **Audit scope:** Source review and targeted regression tests, not a full browser-based security test or a validated production environment. Do not enter real clinic records into an unverified deployment.
 
@@ -41,6 +41,8 @@ The checked-in **legacy application** uses Laravel 5.8, PHP 7.1-era requirements
 - **[PR #4](https://github.com/cmlagatuz/dawney-clinic/pull/4):** adds a third verified-user/security migration and a dependency-free Supabase Auth/owner profile integration contract, unit tests, and an opt-in live two-account HTTP test workflow. See [Phase 2 Auth verification and owner steps](docs/PHASE2_AUTH_INTEGRATION.md). Real sign-up/verification and HTTP RLS testing require owner-controlled temporary mailboxes and GitHub Actions secrets; **not yet verified live**.
 - **Latest integration checkpoint (2026-11-13):** Two disposable Supabase Auth accounts now exist and both have confirmed emails. [Registration workflow](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43398422483) passed in `register` mode; **the `test` mode end-to-end JWT/RLS/persistence run has not been verified**. Run the existing workflow with `operation=test` on `master`, do not register again. See [Phase 3 supervised execution plan](docs/PHASE3_SUPERVISOR_PLAN.md) for the backend and modern frontend priorities while Claude's legacy UI PR stays draft/conflicted.
 - **Supabase:** 7 public application tables have RLS enabled; no real user/patient data imported or stored in the application schema. No live data migration has occurred.
+- **Phase 3 merged:** [PR #5](https://github.com/cmlagatuz/dawney-clinic/pull/5) modern React/Vite app; [#6](https://github.com/cmlagatuz/dawney-clinic/pull/6) persisted pet/appointment workflows; [#7](https://github.com/cmlagatuz/dawney-clinic/pull/7) encrypted export tools; [#8](https://github.com/cmlagatuz/dawney-clinic/pull/8) private Storage policies; [#9](https://github.com/cmlagatuz/dawney-clinic/pull/9) staff safety/audit. See [web](docs/PHASE3_WEB_FOUNDATION.md), [clinical workflows](docs/PHASE3_CLINICAL_CORE.md), [private Storage](docs/PHASE3_PRIVATE_STORAGE.md), [staff safeguards](docs/PHASE3_STAFF_AUDIT.md) and [recovery](docs/PHASE3_FREE_RECOVERY.md). All PR GitHub checks passed; connected DB SQL tests were transaction scoped.
+- **Limitations:** The successful Auth registration action was not the live two-account `test` run. At last check two email-confirmed test users existed but zero owners, patients, appointments or staff. Storage bucket/objects absent. No full recovery snapshot.
 - **Deployment:** No confirmed Cloudflare Pages connection, domain, or deployed application URL.
 
 For live agent ownership and new changes, read **[docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)**. This README is a project overview rather than a replacement for the frequently updated handoff.
@@ -50,9 +52,9 @@ For live agent ownership and new changes, read **[docs/AI_HANDOFF.md](docs/AI_HA
 | Phase | Goal | Gate / evidence |
 | --- | --- | --- |
 | **1 — Legacy assessment** | Feature inventory, security findings, minimal high-risk fixes, tests | **Merged**; focused CI green |
-| **2 — Data contract and access** | Legacy export/backup plan, Supabase schema migrations, authenticated roles, RLS allow/deny tests | Three applied migrations; SQL tests and Auth unit tests pass. Live Auth HTTP/JWT, restore and import rehearsal still pending |
-| **3 — Modern frontend foundation** | Separate React/TypeScript/Vite application, accessible responsive shell, authentication and first persisted workflow | Pending |
-| **4 — Core clinical parity** | Owners, pets, appointments with atomic conflict prevention, medical history and records | Pending |
+| **2 — Data contract and access** | Legacy mapping, Supabase schema, roles and RLS | Six applied migrations, SQL tests pass; real JWT HTTP and restore rehearsal pending |
+| **3 — Modern frontend foundation** | React/TypeScript/Vite and accessible authenticated owner UI | Merged and CI built; live UI/HTTP verification and deployment pending |
+| **4 — Core clinical parity** | Owners, pets, appointments, medical history | Owner/pet/appointment UI built with RLS; medical records UI and real-data migration pending |
 | **5 — Operations** | Vaccines, prescription flows, inventory stock ledger, invoices/receipts, reporting and audit logs | Pending |
 | **6 — Pilot and deployment** | Free GitHub-linked hosting, migration rehearsal, restore drill, live security/persistence smoke tests | Pending |
 
@@ -95,11 +97,11 @@ This command installs agent skills in a compatible local environment; **it does 
 
 ### Legacy local testing (maintenance only)
 
-The legacy project is an old Laravel/PHP application with dependencies that may require an isolated, compatible environment. Do not blindly upgrade runtime or Composer or deploy it publicly. A constrained PHP 7.4 compatibility setup was used for the Phase 1 GitHub Actions regression job. See [the workflow](.github/workflows/legacy-static-audit.yml) for the actual test setup and [the Phase 1 audit](docs/PHASE1_LEGACY_AUDIT.md) for unresolved issues. The modern application's installation and deployment instructions will be added once its framework, lockfile and hosting are implemented.
+The legacy project is an old Laravel/PHP application with dependencies that may require an isolated, compatible environment. Do not blindly upgrade runtime or Composer or deploy it publicly. A constrained PHP 7.4 compatibility setup was used for the Phase 1 GitHub Actions regression job. See [the workflow](.github/workflows/legacy-static-audit.yml) for the actual test setup and [the Phase 1 audit](docs/PHASE1_LEGACY_AUDIT.md) for unresolved issues. The modern app's pinned dependencies, lockfile, build and deployment instructions are in [web/README.md](web/README.md) and [Phase 3 web guidance](docs/PHASE3_WEB_FOUNDATION.md).
 
 ## Outstanding security and operations risks
 
-Legacy code includes overlapping-booking race conditions, charged SMS behavior, unsafe password onboarding, disabled purchase flows, incomplete DB constraints and legacy dependency vulnerabilities. The baseline Supabase schema now enforces row-level security (RLS), trusted staff roles, client ownership and two-account SQL deny tests. Private storage, real Auth HTTP verification and migration rehearsal are still required. Paid SMS must not be required. Before any real-world clinic launch: reconcile old IDs and records, export and restore backups, confirm data retention and secure staff permissions, run integration tests, and verify the live URL.
+Legacy code includes overlapping-booking race conditions, charged SMS behavior, unsafe password onboarding, disabled purchase flows, incomplete DB constraints and legacy dependency vulnerabilities. The baseline Supabase schema now enforces row-level security (RLS), trusted staff roles, client ownership and two-account SQL deny tests. Private Storage RLS exists but the bucket is not created; real Auth HTTP verification, full Auth/Storage backup and migration rehearsal are still required. Paid SMS must not be required. Before any real-world clinic launch: reconcile old IDs and records, export and restore backups, confirm data retention and secure staff permissions, run integration tests, and verify the live URL.
 
 ## Project links
 
