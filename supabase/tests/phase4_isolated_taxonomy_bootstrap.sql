@@ -68,4 +68,6 @@ insert into public.pets(id,owner_id,name,species,breed) values
  ('33333333-3333-4333-8333-333333333333','11111111-1111-4111-8111-111111111111',
   'Historic One','Canine','Unlisted historic cross'),
  ('44444444-4444-4444-8444-444444444444','22222222-2222-4222-8222-222222222222',
-  'Historic Two','Uncatalogued Legacy Animal','Historic breed');
+  'Historic Two','Uncatalogued Legacy Animal','Historic breed'),
+ ('55555555-5555-4555-8555-555555555555','11111111-1111-4111-8111-111111111111',
+  'Historic Dog','Dog','Golden Retriever');
