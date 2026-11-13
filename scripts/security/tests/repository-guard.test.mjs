@@ -13,6 +13,6 @@ test('guard npm exact versions and existing lock',()=>{
 });
 test('scan detects private signing material without exposing match in log',()=>{
  const file='application.mjs';
- const findings=scanSource(()=> '-----BEGIN PRIVATE KEY-----',[file]);
+ const findings=scanSource(()=> '-----BEGIN ' + 'PRIVATE KEY-----',[file]);
  assert.deepEqual(findings,['Possible credential in tracked file: '+file]);
 });
