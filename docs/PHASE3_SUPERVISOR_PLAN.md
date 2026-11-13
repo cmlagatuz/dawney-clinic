@@ -1,5 +1,7 @@
 # Dawney Clinic — Current Supervisor Execution Plan
 
+> **SUPERSEDED FOR NEW DEVELOPMENT:** Phase 4 product modernization is governed by [Current Supervisor Brief](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) and [Phase 4 Product & QA Spec](PHASE4_PRODUCT_QA_SPEC.md), effective 2026-11-13 20:57 Asia/Riyadh. This older Phase 3 plan remains historical only; do not follow its old 'next action' sections.
+
 **New Phase 4 checkpoint:** PRs #19–#25 merged with passing scoped CI; see [top of AI handoff](AI_HANDOFF.md). Live two-account Auth and owner read-only security smoke #43443472697 are complete. No further registration/test dispatch required. Next owner action is Cloudflare Pages Free setup and actual URL, followed by approved hosted read-only browser testing, clinic scheduling parameters and full isolated recovery rehearsal. Existing clinical/Storage synthetic-write modes are **NOT authorized**. All older instructions below to run baseline Auth or the read-only smoke are superseded. There is no verified Pages deployment or live clinic go-live.
 
 
