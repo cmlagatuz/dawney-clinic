@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: '22'
       - name: Check Bash syntax and mock offline backup/verification
-        run: node --test scripts/recovery/tests/recovery.test.mjs
+        run: node --test scripts/recovery/tests/*.test.mjs
 
   isolated-postgres-drill:
     # Synthetic-only PostgreSQL instance. Does NOT connect to hosted Supabase.
