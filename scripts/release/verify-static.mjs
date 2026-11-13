@@ -14,7 +14,7 @@ const forbidden = [
   {label:'Test password variable',pattern:/DAWNEY_TEST_[AB]_PASSWORD/i},
   {label:'Test email variable',pattern:/DAWNEY_TEST_[AB]_EMAIL/i},
   {label:'Embedded PEM key',pattern:/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i},
-  {label:'Embedded JWT signing token',pattern:/eyJ[A-Za-z0-9_-]{18,}\\.[A-Za-z0-9_-]{18,}\\.[A-Za-z0-9_-]{12,}/},
+  {label:'Embedded JWT signing token',pattern:/eyJ[A-Za-z0-9_-]{18,}\.[A-Za-z0-9_-]{18,}\.[A-Za-z0-9_-]{12,}/},
 ];
 function filesUnder(dir, base = '') {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
