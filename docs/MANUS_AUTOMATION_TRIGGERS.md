@@ -1,5 +1,7 @@
 # Manus — Event Triggers and Credit-Smart Scheduled Tasks
 
+> **Actual Manus GitHub triggers (owner-confirmed 2026-11-14):** Choose `New pull request` as the FIRST event automation, scoped to `cmlagatuz/dawney-clinic`. This fires for new PRs only, not existing PRs or Issue #45. `New review request` means a reviewer is requested, NOT that a draft PR becomes ready. Leave `New branch commits` and `New pull request comment` disabled initially because they can be noisy or create self-trigger loops. To post the existing Worker cleanup result to Issue #45, launch a **one-time manual Manus Project task**, verify issue-comment write ability first on Issue #54, and have Manus post its evidence directly to #45. A trigger set in the UI is not active until explicitly enabled and tested. Keep public-comment approval on during tests.
+
 **Owner setup, NOT active by committing this file.** In Manus Project `Dawney Clinic — AI Operations`, use **Triggered tasks** or **Automations** only when the account actually exposes a compatible trigger. Never imply Manus can autonomously log into Claude/Grok/Qwen/ChatGPT or read their private chats. Shared evidence travels through Github.
 
 ## Priority-based triggered tasks
