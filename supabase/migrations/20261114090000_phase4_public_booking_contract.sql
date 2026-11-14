@@ -90,7 +90,8 @@ create policy clinic_service_resources_public_read on public.clinic_service_reso
  for select to anon,authenticated using (exists (
    select 1 from public.clinic_services s where s.id=service_id
  ) and exists (
-   select 1 from public.appointment_resources r where r.id=resource_id and r.is_active
+   select 1 from public.clinic_booking_policy bp
+   where bp.policy_id=1 and bp.is_approved
  ));
 -- Approved opening hours only, no visibility of draft clinic policy/holidays.
 create policy clinic_booking_policy_public_read on public.clinic_booking_policy
