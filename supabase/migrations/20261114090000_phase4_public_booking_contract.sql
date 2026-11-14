@@ -124,7 +124,7 @@ declare
  local_minutes integer;
  entries jsonb;
  valid_hours boolean := false;
- window jsonb;
+ interval_entry jsonb;
 begin
  if new.service_id is null then
    -- Legacy unlinked requests are preserved while migration/React rollout
@@ -209,12 +209,12 @@ begin
  if pg_catalog.jsonb_typeof(entries)<>'array' then
    raise exception 'Missing owner-approved clinic weekday hours' using errcode='23514';
  end if;
- for window in select value from pg_catalog.jsonb_array_elements(entries) loop
-   if coalesce(window->>'open','') ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
-      and coalesce(window->>'close','') ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' then
-     if (window->>'open')::time < (window->>'close')::time
-        and local_start::time >= (window->>'open')::time
-        and local_end::time <= (window->>'close')::time then
+ for interval_entry in select value from pg_catalog.jsonb_array_elements(entries) loop
+   if coalesce(interval_entry->>'open','') ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+      and coalesce(interval_entry->>'close','') ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' then
+     if (interval_entry->>'open')::time < (interval_entry->>'close')::time
+        and local_start::time >= (interval_entry->>'open')::time
+        and local_end::time <= (interval_entry->>'close')::time then
        valid_hours:=true;exit;
      end if;
    end if;
