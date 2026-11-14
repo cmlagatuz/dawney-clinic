@@ -1,5 +1,7 @@
 # Dawney Clinic — Owner's Operations CRM Video Reference
 
+> **Owner channel direction (2026-11-14):** Keep WhatsApp visible for customer contact, implement the first **actual** automated shared-inbox channel with the free **Telegram Bot API**, and architect optional official **WhatsApp Business Platform** integration (potentially billable, owner-gated). **Viber remains future/disabled** because commercial chatbot terms include ongoing fees. The binding work item is [#53 — Omnichannel Messaging](https://github.com/cmlagatuz/dawney-clinic/issues/53). The clip's WhatsApp-like design is NOT evidence of a working API. No provider credentials, real sending, unapproved campaigns or patient messages before Phase4 source integration and clinic approval. Do not use WhatsApp Web scraping. This updates the future Phase5C communications priority below.
+
 **Supervisor interpretation — November 14, 2026.** Source: owner-uploaded 11.2-second vertical clip, `WhatsApp clinic CRM dashboard_1920p.mp4`, a **human/family clinic UI demonstration**. The excerpt is incomplete; it does **not** verify actual backend, Meta WhatsApp integration, persisted workflow, sending charges, clinical permissions or exact responsive behavior. This is the intended **experience/layout reference**, NOT authority to implement every visible module or publish real patient data.
 
 ## What the source demonstrably shows
