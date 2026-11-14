@@ -2,6 +2,7 @@ import type {User} from '@supabase/supabase-js'
 import {supabase} from './supabase'
 import {readOwner} from './owners'
 import {validUtcInstant} from '../booking-contract.mjs'
+import {readServiceSpeciesIds} from '../service-species-reader.mjs'
 
 export type PublicClinicService={
  id:string;slug:string;display_name:string;summary:string|null;
@@ -31,6 +32,11 @@ export async function listPublicClinicServices():Promise<PublicClinicService[]>{
  .order('display_name')
  if(error)throw error
  return (data??[]) as PublicClinicService[]
+}
+/** Authenticated, RLS-filtered species for a published service. An empty list
+ * is different from a failed lookup; the booking RPC remains authoritative. */
+export async function listServiceSpeciesIds(serviceId:string):Promise<string[]>{
+ return readServiceSpeciesIds(client(),serviceId)
 }
 export async function listPublishedServiceResources(serviceId:string):Promise<PublishedServiceResource[]>{
  if(!uuid.test(serviceId))throw Error('Invalid service')
