@@ -70,11 +70,20 @@ alter table public.clinic_booking_policy enable row level security;
 revoke all on public.clinic_services,public.clinic_service_species,
   public.clinic_service_resources,public.clinic_booking_policy
   from public,anon,authenticated;
-grant select on public.clinic_services, public.clinic_service_resources to anon,authenticated;
+-- Public discovery does not need staff approval actor IDs or timestamps.
+-- Authenticated clinic booking trigger/RPC currently require broader SELECT,
+-- so keep authenticated grants until a separately reviewed staff/owner view.
+grant select on public.clinic_services to authenticated;
+grant select (id,slug,display_name,summary,duration_minutes,published_at)
+ on public.clinic_services to anon;
+grant select on public.clinic_service_resources to anon,authenticated;
 -- The existing species_catalog is authenticated-only. Keep anonymous public
 -- discovery limited to approved service descriptions, not taxonomy joins.
 grant select on public.clinic_service_species to authenticated;
-grant select on public.clinic_booking_policy to anon,authenticated;
+grant select on public.clinic_booking_policy to authenticated;
+grant select (policy_id,timezone,weekly_hours,holidays,lead_minutes,
+ max_advance_days,slot_step_minutes,revision,is_approved)
+ on public.clinic_booking_policy to anon;
 -- Browsing only: no anonymous or normal Auth ability to approve, seed, or publish.
 create policy clinic_services_public_read on public.clinic_services
  for select to anon,authenticated using (
