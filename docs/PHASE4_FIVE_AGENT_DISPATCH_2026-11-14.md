@@ -1,0 +1,35 @@
+# Dawney Clinic — Five-Agent Active Execution Dispatch (2026-11-14)
+
+**Supervisor source checkpoint:** `master` `9de7394e7064` at dispatch. **Open Phase4:** #34, #39 (draft), #40, #41, #43, #46, #47 (validation-only), #48, #49, #52. **All four real PostgreSQL17 migrations passed together** in [#52 run 43587403410](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43587403410); #48 last UI SHA `a147f53073` has service-aware and legacy-policy-safe booking, passing build/browser CI. **These are unmerged branch changes, not live deployment.**
+
+**Live Supabase:** only six historical Phase2/3 migrations; 2 confirmed Auth users, 2 owners, 1 pet, 1 appointment, 0 staff, 0 Storage objects. No Phase4 service schedule approved. Preserve legacy data. **Cloudflare Pages is green** while a separate **Workers Builds** check is red, issue #45, on the reviewed PRs. Do not claim all checks passing. Note: GitHub REST PR #49 reports `mergeable=true, mergeable_state=unstable` while another GraphQL-derived summary temporarily reported false; **recheck actual mergeability before acting, don't invent a confirmed conflict**.
+
+## Single-owner active missions
+
+### ASTRA — P0 recovery demonstration and safe rollout evidence
+**Context:** #40/#43 and four-migration #52 regression are DONE in disposable PG17. **Do not rerun for novelty, redo #50 or rebuild #51 adapter.** Existing #49 supplies a read-only pre/postflight checklist; `scripts/recovery/verify-recovery-set.mjs` checks encrypted manifest presence/integrity only, **not a real restore**.
+
+**Task:** Investigate what actual restoration can be demonstrated with a **disposable synthetic** PostgreSQL17/Auth/Storage-like recovery set without touching live Supabase. If feasible, implement *one executable restore-rehearsal test* in scoped `scripts/recovery/` + tests or suitable #49 follow-up; prove preserved fake owner/pet/appointment identities plus object bytes, checksum and missing-component fail-closed conditions. Show any **unverifiable real Supabase Auth/Storage requirements as OWNER-GATED**, not PASS. If real restore is impossible in current tooling, deliver an exact, operator-executable recovery procedure and clear NOT VERIFIED gates rather than fabricated proof. Confirm source PR ordering #46→#34, #40→#43, #49/#52 and whether #49's PR mergeability is truly clean. Scope: backend/recovery only; no production writes, no backup content in GitHub, no self-merge. **Evidence:** one actual isolated run URL or explicit NOT RUN + <=3 blockers.
+
+### CLAUDE — P0 final patient eligibility safety UX in existing #48
+**Context:** #48 `a147f53` already fixed /app/appointments service-aware transition, nonce retry, no-service policy, and allowlisted /book Auth callback. **Do not redo.** Source `web/src/lib/clinical.ts` defines `Pet` without a `clinic_supported` field; #48 notes server enforcement but user sees only a generic rejection for unsupported species.
+
+**Task:** On current #48 frontend branch, check the exact approved species/service eligibility contract and implement the **smallest safe UI behavior** for ineligible / catalog-review patients (owner portal and public booking) **only if existing typed APIs permit trustworthy eligibility**. Preserve historical patient display; never infer from free-text, fabricate species eligibility or bypass RPC. If backend API lacks the necessary field, stop at a one-paragraph contract request to Astra + precise UX fallback, not a speculative database query. Add 2–4 focused UI/state tests, run React build, maintain 360px keyboard/touch UX. Only change Claude-owned `web/src/pages/`, `web/src/components/` and relevant tests; no new huge feature or staff CRM yet. Avoid changing #43 copied contract files until after backend source merge.
+
+### QWEN — independent QA source release gate (read-only)
+**Task:** Refresh review to exact #48 head `a147f53`, #41 `ba7866e`, #43 `e8853f3`. Assess **exactly up to five** severity-ranked *source-based* booking UX/security test gaps: ineligible pet, signed-in vs fresh-tab verify return, approved/unapproved policy change, nonce retry, private documents and mobile/ARIA. Provide expected/actual, relevant path/line, one proposed minimal test patch and `SOURCE GO/NO-GO / LIVE NOT VERIFIED`. If no code access, say so. Qwen Coder shell remains blocked, so Qwen Chat **must not claim test execution/push/PR**; output to owner or issue #36 only with approval. No new broad audit.
+
+### GROK — conditional final security gate, PAUSED if Free quota unavailable
+**When free messages actually resume**: inspect latest #43 post-#50 and #48 `a147f53`, security findings #39, and #52 isolated chain evidence; stop discussing the settled trigger/Chow Chow. Confirm or refute release-critical booking abuse/rate-limit, actor UUID column permission, owner A/B pet access, resource conflict, staff confirmation and session-intent privacy with file/SQL evidence, mark live probes NOT TESTED; deliver <=3 actionable P0/P1 findings and SOURCE GO/NO-GO separate from production. Keep #39 draft until independently verified. No live SQL, no self-merge, no paid account workaround. **Do not claim active execution when paused**.
+
+### MANUS — initial operations mission #45 (onboarding #54 NOT VERIFIED COMPLETE)
+**Prerequisite:** owner creates Manus Project and grants GitHub / Cloudflare *read-only* connector access. No evidence yet of connected accounts, enabled automations or completed first task. Read `MANUS.md`, `docs/MANUS_FIRST_MISSION.md`. Inspect the **actual** Cloudflare Workers failure logs and route/traffic against successful Pages on same PR SHA, classify REQUIRED / DUPLICATE CANDIDATE / UNKNOWN and give one reversible owner action with rollback; **no changes**. If provider logs inaccessible, report NOT CONNECTED and exact owner UI steps. After delivery, propose a source-merge CI matrix for #46/#34 only; don't open new PR or start a second task until supervisor review. Keep any automated digests disabled until user enables them.
+
+## Supervisor / owner integration decision
+- First candidate for owner-authorized source integration: **#46 then #34**, gated by actual checks and Pages side effects. Recheck mergeability/checks immediately prior; a Workers red check requires classification, not automatic dismissal.
+- Backend: **#40 then #43**, #49 recovery check and #52 persistent integration tests, then safely retarget #41/#48. Preserve source history, drop #48 temporary duplicate #43 adapters only after backend source merge.
+- The **staff dashboard from CRM video** and **Telegram-first/WhatsApp/Viber inbox #53** are **post-MVP**. Avoid launching additional module implementations yet.
+- **No autonomous PR merges, live SQL migration, public services approval, DNS changes, or paid provider activation.** Owner authorizes production steps; supervisor independently reviews source/CI/test evidence.
+
+## Every handoff (no essays)
+`Agent | issue/PR/head | changed code or NONE | actual run URL or NOT RUN | <=3 blockers | next SINGLE request`. Max 350 words. Messages on GitHub Issues are instructions, **not proof** any third-party AI has begun execution.
