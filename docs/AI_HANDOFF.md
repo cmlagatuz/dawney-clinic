@@ -1,5 +1,10 @@
 # Dawney Clinic — Shared AI Handoff
 
+## LATEST SUPERVISOR STATUS — 2026-11-14 11:13 Riyadh
+
+**Authoritative now:** [docs/PHASE4_CURRENT_SUPERVISOR_BRIEF.md](PHASE4_CURRENT_SUPERVISOR_BRIEF.md). Do not reuse outdated assignments below. Master has **10 open Phase 4 PRs** (#34, #39 draft, #40, #41, #43, #46, #47, #48, #49, #50), no new feature PR merged. **Claude #48 has built public Home/Services/Location/Book in a stacked PR**, but not production/live. **Astra #46 and stacked #47 Chromium CI are green; original Claude #34 run #43568477414 passed attempt 2**. #40 ChowChow, #43 service booking, #50 privacy, #49 migration preflight remain unmerged. **Worker build #45** still fails independently of successful Cloudflare Pages. Supabase remains 6 applied migrations, 7 RLS tables, 2 confirmed users, 1 pet, 1 appointment and 0 private attachments; phase 4 schema not applied. **New [booking compatibility #51](https://github.com/cmlagatuz/dawney-clinic/issues/51):** old appointment form fails for new requests once booking policy approved; verification new-tab loses login booking intent; robots.txt Disallow / blocks public indexing. **Claude is out of Free messages until owner-stated 2:50 PM: no new Claude task, owner will resume existing work.** Astra next review #50 into #43, #40/#49 migration gates, #46/47 CI merge recommendation and #51 compatibility tests. Qwen Chat read-only QA #48/#41/#43/#50/#51; Grok Build security review of #43/#50/#48 and remaining audit #39. No live writes or ownerless merges. Owner must approve verified backup/recovery and real Cavite clinic contacts/hours/services/species/resources before any production clinic activation.
+
+
 
 ## NEWEST checkpoint — Nov 14 2026, 10:03 Asia/Riyadh
 
