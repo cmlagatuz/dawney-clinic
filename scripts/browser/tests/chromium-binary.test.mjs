@@ -25,10 +25,10 @@ test('deduplicates fallback paths, does not execute shell commands',()=>{
  assert.deepEqual(paths,['/usr/bin/chromium']);
 });
 test('discovery has bounded retries and succeeds after transient runner outage',async()=>{
- let probes=0,waits=0;
+ let waits=0;
  const paths=await discoverChromium({
   env:{PATH:'/usr/bin'},attempts:3,delayMs:1,
-  canExecute:p=>{probes++;return probes>=8&&p==='/usr/bin/google-chrome';},
+  canExecute:p=>waits>=1&&p==='/usr/bin/google-chrome',
   wait:async()=>{waits++;}
  });
  assert.deepEqual(paths,['/usr/bin/google-chrome']);
