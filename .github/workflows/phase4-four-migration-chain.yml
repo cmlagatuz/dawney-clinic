@@ -1,0 +1,92 @@
+name: Phase 4 four-migration chain (disposable PostgreSQL 17)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/phase4-four-migration-chain.yml'
+      - 'supabase/tests/phase4_four_migration_*.sql'
+      - 'supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql'
+      - 'supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql'
+      - 'supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql'
+      - 'supabase/migrations/20261114090000_phase4_public_booking_contract.sql'
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/phase4-four-migration-chain.yml'
+      - 'supabase/tests/phase4_four_migration_*.sql'
+      - 'supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql'
+      - 'supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql'
+      - 'supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql'
+      - 'supabase/migrations/20261114090000_phase4_public_booking_contract.sql'
+
+permissions:
+  contents: read
+
+jobs:
+  four-migrations-on-legacy-records:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-test-only
+          POSTGRES_DB: clinic_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clinic_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: isolated-test-only
+      PGDATABASE: clinic_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Install PostgreSQL client
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+      - name: Resolve exact reviewed PR migration blobs (until source PRs merge)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/phase4"
+          guard=supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql
+          booking=supabase/migrations/20261114090000_phase4_public_booking_contract.sql
+          if [[ -f "$guard" ]]; then
+            cp "$guard" "$RUNNER_TEMP/phase4/guard.sql"
+          else
+            git fetch --no-tags --depth=1 origin \
+              'refs/pull/40/head:refs/remotes/origin/phase4-pr40'
+            test "$(git rev-parse refs/remotes/origin/phase4-pr40)" = \
+              '54b4f7b449bde76f0ae226202d57c4d2fcb7b9cd'
+            git show "refs/remotes/origin/phase4-pr40:$guard" > "$RUNNER_TEMP/phase4/guard.sql"
+          fi
+          if [[ -f "$booking" ]]; then
+            cp "$booking" "$RUNNER_TEMP/phase4/booking.sql"
+          else
+            git fetch --no-tags --depth=1 origin \
+              'refs/pull/43/head:refs/remotes/origin/phase4-pr43'
+            test "$(git rev-parse refs/remotes/origin/phase4-pr43)" = \
+              'e8853f3023191cb05e5a2afd6ad2fbb53834102c'
+            git show "refs/remotes/origin/phase4-pr43:$booking" > "$RUNNER_TEMP/phase4/booking.sql"
+          fi
+          test -s "$RUNNER_TEMP/phase4/guard.sql"
+          test -s "$RUNNER_TEMP/phase4/booking.sql"
+      - name: Install four migrations in real sequence and exercise complete contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_isolated_taxonomy_bootstrap.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_four_migration_fixture.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql
+          psql -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/phase4/guard.sql"
+          psql -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/phase4/booking.sql"
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_four_migration_regression.sql
