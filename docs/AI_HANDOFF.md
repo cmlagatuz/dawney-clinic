@@ -316,3 +316,9 @@ No API credentials, medical records, password hashes, patient contact details or
 - **Blocked / not done:** Species/breed selector, attachments UI and staff workspace wait for Astra's typed adapters; no role data is available to the UI yet.
 - Behaviour change to review: post-login/verify redirect and `/` now go to `/app/overview` (was `/app/profile`).
 - Verified locally: contrast/theme tests, harness renders at 360/768/1440 light+dark (fake data), drawer/keyboard checks. Strict `tsc` + `vite build` only via CI.
+
+### Claude — Public website PR (branch `ai/claude/public-website`, stacked on #34) — Issue #42
+- Public `/`, `/services`, `/about` (+`/location`,`/contact`), `/book`; unknown paths → friendly 404; `/app/*` and `/auth/*` unchanged. Root no longer redirects to login.
+- Only facts: General Trias, Cavite, Philippines + owner's Maps link verbatim. **Phone, hours, street address are `null` pending owner confirmation** (`web/src/public-site/clinic-info.mjs`); UI shows "to be confirmed". Services/slots come only from Astra's #43 contract (`lib/public-booking.ts`, `booking-contract.mjs` copied byte-identically from #43 so this branch compiles; drop on merge of #43). No approved catalog/policy → pending states, no slots.
+- Booking: anonymous browse → intent (ids only, sessionStorage 30 min) → `/auth/signin|signup?next=/book` → return; signed-in: patient + reason → `requestAuthenticatedServiceBooking`; shows persisted status (requested ≠ confirmed), clinic-time (Asia/Manila) display, nonce reuse on retry.
+- Release notes: `web/public/robots.txt` still `Disallow: /` (left for supervisor); old `/app/appointments` form stops working for new bookings once the schedule is approved (needs its own PR); Verify/Callback flows still land on `/app/overview`.
