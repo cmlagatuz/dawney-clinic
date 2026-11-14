@@ -1,6 +1,18 @@
 # Dawney Clinic — Shared AI Handoff
 
 
+## Newest four-AI supervisor checkpoint — 2026-11-14
+
+**STOP reading old "next tasks" below. Read the current [four-AI Phase 4 brief](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) and [QA contract](PHASE4_PRODUCT_QA_SPEC.md) first.** This checkpoint supersedes stale earlier entries.
+
+- Astra Phase 4 backend source PRs #29/#30/#31/#33 merged; two new Phase 4 migrations **NOT** applied to the live project (still 6 migrations/7 RLS tables). **New P0 #38: missing `resolve_pet_taxonomy` trigger** confirmed by separate Grok report and supervisor source inspection; **P0 #35** existing Dog/Chow Chow breed omitted in catalog. Astra owns fixes, tests, safe migration preflight; no live SQL changes without owner approval.
+- Claude [PR #34](https://github.com/cmlagatuz/dawney-clinic/pull/34) OPEN/UNMERGED: actual logo, themed React shell, owner overview; Species/Breed and private attachment UI incomplete. Four GitHub Actions workflows pass but separate Check Run **Workers Builds FAILED** while **Cloudflare Pages succeeded**; investigate release relevance before merging/deploy claims.
+- Qwen [#36](https://github.com/cmlagatuz/dawney-clinic/issues/36) OPEN with **no agent branch/PR** verified. First task: focused QA and small browser test harness for Claude PR #34; no production edits or false push claims.
+- Grok [#37](https://github.com/cmlagatuz/dawney-clinic/issues/37) partially done: `ai/grok/issue-37-phase4-audit` contains 2 commits, preserved in **[DRAFT PR #39](https://github.com/cmlagatuz/dawney-clinic/pull/39)**; audit identifies missing trigger, Chow Chow, receptionist access scope question. Grok's SQL `SELECT 1/0 WHERE` test pattern needs valid conditional assertions/isolated PG17 verification. Grok CLI free quota exhausted; browser Build can review read-only without pretending terminal session sync. Private transcript archive exists but is **EMPTY**.
+- Connected Supabase healthy: 2 confirmed Auth users, 2 owners, 1 pet, 1 appointment, 0 private files. Existing static Cloudflare Pages test site available. No live Phase 4 schema activation, clinical Storage smoke or production go-live approval. Four agents must keep separate branches and present checked PR/test evidence. No paid plans.
+
+
+
 ## Current supervisor checkpoint — 2026-11-14 05:20 Asia/Riyadh (NEWEST)
 
 **Read [CURRENT SUPERVISOR BRIEF](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) then [Phase 4 QA contract](PHASE4_PRODUCT_QA_SPEC.md). Older handoff checkpoints below are historical.**
