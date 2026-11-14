@@ -75,6 +75,10 @@ jobs:
             psql -v ON_ERROR_STOP=1 -c 'drop trigger pet_taxonomy_before_write on public.pets'
           fi
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql
+          # Validate replay remains safe in disposable CI (never replay migration history live).
+          if [[ "${{ matrix.repair_missing_trigger }}" == "false" ]]; then
+            psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql
+          fi
           psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_isolated_taxonomy_regression.sql
           psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_taxonomy_p0_regression.sql
   browser-adapter-build:
