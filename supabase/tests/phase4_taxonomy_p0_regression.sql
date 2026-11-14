@@ -2,7 +2,7 @@
 -- Runs after 20261114 P0 corrective migration; no live identifiers or secrets.
 do $assert$
 begin
- if (select count(*) from public.pets)<>5 then
+ if (select count(*) from public.pets)<>6 then
    raise exception 'P0 correction unexpectedly deleted or inserted a historic patient';
  end if;
  if (select count(*) from public.appointments)<>1 or not exists(
@@ -91,10 +91,10 @@ begin
  if p.species_id<>'cat' or p.breed_id<>'cat-siamese' then
    raise exception 'Valid cat/breed insert rejected'; end if;
  -- ID-only legacy backfill has preserved original casing and spacing.
- update public.pets set species=species where id='44444444-4444-4444-8444-444444444444';
+ update public.pets set species=species where id='33333333-3333-4333-8333-333333333333';
  if not exists(select 1 from public.pets
-   where id='44444444-4444-4444-8444-444444444444'
-     and species='Uncatalogued Legacy Animal' and breed='Historic breed'
+   where id='33333333-3333-4333-8333-333333333333'
+     and species='Canine' and breed='Unlisted historic cross'
      and taxonomy_review_needed) then
     raise exception 'Grandfathered unchanged taxonomy was rewritten'; end if;
  update public.pets set color='brown'
@@ -132,7 +132,7 @@ begin
    raise exception 'OFF_CATALOG_ALLOWED';
  exception when check_violation then null; end;
  begin
-   update public.pets set species='Imaginary animal' where id='44444444-4444-4444-8444-444444444444';
+   update public.pets set species='Imaginary animal' where id='33333333-3333-4333-8333-333333333333';
    raise exception 'GRANDFATHER_EDIT_ALLOWED';
  exception when check_violation then null; end;
  -- Existing verified Dog/Chow Chow patient cannot become Cat with Dog breed.
