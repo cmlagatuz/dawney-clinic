@@ -20,7 +20,7 @@ export type RequestBookingInput={
  requestNonce:string;concern:string;details?:string|null
 }
 export type RequestedBooking={
- id:string;status:'requested';service_id:string;owner_id:string;
+ id:string;status:'requested'|'confirmed'|'checked_in'|'completed'|'cancelled'|'no_show';service_id:string;owner_id:string;
  pet_id:string;resource_id:string;starts_at:string;ends_at:string
 }
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
