@@ -5,17 +5,19 @@ import { supabase } from '../lib/supabase'
 import { Icon, ThemeToggle, initials } from './ui'
 
 /**
- * Owner-supplied logo. Drop the original artwork at web/public/brand/dawney-logo.png
- * (see web/public/brand/README.md). Until it exists, a plain wordmark is shown instead —
- * never a generic medical cross or a guessed logo.
+ * Owner-supplied Dawney Animal Clinic logo (original artwork, unmodified, 1:1 with built-in margin).
+ * WebP is the optimized copy; the original PNG is the fallback. If both fail to load a plain wordmark
+ * is shown — never a generic medical cross.
  */
-export const LOGO_SRC = '/brand/dawney-logo.png'
+export const LOGO_WEBP = '/brand/dawney-logo.webp'
+export const LOGO_PNG = '/brand/dawney-logo-original.png'
 
 export function Brand({ compact = false }: { compact?: boolean }) {
   const [missing, setMissing] = useState(false)
   if (!missing) {
     return <span className={compact ? 'brand brand-compact' : 'brand'}>
-      <span className="brand-plate"><img className="brand-logo" src={LOGO_SRC} alt="Dawney Animal Clinic" onError={() => setMissing(true)} /></span></span>
+      <span className="brand-plate"><picture><source srcSet={LOGO_WEBP} type="image/webp" />
+        <img className="brand-logo" src={LOGO_PNG} width={512} height={512} alt="Dawney Animal Clinic" onError={() => setMissing(true)} /></picture></span></span>
   }
   return <span className="brand" role="img" aria-label="Dawney Animal Clinic">
     <span className="brand-wordmark" aria-hidden="true"><strong>Dawney</strong>{!compact && <small>Animal Clinic</small>}</span></span>
@@ -23,7 +25,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
 
 export function PublicLayout() {
   return <div className="public-layout">
-    <header className="public-header"><NavLink to="/auth/signin" className="brand-link" aria-label="Dawney Animal Clinic — sign in"><Brand /></NavLink>
+    <header className="public-header"><NavLink to="/auth/signin" className="brand-link" aria-label="Dawney Animal Clinic — sign in"><Brand compact /></NavLink>
       <div className="public-header-actions"><ThemeToggle /><NavLink to="/auth/signin">Sign in</NavLink></div></header>
     <main id="main-content" tabIndex={-1} className="public-main"><Outlet /></main>
     <footer className="public-footer">Dawney Animal Clinic · Secure account access</footer></div>

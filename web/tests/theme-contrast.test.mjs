@@ -44,3 +44,11 @@ test('theme init is an external script (CSP forbids inline) and storage failure 
 test('no generic medical cross is used as the clinic mark', () => {
   for (const f of ['components/Layout.tsx', 'pages/PetsPage.tsx', 'pages/AuthPages.tsx']) assert.ok(!readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8').includes('✚'), f)
 })
+test('owner logo assets are committed, square and wired into the Brand component', async () => {
+  const { statSync } = await import('node:fs')
+  for (const f of ['dawney-logo.webp', 'dawney-logo-original.png']) assert.ok(statSync(new URL(`../public/brand/${f}`, import.meta.url)).size > 1000, f)
+  const png = readFileSync(new URL('../public/brand/dawney-logo-original.png', import.meta.url))
+  assert.equal(png.readUInt32BE(16), png.readUInt32BE(20), 'PNG must stay 1:1')
+  const layout = readFileSync(new URL('../src/components/Layout.tsx', import.meta.url), 'utf8')
+  assert.match(layout, /dawney-logo\.webp/); assert.match(layout, /alt="Dawney Animal Clinic"/)
+})

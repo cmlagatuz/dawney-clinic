@@ -1,10 +1,10 @@
 # Brand assets
 
-Place the **owner-supplied Dawney Animal Clinic logo** here, exactly as supplied (do not redraw, restyle or crop):
+Owner-supplied **Dawney Animal Clinic** logo, committed unmodified (no redraw, restyle or crop):
 
-- `dawney-logo.png` — original artwork, transparent or white background. Used on sign-in, sidebar, headers.
-- (optional, owner-approved crop only) `favicon.png` for the browser tab.
+- `dawney-logo-original.png` — original 768×768 RGBA artwork (fallback `<img>`).
+- `dawney-logo.webp` — owner-supplied optimized 512×512 RGBA copy (preferred via `<picture>`).
 
-`web/src/components/Layout.tsx` (`LOGO_SRC`) loads `/brand/dawney-logo.png` with its natural aspect ratio on a light plate,
-and falls back to a plain text wordmark if the file is missing. Keep the file under ~150 KB.
-No stock, placeholder or guessed logo may be committed in this folder.
+Both are square with built-in margin. `Brand` in `src/components/Layout.tsx` sizes by height only, so the 1:1 aspect ratio is never
+distorted, and places the art on a light plate so the white/transparent background reads in dark mode. Alt text: "Dawney Animal Clinic".
+A favicon needs a legible crop and owner approval; none is committed yet. No stock, placeholder or guessed logo may be added here.

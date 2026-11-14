@@ -256,6 +256,7 @@ No API credentials, medical records, password hashes, patient contact details or
 ### Claude — Phase 4 branding/layout PR (branch `ai/claude/phase4-react-modern-ui`)
 - Scope: `web/src/{styles.css,components,pages,App.tsx}`, `web/index.html`, `web/public/{theme-init.js,brand/}`, `web/tests/theme-contrast.test.mjs`. No `supabase/`, `web/src/lib/`, domain or workflow edits.
 - Done: tokenized slate/violet light+dark design system, theme toggle, accessible mobile drawer, owner dashboard (`/app/overview`, real data only), restyled auth/profile/patients/appointments (logic untouched), generic `✚` removed.
-- **Blocked / not done:** the owner's real logo has not reached Claude (repo has only the legacy "Kilted Kangaroo" image, not the supplied artwork) → text wordmark interim; drop `dawney-logo.png` into `web/public/brand/` (see README there). QA-01 NOT passed. Species/breed selector, attachments UI and staff workspace wait for Astra's typed adapters; no role data is available to the UI yet.
+- Logo: owner-supplied artwork (original 768² PNG + optimized 512² WebP) committed unmodified in `web/public/brand/`, shown on sign-in, header and sidebar on a light plate, aspect ratio preserved; no favicon (needs owner-approved crop). QA-01 still needs real hosted-browser confirmation after deploy.
+- **Blocked / not done:** Species/breed selector, attachments UI and staff workspace wait for Astra's typed adapters; no role data is available to the UI yet.
 - Behaviour change to review: post-login/verify redirect and `/` now go to `/app/overview` (was `/app/profile`).
 - Verified locally: contrast/theme tests, harness renders at 360/768/1440 light+dark (fake data), drawer/keyboard checks. Strict `tsc` + `vite build` only via CI.

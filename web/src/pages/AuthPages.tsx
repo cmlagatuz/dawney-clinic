@@ -3,9 +3,10 @@ import { Link, Navigate, useNavigate } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/AuthProvider'
 import { isValidNewPassword } from '../domain.mjs'
+import { Brand } from '../components/Layout'
 
 function Panel({ title, intro, children }: { title: string; intro: string; children: ReactNode }) {
-  return <section className="auth-panel" aria-labelledby="auth-title"><div className="eyebrow">Dawney secure access</div><h1 id="auth-title">{title}</h1><p className="subtitle">{intro}</p>{children}</section>
+  return <section className="auth-panel" aria-labelledby="auth-title"><Brand /><div className="eyebrow">Dawney secure access</div><h1 id="auth-title">{title}</h1><p className="subtitle">{intro}</p>{children}</section>
 }
 function ErrorMessage({ error }: { error: string | null }) {
   return error ? <p role="alert" className="alert alert-error">{error}</p> : null
