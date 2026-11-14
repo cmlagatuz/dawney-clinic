@@ -178,6 +178,8 @@ done
 [[ "$(tar -tf "$work/decrypted/storage-objects.tar")" == $'photo.bin\ncard.bin' ]] ||
  fail 'Unexpected Storage tar member'
 pgclient psql -v ON_ERROR_STOP=1 -d postgres -c 'create database recovery_restored' >/dev/null
+# Match the pre-existing restore drill: pg_dump explicitly owns public schema.
+pgclient psql -v ON_ERROR_STOP=1 -d recovery_restored -c 'drop schema public cascade' >/dev/null
 for component in auth-identities application storage-metadata; do
  pgclient pg_restore --exit-on-error --single-transaction --no-owner --no-acl \
   -d recovery_restored "$work/decrypted/$component.pgdump" >/dev/null
