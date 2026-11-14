@@ -43,6 +43,20 @@ do $anon$
 begin
  if (select count(*) from public.clinic_services)<>1 then
   raise exception 'Unapproved public service leaked or approved one hidden'; end if;
+ if not has_column_privilege('anon','public.clinic_services','display_name','SELECT')
+    or has_column_privilege('anon','public.clinic_services','owner_approved_by','SELECT')
+    or has_column_privilege('anon','public.clinic_services','owner_approved_at','SELECT')
+    or has_column_privilege('anon','public.clinic_booking_policy','approved_by','SELECT')
+    or has_column_privilege('anon','public.clinic_booking_policy','approved_at','SELECT') then
+   raise exception 'Anonymous marketing API leaks approval actor metadata';end if;
+ begin
+   perform owner_approved_by from public.clinic_services;
+   raise exception 'Anonymous marketing API read private actor identifier';
+ exception when insufficient_privilege then null;end;
+ begin
+   perform approved_by from public.clinic_booking_policy;
+   raise exception 'Anonymous schedule read private actor identifier';
+ exception when insufficient_privilege then null;end;
  if has_table_privilege('anon','public.clinic_service_species','SELECT') then
   raise exception 'Anonymous taxonomy grants unexpectedly broadened'; end if;
  if (select count(*) from public.clinic_service_resources)<>0
