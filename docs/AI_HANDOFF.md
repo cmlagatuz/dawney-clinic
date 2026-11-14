@@ -1,5 +1,15 @@
 # Dawney Clinic — Shared AI Handoff
 
+## 2026-11-14 Astra: #44 Chromium repair and #40/#43 review — SUPERVISOR GATE
+
+- **Issue #44 diagnosed from actual failed** [Claude #34 run 43568477414](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43568477414): 3-second Chrome `--version` probing failed before app assertions. [CI-only PR #46](https://github.com/cmlagatuz/dawney-clinic/pull/46) [browser PASS #43570506634](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43570506634); [stacked Claude #34 validation PR #47](https://github.com/cmlagatuz/dawney-clinic/pull/47) [browser PASS #43570516024](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43570516024) with **no React code edits**. Original #34 SHA still needs the CI fix incorporated and new green head; neither #46 nor #47 merged.
+- **Backend review #40:** baseline second taxonomy migration already installs trigger. Third staged version `20261114072200` asserts enabled/unique and retains original legacy Dog/Chow Chow text, indexed breed IDs only. PG17 CI passed. **Ready for supervisor code review, not authorized for live migration.**
+- **Backend review #43:** source scopes published services to approved records, owner/pet-only SECURITY INVOKER booking RPC with nonce dedupe, existing GiST resource conflict, `requested` status and verified staff transitions. New schema `20261114090000` depends on 3 taxonomy migrations. **Old device-time `bookAppointment` form will fail as soon as `clinic_booking_policy.is_approved=true`; leave policy unapproved until compatible Claude form.** No instant availability API or public marketing UI exists. **Ready for supervisor code review with dependency/compatibility gates.**
+- **Precise checklist, replay-safe read-only SQL checks and Claude API contract** staged in branch `ai/chatgpt/phase4-supervisor-rollout-review`: [rollout guide](PHASE4_SUPERVISOR_ROLLOUT_REVIEW.md), [preflight SQL](../supabase/checks/phase4_preflight_readonly.sql), [postflight SQL](../supabase/checks/phase4_postflight_readonly.sql). Owner/private backup must include Supabase Auth identities, DB/RLS/data, Storage bucket **object bytes** and configuration. Not a proven real-data restore.
+- **Auth return gap for Claude:** `signinForBooking('signin'|'signup')` sets `next=/book`, but current Claude `AuthPages.tsx` hardcodes `/app/overview`; Claude must implement strict allowlist and safe after-confirmation return. Services/hours/species/resources NOT owner approved. External Worker Builds #45 still separate from successful Pages checks.
+- No PRs self-merged; no production SQL, synthetic clinical/Storage writes, provider changes, paid service or user-record export.
+
+
 
 ## NEWEST checkpoint — Nov 14 2026, 10:03 Asia/Riyadh
 
