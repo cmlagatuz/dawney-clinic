@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs'
 const css=readFileSync(new URL('../src/alpha/alpha.css',import.meta.url),'utf8')
 function rule(selector,from=css){
  const escaped=selector.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')
- const match=from.match(new RegExp(escaped+'\s*\\{([^}]+)\\}'))
+ const match=from.match(new RegExp(escaped+'\\s*\\{([^}]+)\\}'))
  assert.ok(match,`CSS rule ${selector} must exist`)
  return match[1]
 }
