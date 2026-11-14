@@ -1,6 +1,14 @@
 # Dawney Clinic — Shared AI Handoff
 
 
+## NEWEST checkpoint — Nov 14 2026, 10:03 Asia/Riyadh
+
+**Read [current supervisor brief](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) first; it supersedes historical action items below.** [Astra #40](https://github.com/cmlagatuz/dawney-clinic/pull/40) taxonomy P0 and [#43](https://github.com/cmlagatuz/dawney-clinic/pull/43) public booking backend **OPEN**, isolated CI passing, not merged/live. [Claude #34](https://github.com/cmlagatuz/dawney-clinic/pull/34) branding shell and stacked [#41](https://github.com/cmlagatuz/dawney-clinic/pull/41) species/breed + patient attachment UI **OPEN**, catalog feature OFF by default; not merged/live. [Grok draft #39](https://github.com/cmlagatuz/dawney-clinic/pull/39) open, Qwen Chat QA read-only (no verified executable test/PR). Live Supabase remains 6 migrations, 7 RLS app tables, 2 verified Auth users, 1 pet and 1 appointment, 0 attachments.
+
+**New independently verified blockers:** [Chromium CI #44](https://github.com/cmlagatuz/dawney-clinic/issues/44): latest #34 anonymous browser runner failed before assertions with `Chrome/Chromium is required for browser acceptance` in `scripts/browser/cdp.mjs`; root cause of executable probe not yet proven, Astra/CI to fix and rerun. [Redundant Worker Git builds #45](https://github.com/cmlagatuz/dawney-clinic/issues/45): distinct `Workers Builds` FAILS while `Cloudflare Pages` preview SUCCEEDS. Owner must inspect Worker logs/routes and disconnect **only** redundant Worker Git build if unused, leaving Pages intact. New work: Claude new independent public `/`, `/services`, `/location`, `/book` frontend per [#42](https://github.com/cmlagatuz/dawney-clinic/issues/42) **after** existing PR gates, Astra CI/browser and booking contracts, Qwen public/customer QA, Grok independent booking RLS/threat review. No production schema rollout or claims of clinic availability without owner consent and verified hours/services.
+
+
+
 ## Latest supervisor decision — 2026-11-14 ~08:32 Asia/Riyadh
 
 **Read the [CURRENT 4-AI BRIEF](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) and [P0 public site/booking contract](PHASE4_PUBLIC_SITE_BOOKING_SPEC.md), not all historical checkpoints.**
