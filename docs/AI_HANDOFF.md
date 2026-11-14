@@ -1,6 +1,19 @@
 # Dawney Clinic — Shared AI Handoff
 
 
+## Latest supervisor decision — 2026-11-14 ~08:32 Asia/Riyadh
+
+**Read the [CURRENT 4-AI BRIEF](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) and [P0 public site/booking contract](PHASE4_PUBLIC_SITE_BOOKING_SPEC.md), not all historical checkpoints.**
+
+- **Astra PR #40 OPEN**, isolated PG17/Node/CI checks passed. Guard/recovery and real Chow Chow seed fix are not yet merged or applied. **Correction:** existing ordered **second** baseline migration creates `pet_taxonomy_before_write` at lines 319–321; the first migration only defines the function. Do not duplicate the trigger. #38 now tracks ordered trigger/guard verification rather than an absent trigger in the final two-file schema.
+- **Claude PR #34 OPEN** branded UI; **PR #41 OPEN STACKED ON #34** with flagged-OFF dependent species/breed plus private photo, health and vaccine card form UI; 42 mocked browser checks described in PR, CI green, NOT LIVE. Claude is quota-paused until owner-reported **9:50 AM**; no new Claude task until its interrupted work is completed.
+- **Qwen issue #36** remains OPEN with **no confirmed PR/branch**; test PR submission and add booking/public route QA, without modifying Claude UI.
+- **Grok draft PR #39** updated report corrected the trigger finding and test assertions using PGlite. Confirm via isolated regression and reconcile with Astra #40; draft remains unmerged. Then audit new public booking trust boundary.
+- New **[P0 public site + booking issue #42](https://github.com/cmlagatuz/dawney-clinic/issues/42)**: `master` lacks public home/services/contact/location; `/` redirects to owner login flow. Customer requests require Auth→owner profile→pet→provisional device-time 30-minute slot→`requested` (not confirmed). Clinic location independently corroborated along Brookside Lane, San Francisco, General Trias, Cavite, PH. Phone/building/hours are inconsistent across directories and await owner confirmation. Proposed schedule timezone **Asia/Manila**, owner approval required. Do not publish unsupported services, species, clinic hours or prices. Astra own backend booking/service catalog contracts; Claude will own public React pages *after* current PR work, not now.
+- Supabase still 6 migrations/7 RLS tables, 2 users/owners, 1 pet, 1 appointment, no stored attachments. No live Phase4 migration, clinical synthetic-write or production cutover authorized. `Workers Builds: dawney-clinic` check repeatedly fails while Pages succeeds; Qwen/Astra investigate exact relevance.
+
+
+
 ## Newest four-AI supervisor checkpoint — 2026-11-14
 
 **STOP reading old "next tasks" below. Read the current [four-AI Phase 4 brief](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) and [QA contract](PHASE4_PRODUCT_QA_SPEC.md) first.** This checkpoint supersedes stale earlier entries.
