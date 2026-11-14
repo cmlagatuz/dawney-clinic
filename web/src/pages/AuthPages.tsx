@@ -3,12 +3,14 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/AuthProvider'
 import { isValidNewPassword } from '../domain.mjs'
-import { safeBookingReturnPath } from '../booking-contract.mjs'
+import { readBookingIntent, safeBookingReturnPath } from '../booking-contract.mjs'
 
 /** Only the exact public booking path may be returned to after auth (no open redirects). */
-function useAfterAuth() {
+function useAfterAuth(useStoredIntent = false) {
   const [params] = useSearchParams()
-  const toBook = safeBookingReturnPath(params.get('next')) === '/book'
+  let toBook = safeBookingReturnPath(params.get('next')) === '/book'
+  // Just-verified accounts: continue to /book if this tab still holds a (PII-free, 30-min) booking intent.
+  if (!toBook && useStoredIntent) { try { toBook = readBookingIntent(window.sessionStorage) !== null } catch { /* storage blocked */ } }
   return { dest: toBook ? '/book' : '/app/overview', suffix: toBook ? '?next=%2Fbook' : '' }
 }
 import { Brand } from '../components/Layout'
@@ -102,6 +104,7 @@ export function SignUpPage() {
 
 export function VerifyPage() {
   const navigate = useNavigate()
+  const { dest } = useAfterAuth(true)
   const [email, setEmail] = useState('')
   const [token, setToken] = useState('')
   const [status, setStatus] = useState<string|null>(null)
@@ -113,7 +116,7 @@ export function VerifyPage() {
     try {
       const result = await supabase.auth.verifyOtp({ email: email.trim(), token: token.trim(), type: 'email' })
       if (result.error) throw result.error
-      navigate('/app/overview', { replace: true })
+      navigate(dest, { replace: true })
     } catch(e) { setError(normalizeError(e)) }
     finally { setPending(false) }
   }
@@ -185,9 +188,10 @@ export function RecoveryPage() {
 
 export function CallbackPage() {
   const { user, checking, error } = useAuth()
+  const { dest } = useAfterAuth(true)
   if (checking) return <Panel title="Confirming account" intro="Verifying your secure email link…"><p role="status">Connecting to Supabase Auth.</p></Panel>
   return <Panel title="Email confirmation" intro="Secure sign-in confirmation from Supabase.">
-    {user ? <><SuccessMessage message="Your account is verified."/><Link className="button button-primary" to="/app/overview">Continue to your overview</Link></>
+    {user ? <><SuccessMessage message="Your account is verified."/><Link className="button button-primary" to={dest}>{dest === '/book' ? 'Continue to booking' : 'Continue to your overview'}</Link></>
     : <><ErrorMessage error={error ?? 'We could not verify this link. It may have expired.'}/><Link to="/auth/verify">Try confirmation code or resend</Link></>}
   </Panel>
 }
