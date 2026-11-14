@@ -1,0 +1,84 @@
+name: Phase 4 public booking contracts (isolated)
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261114090000_phase4_public_booking_contract.sql'
+      - 'supabase/tests/phase4_public_booking_*.sql'
+      - 'web/src/lib/public-booking.ts'
+      - 'web/src/booking-contract.*'
+      - 'web/tests/booking-contract.test.mjs'
+      - '.github/workflows/phase4-public-booking.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'supabase/migrations/20261114090000_phase4_public_booking_contract.sql'
+      - 'supabase/tests/phase4_public_booking_*.sql'
+      - 'web/src/lib/public-booking.ts'
+      - 'web/src/booking-contract.*'
+      - 'web/tests/booking-contract.test.mjs'
+      - '.github/workflows/phase4-public-booking.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-17-owner-booking:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-test-only
+          POSTGRES_DB: clinic_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clinic_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: isolated-test-only
+      PGDATABASE: clinic_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL client
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+      - name: Apply public booking migration and run isolated denial tests
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_public_booking_bootstrap.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114090000_phase4_public_booking_contract.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_public_booking_regression.sql
+  node-typescript-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      VITE_SUPABASE_URL: https://lgimhirgvresvbsdugac.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_phase4_dummy_only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Locked Node/booking tests
+        working-directory: web
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --test tests/booking-contract.test.mjs
+          npm test
+      - name: TypeScript check and Vite build
+        working-directory: web
+        run: npm run build
