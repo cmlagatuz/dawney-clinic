@@ -43,6 +43,9 @@ do $anon$
 begin
  if (select count(*) from public.clinic_services)<>1 then
   raise exception 'Unapproved public service leaked or approved one hidden'; end if;
+ if has_column_privilege('authenticated','public.clinic_services','owner_approved_by','SELECT')
+    or has_column_privilege('authenticated','public.clinic_booking_policy','approved_by','SELECT') then
+   raise exception 'Authenticated owner API leaked staff approval identifiers';end if;
  if not has_column_privilege('anon','public.clinic_services','display_name','SELECT')
     or has_column_privilege('anon','public.clinic_services','owner_approved_by','SELECT')
     or has_column_privilege('anon','public.clinic_services','owner_approved_at','SELECT')
