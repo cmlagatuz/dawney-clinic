@@ -1,5 +1,15 @@
 # Dawney Clinic — Shared AI Handoff
 
+## 2026-11-14 — Astra Phase 4 P0 correction, **OPEN PR #40 / SUPERVISOR REVIEW REQUIRED**
+
+- Branch: `ai/chatgpt/phase4-p0-trigger-chowchow-hardening`; PR [#40](https://github.com/cmlagatuz/dawney-clinic/pull/40) **OPEN, NOT MERGED**. No Supabase migration, clinical/Storage synthetic write, staff bootstrap, data export or React presentation change performed.
+- **Grok #38 finding corrected:** first Phase 4 migration defines `clinic_private.resolve_pet_taxonomy()`, but **second seed migration already creates** `pet_taxonomy_before_write`. New **third additive migration** `20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql` checks enabled/count/function identity and repairs missing trigger only if absent, fail-closes conflicting trigger, preserves SECURITY INVOKER + empty search path, and validates active/reviewed species/breeds/label-ID matches.
+- **#35 fixed in staged source:** recognized AKC `dog-chow-chow` entry added. Updates **only taxonomy IDs/review flag**, case-insensitive Dog/Chow Chow legacy mapping; original `pets.species` and `pets.breed` text (including capitalization/spacing) remains intact. Other grandfathered patient values, appointments and Storage metadata are not rewritten. Cataloged animals remain **not clinic-approved** by default.
+- **Executable PG17 CI:** [run #43556997934](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43556997934) passed both seeded-trigger and simulated missing-trigger restoration matrix, existing attachment RLS negatives, plus Node/TypeScript/Vite. [Auth contract #43556998048](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43556998048), [source guard #43556998020](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43556998020), [legacy #43556997996](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43556997996) passed. Additional migration-replay safety case now added; check latest PR head CI before merging.
+- **Real Supabase read-only checkpoint:** 6 applied migrations, 1 existing patient (Dog / Chow Chow), 1 appointment, 0 private Storage objects and **zero live Phase 4 tables**. This correction and original Phase 4 migrations remain **UNAPPLIED**; migration rollout, owner-approved backup/recovery, veterinarian role-policy signoff and real A/B JWT negative tests are blockers. See [P0 rollout and receptionist file privacy decision](PHASE4_P0_TAXONOMY_ROLLOUT.md).
+- **Grok receptionist concern:** active receptionists are currently allowed broad read across patient owner/clinic attachment paths by existing RLS (not a confirmed exploit without approved scope). **No RLS change** made: request owner/vet decision before category-aware read narrowing. Grok draft #39 contains unreliable `SELECT 1/0 WHERE` tests; coordinate with Grok/Qwen, do not merge blindly.
+
+
 
 ## Newest four-AI supervisor checkpoint — 2026-11-14
 
