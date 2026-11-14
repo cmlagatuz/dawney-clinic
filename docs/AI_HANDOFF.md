@@ -316,3 +316,7 @@ No API credentials, medical records, password hashes, patient contact details or
 - **Blocked / not done:** Species/breed selector, attachments UI and staff workspace wait for Astra's typed adapters; no role data is available to the UI yet.
 - Behaviour change to review: post-login/verify redirect and `/` now go to `/app/overview` (was `/app/profile`).
 - Verified locally: contrast/theme tests, harness renders at 360/768/1440 light+dark (fake data), drawer/keyboard checks. Strict `tsc` + `vite build` only via CI.
+
+### Claude — Phase 4 patient-form PR (branch `ai/claude/phase4-patient-form`, stacked on #34)
+- Adds `PetsPageCatalog` (grouped searchable Species combobox, Breed locked until species, reset on species change, 3 optional private attachment slots with preview/status/retry/download, legacy-pet review) consuming Astra's `lib/taxonomy.ts` and `lib/pet-attachments.ts` unmodified. **Off by default**: enabled only by build-time `VITE_PHASE4_PATIENT_FORM=true` after the supervisor activates the corrected migrations. Do not set it on Cloudflare before then.
+- Not done / needs others: booking block for `clinic_supported=false` species (Appointments still uses the legacy pet list); Chow Chow/cattle breeds come from Astra's catalog (#35); previews use `data:` URLs because CSP `img-src` has no `blob:` (no `_headers` change made); staff attachment scope not exposed.
