@@ -70,20 +70,17 @@ alter table public.clinic_booking_policy enable row level security;
 revoke all on public.clinic_services,public.clinic_service_species,
   public.clinic_service_resources,public.clinic_booking_policy
   from public,anon,authenticated;
--- Public discovery does not need staff approval actor IDs or timestamps.
--- Authenticated clinic booking trigger/RPC currently require broader SELECT,
--- so keep authenticated grants until a separately reviewed staff/owner view.
-grant select on public.clinic_services to authenticated;
+-- Authenticated customers and anonymous browsers can read ONLY marketing columns.
+-- Service owner-approval actors are never exposed via the Data API.
 grant select (id,slug,display_name,summary,duration_minutes,published_at)
- on public.clinic_services to anon;
+ on public.clinic_services to anon,authenticated;
 grant select on public.clinic_service_resources to anon,authenticated;
 -- The existing species_catalog is authenticated-only. Keep anonymous public
 -- discovery limited to approved service descriptions, not taxonomy joins.
 grant select on public.clinic_service_species to authenticated;
-grant select on public.clinic_booking_policy to authenticated;
 grant select (policy_id,timezone,weekly_hours,holidays,lead_minutes,
  max_advance_days,slot_step_minutes,revision,is_approved)
- on public.clinic_booking_policy to anon;
+ on public.clinic_booking_policy to anon,authenticated;
 -- Browsing only: no anonymous or normal Auth ability to approve, seed, or publish.
 create policy clinic_services_public_read on public.clinic_services
  for select to anon,authenticated using (
@@ -126,8 +123,8 @@ alter table public.appointments add constraint service_request_requires_nonce
 create function clinic_private.validate_service_appointment()
 returns trigger language plpgsql security invoker set search_path='' as $$
 declare
- service public.clinic_services%rowtype;
- policy public.clinic_booking_policy%rowtype;
+ service record;
+ policy record;
  pet_species text;
  v_day text;
  local_start timestamp;
@@ -165,9 +162,9 @@ begin
  if not found or pet_species is null then
    raise exception 'Registered patient taxonomy is required' using errcode='23514';
  end if;
- select * into service from public.clinic_services
-   where id=new.service_id and is_active and published_at is not null
-     and owner_approved_at is not null and owner_approved_by is not null;
+-- The service RLS SELECT policy enforces publication/owner approval.
+ select duration_minutes into service from public.clinic_services
+   where id=new.service_id;
  if not found then raise exception 'Service is not published and approved' using errcode='23514'; end if;
  if not exists(select 1 from public.clinic_service_species ss
    join public.species_catalog sp on sp.id=ss.species_id
@@ -181,9 +178,10 @@ begin
      and sr.capacity=1 and ar.is_active) then
    raise exception 'Unapproved or inactive clinic resource' using errcode='23514';
  end if;
- select * into policy from public.clinic_booking_policy
-   where policy_id=1 and is_approved and approved_at is not null
-     and approved_by is not null;
+-- The policy RLS SELECT policy exposes only fully approved clinic schedules.
+ select timezone,weekly_hours,holidays,lead_minutes,max_advance_days,
+   slot_step_minutes,is_approved into policy from public.clinic_booking_policy
+   where policy_id=1;
  if not found or policy.lead_minutes is null or policy.max_advance_days is null
     or policy.slot_step_minutes is null then
    raise exception 'Clinic booking schedule awaits owner approval' using errcode='23514';
@@ -284,8 +282,7 @@ begin
  end if;
 
  select duration_minutes into v_minutes from public.clinic_services
-   where id=p_service_id and is_active and published_at is not null
-    and owner_approved_at is not null and owner_approved_by is not null;
+   where id=p_service_id;
  if not found then raise exception 'Service is not approved' using errcode='23514'; end if;
  begin
   insert into public.appointments
