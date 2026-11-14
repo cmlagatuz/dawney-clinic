@@ -1,5 +1,12 @@
 # Dawney Clinic — Shared AI Handoff
 
+## 2026-11-14 22:52 Asia/Riyadh — Alpha accepted, backend reader ready (unmerged)
+
+- Owner **accepted 5/5 interactive synthetic Alpha** flows in Issue #55 at Claude #56 `11d46af`: flow/Undo, schedule/day-week/drawer, simulated inbox, campaign send disabled, mobile/dark. This is NOT clinical/production acceptance; no real message or DB writes.
+- Screenshot nav-rail correction in isolated DRAFT #57 `7ca4970`: fixed desktop rail, mobile bottom nav retained; React/Chromium/Pages CI PASS. Claude must review and integrate to #56 branch only; NEVER merge synthetic demo into master.
+- Astra #43 `6598eb4`: added authenticated `listServiceSpeciesIds(serviceId):Promise<string[]>` in `web/src/lib/public-booking.ts` using existing `clinic_service_species` RLS, 6 negative/contract Node tests, **no new SQL/grants**. Node TS/build, isolated PG17, browser, unit, legacy and Pages checks PASS. Empty mapping returns []; error/anonymous/unconfirmed fails closed. No real connected Supabase Phase4 verification.
+- **Next:** Claude connect UI per-service eligibility to reviewed adapter only after backend integration; supervisor source merges #46→#34→#40→#43 followed by #49/#52 and coordinated #41/#48. Staff-role/transition/schedule read-model design for Track B is pending; live migrations/backup/restore/roles require owner approval. Grok quota-paused; Qwen independent QA pending.
+
 ## 2026-11-14 Astra — Issue #51 booking adapter staged in open PR #43
 
 - Privacy #50 is incorporated into #43, not master. New `web/src/lib/owner-booking-transition.ts` / pure `web/src/booking-transition.mjs` provide an explicit owner booking switch: unapproved/missing Phase4 policy permits legacy requests; approved policy requires service, resource, UTC time and stable nonce routed through the existing verified-owner `request_service_appointment` RPC. Unknown policy/read failures reject; no RPC-to-legacy fallback. The database insert trigger remains authoritative during activation races. **Claude's React form is unchanged**; UI integration before approval remains P0 #51.
