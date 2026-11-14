@@ -147,7 +147,7 @@ if node scripts/recovery/verify-recovery-set.mjs "$manifest" >/dev/null 2>&1; th
 fi
 mv "$work/omitted.gpg" "$work/encrypted/storage-objects.tar.gpg"
 cp "$work/encrypted/auth-identities.pgdump.gpg" "$work/saved-auth.gpg"
-node --input-type=module "$work/encrypted/auth-identities.pgdump.gpg" <<'JS'
+node --input-type=module - "$work/encrypted/auth-identities.pgdump.gpg" <<'JS'
 import {readFileSync,writeFileSync} from 'node:fs';
 const file=process.argv[2], data=readFileSync(file);
 data[Math.floor(data.length/2)]^=0x01;
