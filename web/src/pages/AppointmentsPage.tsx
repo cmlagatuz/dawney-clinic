@@ -5,6 +5,7 @@ import { bookAppointment, cancelAppointment, listAppointments, listPets, listRes
   type Appointment, type BookingResource, type Pet } from '../lib/clinical'
 import { readOwner } from '../lib/owners'
 import { friendlyBookingError } from '../clinical.mjs'
+import { EmptyState, LoadingCard, PageHeading, StatusBadge } from '../components/ui'
 
 const localTime = (iso:string) => new Intl.DateTimeFormat(undefined,{
   dateStyle:'medium',timeStyle:'short'
@@ -70,12 +71,12 @@ export function AppointmentsPage() {
     finally {setCancelBusy(null)}
   }
   return <section className="page" aria-labelledby="appts-heading">
-    <div className="page-heading"><div><span className="eyebrow">Clinic visits</span><h1 id="appts-heading">Appointments</h1>
-      <p className="subtitle">Request a 30-minute slot. Confirmed hours and holidays are pending clinic configuration.</p></div></div>
+    <PageHeading id="appts-heading" eyebrow="Clinic visits" title="Appointments">
+      Request a 30-minute slot. Confirmed hours and holidays are pending clinic configuration.</PageHeading>
     {error&&<p role="alert" className="alert alert-error">{error}</p>}
     {notice&&<p role="status" className="alert alert-success">{notice}</p>}
-    {loading?<div className="card" role="status">Loading appointments…</div>:
-      !ownerReady?<div className="card empty"><h2>Set up your owner profile</h2><p>You need a verified profile before requesting an appointment.</p><Link className="button button-primary" to="/app/profile">Owner profile</Link></div>:
+    {loading?<LoadingCard label="Loading appointments…" rows={4} />:
+      !ownerReady?<EmptyState icon="user" title="Set up your owner profile" action={<Link className="button button-primary" to="/app/profile">Owner profile</Link>}>You need a verified profile before requesting an appointment.</EmptyState>:
       <div className="info-grid"><div className="card"><h2>Request an appointment</h2>
         {pets.length===0?<p>No patients yet. <Link to="/app/pets">Register a patient</Link> before booking.</p>:
         resources.length===0?<p role="status">No active booking calendar is currently available.</p>:
@@ -91,9 +92,9 @@ export function AppointmentsPage() {
           <button className="button button-primary" disabled={saving}>{saving?'Checking slot…':'Request appointment'}</button>
         </form>}
       </div><div className="card"><h2>My bookings</h2>
-        {appointments.length===0?<p className="subtitle">No appointments yet. Requests you submit will appear here after saving.</p>:
+        {appointments.length===0?<p className="subtitle">No appointments yet. Requests you submit appear here with their confirmation status.</p>:
         <div className="booking-list">{appointments.map(a=><article className="booking-item" key={a.id}>
-          <div className="booking-item-top"><strong>{pets.find(p=>p.id===a.pet_id)?.name??'Patient'}</strong><span className="tag">{a.status.replace('_',' ')}</span></div>
+          <div className="booking-item-top"><strong>{pets.find(p=>p.id===a.pet_id)?.name??'Patient'}</strong><StatusBadge status={a.status}/></div>
           <time dateTime={a.starts_at}>{localTime(a.starts_at)}</time><p>{a.concern}</p>
           {activeStatuses.has(a.status)&&<button className="button button-secondary" type="button" disabled={cancelBusy!==null}
             onClick={()=>void cancel(a.id)}>{cancelBusy===a.id?'Cancelling…':'Cancel booking'}</button>}

@@ -252,3 +252,10 @@ No API credentials, medical records, password hashes, patient contact details or
 
 - **MERGED:** [PR #16](https://github.com/cmlagatuz/dawney-clinic/pull/16), squash `2d179af907a2b491aef525deaa086f5a0ade3a77`. Adds a **no-network `node --check`** syntax gate for `web/tests/integration/smoke.mjs` to the existing Phase 3 React CI workflow. [React checks](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43432237970) and [legacy PHP checks](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43432238118) both PASS. No live authenticated request or synthetic DB write occurred as a result of this PR.
 - The source is now ready for the owner's controlled Auth `test` and later manual security smoke dispatches. Do not confuse static syntax, mock tests, synthetic isolated restore or green build CI with a verified live browser or clinic recovery.
+
+### Claude — Phase 4 branding/layout PR (branch `ai/claude/phase4-react-modern-ui`)
+- Scope: `web/src/{styles.css,components,pages,App.tsx}`, `web/index.html`, `web/public/{theme-init.js,brand/}`, `web/tests/theme-contrast.test.mjs`. No `supabase/`, `web/src/lib/`, domain or workflow edits.
+- Done: tokenized slate/violet light+dark design system, theme toggle, accessible mobile drawer, owner dashboard (`/app/overview`, real data only), restyled auth/profile/patients/appointments (logic untouched), generic `✚` removed.
+- **Blocked / not done:** the owner's real logo has not reached Claude (repo has only the legacy "Kilted Kangaroo" image, not the supplied artwork) → text wordmark interim; drop `dawney-logo.png` into `web/public/brand/` (see README there). QA-01 NOT passed. Species/breed selector, attachments UI and staff workspace wait for Astra's typed adapters; no role data is available to the UI yet.
+- Behaviour change to review: post-login/verify redirect and `/` now go to `/app/overview` (was `/app/profile`).
+- Verified locally: contrast/theme tests, harness renders at 360/768/1440 light+dark (fake data), drawer/keyboard checks. Strict `tsc` + `vite build` only via CI.

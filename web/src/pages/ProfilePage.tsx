@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../hooks/AuthProvider'
+import { LoadingCard, PageHeading, initials } from '../components/ui'
 import { createOwner, readOwner, updateOwner, type OwnerProfile } from '../lib/owners'
 
 export function ProfilePage() {
@@ -33,11 +34,10 @@ export function ProfilePage() {
     finally {setSaving(false)}
   }
   return <section className="page" aria-labelledby="profile-heading">
-    <div className="page-heading"><div><span className="eyebrow">Account settings</span><h1 id="profile-heading">My owner profile</h1>
-      <p className="subtitle">This information is stored securely in Supabase and remains after you sign out.</p></div>
-      <span className="tag">{profile?'Saved profile':'Setup required'}</span></div>
-    <div className="info-grid"><article className="card"><h2>Contact details</h2>
-      {loading ? <p role="status">Loading saved profile…</p> : <>
+    <PageHeading id="profile-heading" eyebrow="Account settings" title="My owner profile" actions={<span className="tag">{profile?'Saved profile':'Setup required'}</span>}>
+      This information is stored securely and remains after you sign out.</PageHeading>
+    <div className="info-grid"><article className="card"><div className="profile-head"><span className="avatar avatar-lg" aria-hidden="true">{initials(fields.first_name,fields.last_name)}</span><div><h2>Contact details</h2><p>{user?.email}</p></div></div>
+      {loading ? <LoadingCard label="Loading saved profile…" rows={4} /> : <>
         {error && <p role="alert" className="alert alert-error">{error}</p>}
         {notice && <p role="status" className="alert alert-success">{notice}</p>}
         <form className="form-stack" onSubmit={e=>void save(e)}>

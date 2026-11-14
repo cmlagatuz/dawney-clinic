@@ -39,11 +39,11 @@ export function LoginPage() {
       if (!result.data.user?.email_confirmed_at || result.data.user.is_anonymous) {
         await supabase.auth.signOut({ scope: 'local' })
         setError('Please verify your email before signing in.')
-      } else navigate('/app/profile', { replace: true })
+      } else navigate('/app/overview', { replace: true })
     } catch (e) { setError(normalizeError(e)) }
     finally { setPending(false) }
   }
-  if (user) return <Navigate to="/app/profile" replace />
+  if (user) return <Navigate to="/app/overview" replace />
   return <Panel title="Welcome back" intro="Sign in to securely manage your veterinary profile.">
     <ErrorMessage error={error}/>
     <form onSubmit={e => void submit(e)} className="form-stack">
@@ -102,7 +102,7 @@ export function VerifyPage() {
     try {
       const result = await supabase.auth.verifyOtp({ email: email.trim(), token: token.trim(), type: 'email' })
       if (result.error) throw result.error
-      navigate('/app/profile', { replace: true })
+      navigate('/app/overview', { replace: true })
     } catch(e) { setError(normalizeError(e)) }
     finally { setPending(false) }
   }
@@ -176,7 +176,7 @@ export function CallbackPage() {
   const { user, checking, error } = useAuth()
   if (checking) return <Panel title="Confirming account" intro="Verifying your secure email link…"><p role="status">Connecting to Supabase Auth.</p></Panel>
   return <Panel title="Email confirmation" intro="Secure sign-in confirmation from Supabase.">
-    {user ? <><SuccessMessage message="Your account is verified."/><Link className="button button-primary" to="/app/profile">Continue to your profile</Link></>
+    {user ? <><SuccessMessage message="Your account is verified."/><Link className="button button-primary" to="/app/overview">Continue to your overview</Link></>
     : <><ErrorMessage error={error ?? 'We could not verify this link. It may have expired.'}/><Link to="/auth/verify">Try confirmation code or resend</Link></>}
   </Panel>
 }
