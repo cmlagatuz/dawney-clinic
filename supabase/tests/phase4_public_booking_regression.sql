@@ -71,6 +71,42 @@ begin
  exception when insufficient_privilege then null;end;
 end $anon$;
 reset role;
+-- #51 legacy owner UI contract: no service/nonce INSERT must keep working while
+-- policy is unapproved. Rollback preserves historic synthetic fixture counts.
+begin;
+set local role authenticated;
+select pg_catalog.set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
+do $legacy_unapproved$
+declare slot timestamptz; legacy_id uuid;
+begin
+ if has_column_privilege('authenticated','public.clinic_services','owner_approved_by','SELECT')
+  or has_column_privilege('authenticated','public.clinic_services','owner_approved_at','SELECT')
+  or has_column_privilege('authenticated','public.clinic_booking_policy','approved_by','SELECT')
+  or has_column_privilege('authenticated','public.clinic_booking_policy','approved_at','SELECT') then
+  raise exception 'Authenticated customer can read approval metadata'; end if;
+ begin
+  perform owner_approved_by from public.clinic_services;
+  raise exception 'Owner read service approval actor';
+ exception when insufficient_privilege then null; end;
+ begin
+  perform approved_at from public.clinic_booking_policy;
+  raise exception 'Owner read schedule approval timestamp';
+ exception when insufficient_privilege then null; end;
+ slot := (date_trunc('week',now() at time zone 'Asia/Manila')
+         + interval '7 days 13 hours') at time zone 'Asia/Manila';
+ insert into public.appointments(owner_id,pet_id,resource_id,starts_at,ends_at,concern)
+ values('11111111-1111-4111-8111-111111111111',
+ '33333333-3333-4333-8333-333333333333',
+ '55555555-5555-4555-8555-555555555555',
+ slot,slot+interval '30 minutes','CI old owner form before approval')
+ returning id into legacy_id;
+ if not exists(select 1 from public.appointments where id=legacy_id
+     and service_id is null and request_nonce is null and status='requested') then
+   raise exception 'Legacy form failed to persist a requested booking before approval';
+ end if;
+end $legacy_unapproved$;
+rollback;
+
 set role authenticated;
 select pg_catalog.set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',false);
 do $unapproved$
@@ -213,7 +249,11 @@ begin
     '55555555-5555-4555-8555-555555555555',
     slot+interval '1 hour',slot+interval '1 hour 30 minutes','Legacy bypass');
   raise exception 'Legacy service-free booking bypassed active policy';
- exception when check_violation then null;end;
+ exception when check_violation then
+   if SQLERRM <> 'Select an approved service to request a clinic appointment' then
+     raise exception 'Legacy rejection unexpectedly changed after policy activation';
+   end if;
+ end;
 end $positive$;
 
 -- Add a second eligible owner/species under privileged isolated test operator.
