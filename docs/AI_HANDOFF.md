@@ -1,5 +1,12 @@
 # Dawney Clinic — Shared AI Handoff
 
+## 2026-11-14 — Phase 5A staff-readiness source PR (Astra)
+
+- [PR #59](https://github.com/cmlagatuz/dawney-clinic/pull/59), branch `ai/chatgpt/phase5a-staff-read-contract`, adds safe staff read contract `web/src/staff-read-contract.mjs` + type declarations, reuses `web/src/lib/staff-clinic.ts`, 9 synthetic/mock Node negative cases, and [staff contract document](PHASE5A_STAFF_READ_CONTRACT.md). Verified local Node 9/9; exact PR-head GitHub CI is the source for integration review.
+- Confirms signed-in verified/non-anonymous active staff membership, RLS-scoped selected clinic rows, 24h UTC bound, valid status only, truthful error/empty and exact count behavior. No clinical writes, migrations, role bootstrap, frontend/dashboard changes or live Supabase actions.
+- Owner Alpha Issue #55 accepted 5/5 interactions. #56 remains synthetic/unmerged; fixed nav #57 needs Claude review and integration into #56 only. Grok paused; Qwen review still independent and unverified.
+- **NEXT:** Manus validates ordered #46→#34, #40→#43, #49/#52 source integration evidence; Claude takes scoped staff UI only after source integration. Real staff bootstrap, encrypted Auth+DB+Storage restore, clinician-approved hours and live JWT/RLS negatives remain owner-gated. Do not mistake isolated Node/PG17 tests for live clinic proof.
+
 ## LATEST owner decision — 2026-11-14 12:15 Riyadh
 
 **The one Dog/Chow Chow patient and its appointment are to be preserved. Do not delete or convert to an inaccurate "nearest breed".** PR #40 already adds the exact `dog-chow-chow` catalog entry and safe ID mapping (not yet applied). Stop repeatedly investigating this; complete existing tests and move to booking #51. **Privacy PR #50 is merged INTO OPEN booking PR #43, NOT master**; new QA/security priorities concern booking compatibility, anonymous actor column grants, staff confirmation and auth return. Nine Phase4 PRs remain open; latest [supervisor brief](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) supersedes historical notes. Astra handles #43/#51 backend/CI and merge-order readiness, Qwen Chat handles read-only customer journey QA, Grok Build handles booking privacy/threat audit. **Claude has no new task while user resumes interrupted work.** No Supabase writes or merges without separate owner/supervisor signoff; no paid tools.
