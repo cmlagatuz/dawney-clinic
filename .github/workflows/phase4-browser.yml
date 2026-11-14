@@ -40,13 +40,15 @@ jobs:
         run: |
           node --test scripts/browser/tests/*.test.mjs
           node --check scripts/browser/read-only.mjs
+          node --check scripts/browser/cdp.mjs
+          node --check scripts/browser/chromium-binary.mjs
       - name: Launch local Vite static preview and verify actual anonymous browser protections
         shell: bash
         run: |
           set -euo pipefail
-          command -v google-chrome >/dev/null || command -v chromium >/dev/null || {
-            echo 'No Chrome/Chromium found on runner'; exit 1;
-          }
+          # Use the SAME executable validation as the CDP runner. A binary may
+          # exist even when its '--version' command stalls on shared runners.
+          node --input-type=module -e "import {discoverChromium} from './scripts/browser/chromium-binary.mjs'; console.log('Chromium executable candidates:',(await discoverChromium()).join(', '));"
           (cd web && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort) > "$RUNNER_TEMP/dawney-preview.log" 2>&1 &
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
