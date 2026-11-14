@@ -47,3 +47,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Real encrypted dump and isolated restore of synthetic PostgreSQL 17 records
         run: bash scripts/recovery/tests/isolated-restore.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore signed five-component Auth / application / Storage set
+        run: |
+          bash -n scripts/recovery/tests/synthetic-full-set-restore.sh
+          bash scripts/recovery/tests/synthetic-full-set-restore.sh
