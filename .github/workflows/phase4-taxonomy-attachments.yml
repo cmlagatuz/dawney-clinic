@@ -5,6 +5,8 @@ on:
     paths:
       - 'supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql'
       - 'supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql'
+      - 'supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql'
+      - 'supabase/tests/phase4_taxonomy_p0_*.sql'
       - 'supabase/tests/phase4_isolated_taxonomy_*.sql'
       - 'web/src/lib/taxonomy.ts'
       - 'web/src/lib/pet-attachments.ts'
@@ -17,6 +19,8 @@ on:
     paths:
       - 'supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql'
       - 'supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql'
+      - 'supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql'
+      - 'supabase/tests/phase4_taxonomy_p0_*.sql'
       - 'supabase/tests/phase4_isolated_taxonomy_*.sql'
       - 'web/src/lib/taxonomy.ts'
       - 'web/src/lib/pet-attachments.ts'
@@ -29,6 +33,10 @@ permissions:
 
 jobs:
   isolated-postgres-rls:
+    strategy:
+      fail-fast: false
+      matrix:
+        repair_missing_trigger: [false, true]
     runs-on: ubuntu-latest
     timeout-minutes: 12
     services:
@@ -59,9 +67,20 @@ jobs:
         run: |
           set -euo pipefail
           psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_isolated_taxonomy_bootstrap.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_taxonomy_p0_fixture.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql
+          # One matrix variant simulates the historical partial rollout with no trigger.
+          if [[ "${{ matrix.repair_missing_trigger }}" == "true" ]]; then
+            psql -v ON_ERROR_STOP=1 -c 'drop trigger pet_taxonomy_before_write on public.pets'
+          fi
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql
+          # Validate replay remains safe in disposable CI (never replay migration history live).
+          if [[ "${{ matrix.repair_missing_trigger }}" == "false" ]]; then
+            psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql
+          fi
           psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_isolated_taxonomy_regression.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_taxonomy_p0_regression.sql
   browser-adapter-build:
     runs-on: ubuntu-latest
     timeout-minutes: 8
