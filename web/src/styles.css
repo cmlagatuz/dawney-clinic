@@ -463,3 +463,9 @@ fieldset.book-step { padding: clamp(1.1rem, 3vw, 1.7rem); }
   .site-nav .nav-book { margin: .4rem 0 0; }
 }
 @media (max-width: 600px) { .site-header .brand-logo { height: 56px; } .site-account { padding: .5rem; } .cta-row .button { flex: 1 1 100%; } }
+
+/* 14. Booking eligibility (patient picker) */
+.info-grid > .card, .form-stack, .patient-select, .patient-select label { min-width: 0; }
+.patient-select select { width: 100%; max-width: 100%; text-overflow: ellipsis; }
+.eligibility-help { margin-top: .5rem; display: grid; gap: .35rem; overflow-wrap: anywhere; }
+.eligibility-help p { margin: 0; }

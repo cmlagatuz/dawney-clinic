@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../../hooks/AuthProvider'
 import { readOwner } from '../../lib/owners'
-import { listPets, type Pet } from '../../lib/clinical'
 import { freshBookingRequestNonce, listPublishedServiceResources, requestAuthenticatedServiceBooking, type PublishedServiceResource, type RequestedBooking } from '../../lib/public-booking'
 import type { PublicBookingIntent } from '../../booking-contract.mjs'
 import { clearBookingIntent, readBookingIntent, saveBookingIntent, signinForBooking, utcToClinicSlot } from '../../booking-contract.mjs'
@@ -10,6 +9,9 @@ import { formatClinicDate, formatClockTime, generateSlots, isUsablePolicy } from
 import { usePageMeta } from '../../public-site/usePageMeta'
 import { usePublicCatalog } from '../../public-site/usePublicCatalog'
 import { ContactDetails, DirectionsButton } from '../../components/SiteLayout'
+import { PatientSelect } from '../../components/PatientSelect'
+import { usePatientEligibility } from '../../public-site/usePatientEligibility'
+import { firstEligibleId } from '../../public-site/eligibility.mjs'
 import { EmptyState, LoadingCard, PageHeading, Spinner, StatusBadge } from '../../components/ui'
 
 const adapterMessage = /^(Complete owner profile|Select a registered patient|Verified customer login|A valid patient|Explicit UTC|Invalid booking)/
@@ -30,7 +32,8 @@ export function BookPage() {
   const [resourceId, setResourceId] = useState('')
   const [date, setDate] = useState('')
   const [startsAtUtc, setStartsAtUtc] = useState('')
-  const [pets, setPets] = useState<Pet[] | null>(null)
+  const elig = usePatientEligibility(user)
+  const pets = elig.status === 'ready' ? elig.pets : null
   const [hasOwner, setHasOwner] = useState<boolean | null>(null)
   const [petId, setPetId] = useState('')
   const [concern, setConcern] = useState('')
@@ -77,11 +80,14 @@ export function BookPage() {
 
   // Signed-in: load the owner's profile state and registered patients (RLS-scoped).
   useEffect(() => {
-    if (!user) { setPets(null); setHasOwner(null); return }
+    if (!user) { setHasOwner(null); return }
     let live = true
-    Promise.all([readOwner(user), listPets(user)]).then(([o, p]) => { if (live) { setHasOwner(Boolean(o)); setPets(p) } }).catch(() => { if (live) { setHasOwner(null); setPets([]) } })
+    readOwner(user).then(o => { if (live) setHasOwner(Boolean(o)) }).catch(() => { if (live) setHasOwner(null) })
     return () => { live = false }
   }, [user])
+
+  useEffect(() => { if (pets) setPetId(cur => pets.some(p => p.id === cur && p.eligibility === 'eligible') ? cur : firstEligibleId(pets)) }, [pets])
+  const chosenOk = pets?.find(p => p.id === petId)?.eligibility === 'eligible'
 
   function continueToLogin(mode: 'signin' | 'signup') {
     if (!serviceId) return
@@ -90,7 +96,7 @@ export function BookPage() {
   }
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!user || !serviceId || !resourceId || !startsAtUtc || !petId) return
+    if (!user || !serviceId || !resourceId || !startsAtUtc || !petId || !chosenOk) return
     setSaving(true); setError(null)
     try {
       const booking = await requestAuthenticatedServiceBooking(user, { petId, serviceId, resourceId, startsAtUtc, requestNonce: nonce, concern: concern.trim(), details: details.trim() || null })
@@ -151,12 +157,13 @@ export function BookPage() {
           <div className="form-actions"><button type="button" className="button button-primary" disabled={checking} onClick={() => continueToLogin('signin')}>Sign in to continue</button><button type="button" className="button button-secondary" disabled={checking} onClick={() => continueToLogin('signup')}>Create an account</button></div></section> :
         <section className="card book-step"><h2>{step(3)}Your patient and request</h2>
           {hasOwner === false && <p className="alert alert-info" role="note">Please complete your owner profile first. <Link to="/app/profile">Set up profile</Link></p>}
+          {elig.status === 'error' && <p role="alert" className="alert alert-error">We could not check which patients can be booked online, so nothing can be submitted. <button type="button" className="button-quiet" onClick={elig.reload}>Try again</button></p>}
           {hasOwner && pets !== null && pets.length === 0 && <p className="alert alert-info" role="note">Register a patient before requesting an appointment. <Link to="/app/pets">Add a patient</Link></p>}
-          <div className="form-row"><label>Patient<select required value={petId} onChange={e => { setPetId(e.target.value); touch() }} disabled={!pets?.length}><option value="">{pets === null ? 'Loading patients…' : 'Choose a patient'}</option>{pets?.map(p => <option key={p.id} value={p.id}>{p.name} · {p.species}</option>)}</select></label>
-            <label>Reason for visit<input required maxLength={300} value={concern} onChange={e => { setConcern(e.target.value); touch() }} placeholder="Short reason" /></label></div>
+          <PatientSelect pets={pets ?? []} value={petId} onChange={id => { setPetId(id); touch() }} />
+          <div className="form-row"><label>Reason for visit<input required maxLength={300} value={concern} onChange={e => { setConcern(e.target.value); touch() }} placeholder="Short reason" /></label></div>
           <label>Additional details (optional)<textarea maxLength={3000} value={details} onChange={e => { setDetails(e.target.value); touch() }} /></label>
           {error && <p role="alert" className="alert alert-error">{error}</p>}
-          <div className="form-actions"><button className="button button-primary" disabled={saving || !hasOwner || !petId || !resourceId || !startsAtUtc || !concern.trim()}>{saving ? <><Spinner /> Sending…</> : 'Send appointment request'}</button>
+          <div className="form-actions"><button className="button button-primary" disabled={saving || !hasOwner || !chosenOk || !resourceId || !startsAtUtc || !concern.trim()}>{saving ? <><Spinner /> Sending…</> : 'Send appointment request'}</button>
             {(!resourceId || !startsAtUtc) && <span className="field-help">Choose a time above to continue.</span>}</div></section>)}
     </form>
   </div>

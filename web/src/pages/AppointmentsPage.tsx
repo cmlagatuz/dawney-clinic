@@ -96,7 +96,7 @@ export function AppointmentsPage() {
         bm.loading?<p role="status">Checking clinic booking options…</p>:
         bm.mode==='unknown'?<p role="alert" className="alert alert-error">We could not check the clinic’s booking options, so nothing was submitted. <button type="button" className="button-quiet" onClick={bm.reload}>Try again</button></p>:
         bm.mode==='no-services'||bm.mode==='incomplete'?<p role="status" className="alert alert-info">Online requests are paused while the clinic finishes setting up its services and hours. Please contact the clinic to arrange a visit.</p>:
-        bm.mode==='service'&&bm.schedule&&user?<ServiceBookingForm user={user} pets={pets} services={bm.services} policy={bm.schedule} onBooked={booked} onPolicyChanged={bm.reload}/>:
+        bm.mode==='service'&&bm.schedule&&user?<ServiceBookingForm user={user} services={bm.services} policy={bm.schedule} onBooked={booked} onPolicyChanged={bm.reload}/>:
         resources.length===0?<p role="status">No active booking calendar is currently available.</p>:
         <form className="form-stack" onSubmit={e=>void book(e)}>
           <label>Patient<select required value={selectedPet} onChange={e=>setSelectedPet(e.target.value)}>
