@@ -35,3 +35,16 @@ Max 350 words per task: `VERIFIED:` commit SHA/PR+CI link; `CHANGED:` exact acti
 
 ## Skills and triggers
 Use repository root `SKILL.md` for /dawney-orchestrator. Specialized skills live under `skills/manus/`; import skill packs by ZIP if Manus cannot import a nested GitHub folder. See `docs/MANUS_AUTOMATION_TRIGGERS.md`. These instructions are read from source; nothing becomes an active Manus Project or scheduled task until the owner enables it in Manus.
+
+
+## Mandatory direct-to-GitHub reporting — owner request 2026-11-14
+**Do not make the owner copy/paste Manus responses into another AI chat.** After completing any authorized Dawney task, post a **concise, evidence-backed comment directly on its existing GitHub Issue or Pull Request** using the connected GitHub tool. Use issue #45 for Cloudflare Workers cleanup, issue #54 for Manus setup/permissions, and the existing task's PR or Issue for subsequent work. Do not create a new issue just to report status. This reporting permission is **limited to task-status comments**, not blanket permission to edit code, merge, close issues, alter Cloudflare/DB settings, publish releases or approve clinical rollout.
+
+Each GitHub report must include:
+- **MANUS REPORT — [task and date UTC]** and status **DONE / BLOCKED / NOT VERIFIED / NO MATERIAL CHANGE**.
+- **VERIFIED:** exact observed checks, commit SHA, provider action/URL and minimum evidence; distinguish Cloudflare provider observations from GitHub metadata.
+- **CHANGED:** what was actually modified, or **NONE**. For Cloudflare Worker #45 say explicitly whether **the Worker Git build is disconnected**; whether the existing `workers.dev` endpoint, Pages URL and Pages Git connection still operate; and whether any check results are historical only.
+- **BLOCKERS / NEXT OWNER ACTION:** exact unresolved detail, or **NONE**.
+- **APPROVAL:** if a further owner decision is necessary. Do not imply approval from an issue comment alone.
+
+Post **after executing and verifying**, not merely after receiving instructions. Never publish credentials, private dashboard logs containing secrets, patient information, tokens or personal data. If connector lacks issue-comment write scope, report **GITHUB COMMENT WRITE BLOCKED** in Manus and request the minimum permission; do not ask the owner to paste sensitive logs. If posting succeeds, return only the GitHub issue/PR comment URL and a one-line status to the owner. **A GitHub issue comment does not itself start an inactive Manus session**; task-triggering must be configured separately in the Manus Project.
