@@ -1,5 +1,6 @@
 import type {User} from '@supabase/supabase-js'
 import {supabase} from './supabase'
+import {STAFF_ROLES,verifyStaffFromRls,queryClinicQueue,queryClinicDashboardCounts} from '../staff-read-contract.mjs'
 
 /** Staff-facing read contracts only. All results come from persisted RLS queries.
  * No client-invented role, no role bootstrap, no mock dashboard statistics. */
@@ -17,7 +18,7 @@ export type ClinicalRecord={
  id:string;pet_id:string;performed_at:string;procedure:string;
  temperature_c:number|null;weight_kg:number|null;comments:string|null;authored_by:string|null
 }
-const roles=new Set<StaffRole>(['administrator','veterinarian','receptionist'])
+const roles=new Set<StaffRole>(STAFF_ROLES)
 const actions={
  'queue.read':roles,'patients.read':roles,'clinical_records.read':roles,
  'encounter.write':new Set<StaffRole>(['administrator','veterinarian']),
@@ -35,16 +36,9 @@ export function roleCan(role:StaffRole,action:StaffAction):boolean{
 }
 function client(){if(!supabase)throw Error('Clinic database is not configured');return supabase}
 export async function verifiedStaffSession(user:User):Promise<StaffSession>{
- const db=client()
- const {data:auth,error:authError}=await db.auth.getUser()
- if(authError||!auth.user||auth.user.id!==user.id||!auth.user.email_confirmed_at||
-   auth.user.is_anonymous)throw Error('Verified staff session required')
- const {data,error}=await db.from('staff_memberships')
-   .select('user_id,role,is_active').eq('user_id',user.id).maybeSingle()
- if(error||!data||!data.is_active||!roles.has(data.role as StaffRole))
-  throw Error('Clinic staff access is not approved')
- return {userId:user.id,role:data.role as StaffRole,isActive:true}
+ return verifyStaffFromRls(client(),user.id)
 }
+
 export async function listClinicPatients(user:User,offset=0,limit=50):Promise<ClinicPatient[]> {
  await verifiedStaffSession(user)
  if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(limit)||limit<1||limit>100)
@@ -60,17 +54,9 @@ export async function listClinicQueue(
  user:User,fromUtc:string,toUtc:string
 ):Promise<ClinicQueueItem[]>{
  await verifiedStaffSession(user)
- const from=new Date(fromUtc),to=new Date(toUtc)
- if(!/Z$/.test(fromUtc)||!/Z$/.test(toUtc)||!Number.isFinite(from.valueOf())||
-   !Number.isFinite(to.valueOf())||to<=from||
-   to.valueOf()-from.valueOf()>86400000)throw Error('Valid UTC clinic queue window required')
- const {data,error}=await client().from('appointments')
- .select('id,pet_id,owner_id,resource_id,starts_at,ends_at,status,concern')
- .gte('starts_at',from.toISOString()).lt('starts_at',to.toISOString())
- .order('starts_at',{ascending:true}).limit(250)
- if(error)throw error
- return (data??[]) as ClinicQueueItem[]
+ return queryClinicQueue(client(),fromUtc,toUtc)
 }
+
 export async function listClinicClinicalRecords(
  user:User,petId:string
 ):Promise<ClinicalRecord[]>{
@@ -85,16 +71,5 @@ export async function listClinicClinicalRecords(
 }
 export async function getClinicDashboardCounts(user:User) {
  await verifiedStaffSession(user)
- const db=client()
- const [patients,requested,confirmed]=await Promise.all([
-  db.from('pets').select('id',{count:'exact',head:true}),
-  db.from('appointments').select('id',{count:'exact',head:true}).eq('status','requested'),
-  db.from('appointments').select('id',{count:'exact',head:true}).eq('status','confirmed')
- ])
- for(const item of [patients,requested,confirmed])if(item.error)throw item.error
- return {
-  patients:patients.count??0,
-  requestedAppointments:requested.count??0,
-  confirmedAppointments:confirmed.count??0
- }
+ return queryClinicDashboardCounts(client())
 }
