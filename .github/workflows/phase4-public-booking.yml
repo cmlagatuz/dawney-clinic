@@ -6,8 +6,11 @@ on:
       - 'supabase/migrations/20261114090000_phase4_public_booking_contract.sql'
       - 'supabase/tests/phase4_public_booking_*.sql'
       - 'web/src/lib/public-booking.ts'
+      - 'web/src/lib/owner-booking-transition.ts'
       - 'web/src/booking-contract.*'
+      - 'web/src/booking-transition.*'
       - 'web/tests/booking-contract.test.mjs'
+      - 'web/tests/booking-transition.test.mjs'
       - '.github/workflows/phase4-public-booking.yml'
   push:
     branches: [master]
@@ -15,8 +18,11 @@ on:
       - 'supabase/migrations/20261114090000_phase4_public_booking_contract.sql'
       - 'supabase/tests/phase4_public_booking_*.sql'
       - 'web/src/lib/public-booking.ts'
+      - 'web/src/lib/owner-booking-transition.ts'
       - 'web/src/booking-contract.*'
+      - 'web/src/booking-transition.*'
       - 'web/tests/booking-contract.test.mjs'
+      - 'web/tests/booking-transition.test.mjs'
       - '.github/workflows/phase4-public-booking.yml'
 
 permissions:
@@ -78,6 +84,7 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           node --test tests/booking-contract.test.mjs
+          node --test tests/booking-transition.test.mjs
           npm test
       - name: TypeScript check and Vite build
         working-directory: web
