@@ -1,5 +1,18 @@
 # Dawney Clinic — Shared AI Handoff
 
+
+## Current supervisor checkpoint — 2026-11-14 05:20 Asia/Riyadh (NEWEST)
+
+**Read [CURRENT SUPERVISOR BRIEF](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) then [Phase 4 QA contract](PHASE4_PRODUCT_QA_SPEC.md). Older handoff checkpoints below are historical.**
+
+- **Astra completed its Phase 4 backend code**: PRs [#29](https://github.com/cmlagatuz/dawney-clinic/pull/29), [#30](https://github.com/cmlagatuz/dawney-clinic/pull/30), [#31](https://github.com/cmlagatuz/dawney-clinic/pull/31) and [#33](https://github.com/cmlagatuz/dawney-clinic/pull/33) MERGED; isolated PostgreSQL17/RLS and Node/TS/Vite tests passed. Two versioned taxonomy/attachment migrations are **NOT** on connected Supabase (still 6 applied migrations). New catalog tables and actual attachment UI are not live.
+- **Claude PR #34** `ai/claude/phase4-react-modern-ui` is OPEN/UNMERGED, not draft; CI React, release, browser and legacy PHP checks PASS at branch head `52a44d2`. Owner's authentic logo files are in PR, plus new owner Overview, theme/mobile shell and accessible visual components; but Species/Breed are **still free-text**, no attachment upload UI and no clinic staff UI. This is a *visual foundation*, not the complete Phase 4 assignment. Supervisor submitted PR #34 code review outlining gates. No claim of live deployment of this branch.
+- **NEW real-data QA blocker:** current existing patient record contains `Dog / Chow Chow`, while Astra's Phase 4 catalog seed lacks the recognized Chow Chow breed. [Issue #35](https://github.com/cmlagatuz/dawney-clinic/issues/35) tracks correction and lossless migration proof. Do not apply new migrations until verified.
+- Connected Supabase read-only: ACTIVE_HEALTHY, 7 prior RLS tables, 2 owners, **1 existing pet**, **1 appointment**, no attached objects. Preserve existing records. Baseline Auth/read-only smoke previously passed; do not repeat routinely. Full live pet/attachment negative security tests and full recovery not yet proven.
+- **Astra next:** Issue #35 + migration preflight and security tests; typed API integration assistance, then staff backend contracts in isolated new PRs. **No live migration or synthetic-write operation without specific owner authorization.**
+- **Claude next:** Finish PR #34 visual-only QA/review/merge and verify actual Cloudflare deployed commit, then second scoped React PR with grouped Species→Breed selection + three optional private attachment controls bound to Astra API. Do not independently enable incomplete UI against old live schema.
+- Existing legacy Blade PR #1 is not a React release target; leave unmerged.
+
 ## Phase 4 Astra P0 closeout — 2026-11-13 (after PRs #29–#31)
 
 - **Merged:** [#29](https://github.com/cmlagatuz/dawney-clinic/pull/29) animal taxonomy/private metadata/typed integrations (squash `90a49593`), [#30](https://github.com/cmlagatuz/dawney-clinic/pull/30) expanded isolated catalog/Storage denial tests and QA handoff (squash `72c1d964`), [#31](https://github.com/cmlagatuz/dawney-clinic/pull/31) Chromium startup reliability (squash `7c8756b3`). **Master browser** [#43485564996](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43485564996) and legacy [#43485565047](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43485565047) **PASSED**. Taxonomy isolated SQL/Postgres/TypeScript/Node [#43485402070](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43485402070) **PASSED**. Earlier master Chromium timeout resolved by #31; no app assertions had failed.
