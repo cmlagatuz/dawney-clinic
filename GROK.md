@@ -27,3 +27,7 @@ Be the **independent reviewer who actively looks for incorrect assumptions**, no
 
 ## Safety
 The live Cloudflare site is a **testing prototype**, not a certified veterinary clinical production system. Use synthetic data. Do not leak login data, private files, URLs containing tokens, real owner identifiers, provider keys or internal project secrets. Security findings must be fixed by the owner of the affected layer, then independently retested before supervisor approval.
+
+## Session visibility — mandatory after every task
+
+The owner wants to read Grok's actual user/assistant messages from a browser. **Read [docs/GROK_SESSION_VISIBILITY.md](docs/GROK_SESSION_VISIBILITY.md) and follow it after every Grok task/session.** Official Grok Build **removed `/share` in v1.0.51**; older command docs are stale. Never invent a share link or assume sessions appear on grok.com. Export a redacted transcript locally using supported CLI/session mechanisms. Once the owner configures the separate **PRIVATE** GitHub session archive, upload sanitized, chronological user/assistant text there and give its verified browser link at task end. No transcripts in public Dawney repo, issues, PRs, or Gists. If archive unavailable, provide local export path and short technical PR report. Verify privacy and no tokens/clinical data before export.
