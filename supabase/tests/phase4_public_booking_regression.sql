@@ -43,6 +43,8 @@ do $anon$
 begin
  if (select count(*) from public.clinic_services)<>1 then
   raise exception 'Unapproved public service leaked or approved one hidden'; end if;
+ if has_table_privilege('anon','public.clinic_service_species','SELECT') then
+  raise exception 'Anonymous taxonomy grants unexpectedly broadened'; end if;
  if (select count(*) from public.clinic_service_resources)<>0
     or (select count(*) from public.clinic_booking_policy)<>0 then
   raise exception 'Unapproved hours/resource listing leaked'; end if;
