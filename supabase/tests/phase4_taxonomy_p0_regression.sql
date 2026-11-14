@@ -51,7 +51,8 @@ begin
          and prosecdef) then raise exception 'Taxonomy trigger must not bypass RLS'; end if;
  if not exists(select 1 from pg_proc
        where oid='clinic_private.resolve_pet_taxonomy()'::regprocedure
-         and 'search_path=' = any(proconfig)) then
+         and (('search_path=' = any(proconfig))
+           or ('search_path=""' = any(proconfig)))) then
      raise exception 'Taxonomy trigger search_path must remain empty'; end if;
  if not exists(select 1 from public.breed_catalog
        where id='dog-chow-chow' and species_id='dog' and label='Chow Chow'
