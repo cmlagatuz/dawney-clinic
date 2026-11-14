@@ -1,0 +1,1 @@
+Harness renders of the real public pages with **fictitious in-memory catalog/schedule ("Test service A/B", Mon–Fri 09:00–12:00 test policy) and stubbed auth**. No Supabase, the #43 migration is not live, and nothing here is clinic data, a service the clinic offers, or its hours. With no approved catalog the real site shows the pending states (see services-empty).

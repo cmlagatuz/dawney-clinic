@@ -1,8 +1,18 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/AuthProvider'
 import { isValidNewPassword } from '../domain.mjs'
+import { readBookingIntent, safeBookingReturnPath } from '../booking-contract.mjs'
+
+/** Only the exact public booking path may be returned to after auth (no open redirects). */
+function useAfterAuth(useStoredIntent = false) {
+  const [params] = useSearchParams()
+  let toBook = safeBookingReturnPath(params.get('next')) === '/book'
+  // Just-verified accounts: continue to /book if this tab still holds a (PII-free, 30-min) booking intent.
+  if (!toBook && useStoredIntent) { try { toBook = readBookingIntent(window.sessionStorage) !== null } catch { /* storage blocked */ } }
+  return { dest: toBook ? '/book' : '/app/overview', suffix: toBook ? '?next=%2Fbook' : '' }
+}
 import { Brand } from '../components/Layout'
 
 function Panel({ title, intro, children }: { title: string; intro: string; children: ReactNode }) {
@@ -25,6 +35,7 @@ function normalizeError(error: unknown) {
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const { dest, suffix } = useAfterAuth()
   const { user } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -40,11 +51,11 @@ export function LoginPage() {
       if (!result.data.user?.email_confirmed_at || result.data.user.is_anonymous) {
         await supabase.auth.signOut({ scope: 'local' })
         setError('Please verify your email before signing in.')
-      } else navigate('/app/overview', { replace: true })
+      } else navigate(dest, { replace: true })
     } catch (e) { setError(normalizeError(e)) }
     finally { setPending(false) }
   }
-  if (user) return <Navigate to="/app/overview" replace />
+  if (user) return <Navigate to={dest} replace />
   return <Panel title="Welcome back" intro="Sign in to securely manage your veterinary profile.">
     <ErrorMessage error={error}/>
     <form onSubmit={e => void submit(e)} className="form-stack">
@@ -52,11 +63,12 @@ export function LoginPage() {
       <label>Password<input autoComplete="current-password" name="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
       <button className="button button-primary" disabled={pending}>{pending ? 'Signing in…' : 'Sign in'}</button>
     </form>
-    <p className="form-links"><Link to="/auth/forgot">Forgot password?</Link><span>New to Dawney? <Link to="/auth/signup">Create an account</Link></span></p>
+    <p className="form-links"><Link to="/auth/forgot">Forgot password?</Link><span>New to Dawney? <Link to={`/auth/signup${suffix}`}>Create an account</Link></span></p>
   </Panel>
 }
 
 export function SignUpPage() {
+  const { suffix } = useAfterAuth()
   const [values, setValues] = useState({ email: '', password: '', first: '', last: '' })
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -79,19 +91,20 @@ export function SignUpPage() {
   }
   function field(k: keyof typeof values, value: string) { setValues(old => ({...old, [k]: value})) }
   return <Panel title="Create an account" intro="Register as a pet owner. Staff access requires separate clinic approval.">
-    {sent ? <><SuccessMessage message="If the address can receive mail, we sent a confirmation link. Verify your email before signing in."/><Link className="button button-primary" to="/auth/signin">Return to sign in</Link></> : <>
+    {sent ? <><SuccessMessage message="If the address can receive mail, we sent a confirmation link. Verify your email before signing in."/><Link className="button button-primary" to={`/auth/signin${suffix}`}>Return to sign in</Link></> : <>
       <ErrorMessage error={error}/><form className="form-stack" onSubmit={e => void submit(e)}>
         <div className="form-row"><label>First name<input required maxLength={150} autoComplete="given-name" value={values.first} onChange={e=>field('first',e.target.value)} /></label>
           <label>Last name<input required maxLength={150} autoComplete="family-name" value={values.last} onChange={e=>field('last',e.target.value)} /></label></div>
         <label>Email address<input required type="email" autoComplete="email" value={values.email} onChange={e=>field('email',e.target.value)}/></label>
         <label>Password <small>(8+ characters, with letters and numbers; 12+ recommended)</small><input required minLength={8} maxLength={1024} pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,1024}" title="At least 8 characters including a letter and a number" type="password" autoComplete="new-password" value={values.password} onChange={e=>field('password',e.target.value)}/></label>
         <button className="button button-primary" disabled={pending}>{pending ? 'Creating…' : 'Create account'}</button>
-      </form><p className="form-links">Already registered? <Link to="/auth/signin">Sign in</Link></p></>}
+      </form><p className="form-links">Already registered? <Link to={`/auth/signin${suffix}`}>Sign in</Link></p></>}
   </Panel>
 }
 
 export function VerifyPage() {
   const navigate = useNavigate()
+  const { dest } = useAfterAuth(true)
   const [email, setEmail] = useState('')
   const [token, setToken] = useState('')
   const [status, setStatus] = useState<string|null>(null)
@@ -103,7 +116,7 @@ export function VerifyPage() {
     try {
       const result = await supabase.auth.verifyOtp({ email: email.trim(), token: token.trim(), type: 'email' })
       if (result.error) throw result.error
-      navigate('/app/overview', { replace: true })
+      navigate(dest, { replace: true })
     } catch(e) { setError(normalizeError(e)) }
     finally { setPending(false) }
   }
@@ -175,9 +188,10 @@ export function RecoveryPage() {
 
 export function CallbackPage() {
   const { user, checking, error } = useAuth()
+  const { dest } = useAfterAuth(true)
   if (checking) return <Panel title="Confirming account" intro="Verifying your secure email link…"><p role="status">Connecting to Supabase Auth.</p></Panel>
   return <Panel title="Email confirmation" intro="Secure sign-in confirmation from Supabase.">
-    {user ? <><SuccessMessage message="Your account is verified."/><Link className="button button-primary" to="/app/overview">Continue to your overview</Link></>
+    {user ? <><SuccessMessage message="Your account is verified."/><Link className="button button-primary" to={dest}>{dest === '/book' ? 'Continue to booking' : 'Continue to your overview'}</Link></>
     : <><ErrorMessage error={error ?? 'We could not verify this link. It may have expired.'}/><Link to="/auth/verify">Try confirmation code or resend</Link></>}
   </Panel>
 }

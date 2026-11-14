@@ -316,3 +316,18 @@ No API credentials, medical records, password hashes, patient contact details or
 - **Blocked / not done:** Species/breed selector, attachments UI and staff workspace wait for Astra's typed adapters; no role data is available to the UI yet.
 - Behaviour change to review: post-login/verify redirect and `/` now go to `/app/overview` (was `/app/profile`).
 - Verified locally: contrast/theme tests, harness renders at 360/768/1440 light+dark (fake data), drawer/keyboard checks. Strict `tsc` + `vite build` only via CI.
+
+### Claude — Public website PR (branch `ai/claude/public-website`, stacked on #34) — Issue #42
+- Public `/`, `/services`, `/about` (+`/location`,`/contact`), `/book`; unknown paths → friendly 404; `/app/*` and `/auth/*` unchanged. Root no longer redirects to login.
+- Only facts: General Trias, Cavite, Philippines + owner's Maps link verbatim. **Phone, hours, street address are `null` pending owner confirmation** (`web/src/public-site/clinic-info.mjs`); UI shows "to be confirmed". Services/slots come only from Astra's #43 contract (`lib/public-booking.ts`, `booking-contract.mjs` copied byte-identically from #43 so this branch compiles; drop on merge of #43). No approved catalog/policy → pending states, no slots.
+- Booking: anonymous browse → intent (ids only, sessionStorage 30 min) → `/auth/signin|signup?next=/book` → return; signed-in: patient + reason → `requestAuthenticatedServiceBooking`; shows persisted status (requested ≠ confirmed), clinic-time (Asia/Manila) display, nonce reuse on retry.
+- Release notes: `web/public/robots.txt` still `Disallow: /` (left for supervisor); old `/app/appointments` form stops working for new bookings once the schedule is approved (needs its own PR); Verify/Callback flows still land on `/app/overview`.
+
+## Claude — Issue #51 owner appointment compatibility (PR #48)
+- `AppointmentsPage` now submits only via Astra's `submitOwnerAppointment()` (temp byte-identical copy from #43: `booking-transition.mjs/.d.mts`, `lib/owner-booking-transition.ts`, its test).
+- Mode (`public-site/booking-mode.mjs`, `useBookingMode`): `legacy` only if policy table missing (PGRST205/42P01 naming `clinic_booking_policy`) or policy null; approved+usable+services → `service` form (`ServiceBookingForm`, clinic-time slots from approved policy, RPC); approved w/o services / incomplete → paused message; any other read error → fail closed ("Try again", nothing submitted). Adapter "policy changed" errors trigger a mode reload.
+- Retry keeps nonce; any field edit refreshes it. Status shown is the persisted one. Open: pet species `clinic_supported` pre-check (server still enforces), replacing temp copies after #43 merge. Browser evidence is stubbed harness, not live DB.
+
+## Claude — booking eligibility UX (PR #48)
+- Patient picker (`PatientSelect`, `usePatientEligibility`, `public-site/eligibility.mjs`) in owner `/app/appointments` (service mode) and public `/book`. Eligibility comes only from typed `listCatalogPets` (`species_id`, `taxonomy_review_needed`) + `listAnimalTypes` (`clinic_supported`, `is_active`, `review_status`); never from the free-text species label. Ineligible patients stay listed (disabled, with reason); legacy records untouched; fail closed when the catalog can't be read. Legacy mode unchanged.
+- Missing: per-service species reader (`clinic_service_species`) — see `docs/phase4-ui/appointments/ELIGIBILITY_CONTRACT_REQUEST.md` for Astra. Evidence is a stubbed harness, not live DB.
