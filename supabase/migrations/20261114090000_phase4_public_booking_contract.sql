@@ -260,23 +260,24 @@ begin
  if not exists(select 1 from public.pets where id=p_pet_id and owner_id=v_owner) then
    raise exception 'Register a patient owned by this account' using errcode='42501';
  end if;
- select duration_minutes into v_minutes from public.clinic_services
-   where id=p_service_id and is_active and published_at is not null
-    and owner_approved_at is not null and owner_approved_by is not null;
- if not found then raise exception 'Service is not approved' using errcode='23514'; end if;
-
+ -- Honor a previously completed exact request even if a clinic operator
+ -- later retires its service/duration; no new booking is created on retry.
  select * into v_existing from public.appointments
    where owner_id=v_owner and request_nonce=p_request_nonce;
  if found then
    if v_existing.pet_id=p_pet_id and v_existing.service_id=p_service_id
      and v_existing.resource_id=p_resource_id and v_existing.starts_at=p_starts_at
-     and v_existing.ends_at=p_starts_at+pg_catalog.make_interval(mins=>v_minutes)
      and v_existing.concern=p_concern
      and v_existing.details is not distinct from p_details then
-      return v_existing.id; -- exact retry; never double-create
+      return v_existing.id;
    end if;
    raise exception 'Request token already belongs to another booking' using errcode='23505';
  end if;
+
+ select duration_minutes into v_minutes from public.clinic_services
+   where id=p_service_id and is_active and published_at is not null
+    and owner_approved_at is not null and owner_approved_by is not null;
+ if not found then raise exception 'Service is not approved' using errcode='23514'; end if;
  begin
   insert into public.appointments
     (owner_id,pet_id,service_id,resource_id,starts_at,ends_at,
