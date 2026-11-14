@@ -1,5 +1,7 @@
 # Dawney Veterinary Clinic — Shared AI Development Contract
 
+> **CURRENT FIVE-AGENT OVERRIDE — 2026-11-14:** [Manus onboarding](MANUS.md) and [Five-Agent Orchestration](docs/FIVE_AGENT_ORCHESTRATION.md) supersede the historical two/four-agent ownership sections below **for new task routing only**. GPT-6 supervises; Astra owns backend, Claude frontend, Qwen independent read-only QA, Grok security (quota-dependent), and Manus connector/Cloudflare operations and release evidence. All still follow the safety/zero-cost rules below. **Do not assume Manus can access other AIs' private chats via ordinary app connectors.** No self-merge, production SQL or billable provider activation without owner approval.
+
 Last reviewed: 2026-11-13. Repository: https://github.com/cmlagatuz/dawney-clinic. Default branch: `master`.
 
 ## Mandate
