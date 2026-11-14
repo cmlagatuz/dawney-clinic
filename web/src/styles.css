@@ -315,7 +315,7 @@ input:user-invalid, textarea:user-invalid, select:user-invalid { border-color: v
 .booking-groups { display: grid; gap: 1.5rem; }
 .booking-group h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 0 0 .7rem; }
 .booking-list { display: grid; gap: .75rem; }
-.booking-item { display: flex; gap: 1rem; align-items: flex-start; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.booking-item { display: flex; flex-direction: column; gap: .15rem; align-items: stretch; min-width: 0; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
 .booking-item.is-past { background: var(--surface-2); }
 .booking-body { flex: 1; min-width: 0; }
 .booking-item-top { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
