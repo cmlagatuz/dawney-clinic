@@ -83,7 +83,9 @@ export async function withChromium(callback){
  let socket;
  try{
   let port;
-  for(let i=0;i<100;i++){
+  // Heavily contended free CI runners can take >10 seconds to initialize Chrome.
+  // This is startup only: application/guard assertions retain their own tight deadlines.
+  for(let i=0;i<350;i++){
    if(proc.exitCode!==null)throw Error('Chromium quit unexpectedly');
    try{port=Number((await readFile(join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);if(port)break;}
    catch{ /* browser starting */ }
