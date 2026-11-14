@@ -70,8 +70,10 @@ alter table public.clinic_booking_policy enable row level security;
 revoke all on public.clinic_services,public.clinic_service_species,
   public.clinic_service_resources,public.clinic_booking_policy
   from public,anon,authenticated;
-grant select on public.clinic_services, public.clinic_service_species,
-  public.clinic_service_resources to anon,authenticated;
+grant select on public.clinic_services, public.clinic_service_resources to anon,authenticated;
+-- The existing species_catalog is authenticated-only. Keep anonymous public
+-- discovery limited to approved service descriptions, not taxonomy joins.
+grant select on public.clinic_service_species to authenticated;
 grant select on public.clinic_booking_policy to anon,authenticated;
 -- Browsing only: no anonymous or normal Auth ability to approve, seed, or publish.
 create policy clinic_services_public_read on public.clinic_services
@@ -79,8 +81,8 @@ create policy clinic_services_public_read on public.clinic_services
    is_active and published_at is not null and owner_approved_at is not null
      and owner_approved_by is not null
  );
-create policy clinic_service_species_public_read on public.clinic_service_species
- for select to anon,authenticated using (exists(
+create policy clinic_service_species_auth_read on public.clinic_service_species
+ for select to authenticated using (exists(
   select 1 from public.clinic_services s where s.id=service_id
  ) and exists (
   select 1 from public.species_catalog sp where sp.id=species_id
