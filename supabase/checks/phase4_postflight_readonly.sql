@@ -43,10 +43,34 @@ select relname,relrowsecurity from pg_class
  'public.breed_catalog'::regclass,'public.pet_attachments'::regclass,
  'public.clinic_services'::regclass,'public.clinic_service_species'::regclass,
  'public.clinic_service_resources'::regclass,'public.clinic_booking_policy'::regclass);
-select has_table_privilege('anon','public.clinic_services','SELECT') as anon_may_read_published_service_rows,
- has_table_privilege('anon','public.appointments','SELECT') as anon_may_read_appointments,
- has_table_privilege('anon','public.pet_attachments','SELECT') as anon_may_read_clinical_metadata,
- has_table_privilege('authenticated','public.clinic_services','INSERT') as auth_may_publish_services;
+-- Public catalog and booking policy use COLUMN grants (not table-wide SELECT).
+-- has_table_privilege(...,'SELECT') is false even when approved columns are readable.
+select has_column_privilege('anon','public.clinic_services','display_name','SELECT')
+  as anon_may_read_public_service_name,
+ not has_column_privilege('anon','public.clinic_services','owner_approved_by','SELECT')
+  as anon_cannot_read_service_approver,
+ not has_column_privilege('anon','public.clinic_services','owner_approved_at','SELECT')
+  as anon_cannot_read_service_approval_timestamp,
+ not has_column_privilege('authenticated','public.clinic_services','owner_approved_by','SELECT')
+  as owner_cannot_read_service_approver,
+ not has_column_privilege('authenticated','public.clinic_services','owner_approved_at','SELECT')
+  as owner_cannot_read_service_approval_timestamp,
+ has_column_privilege('anon','public.clinic_booking_policy','timezone','SELECT')
+  as anon_may_read_approved_schedule_timezone,
+ not has_column_privilege('anon','public.clinic_booking_policy','approved_by','SELECT')
+  as anon_cannot_read_schedule_approver,
+ not has_column_privilege('anon','public.clinic_booking_policy','approved_at','SELECT')
+  as anon_cannot_read_schedule_approval_timestamp,
+ not has_column_privilege('authenticated','public.clinic_booking_policy','approved_by','SELECT')
+  as owner_cannot_read_schedule_approver,
+ not has_column_privilege('authenticated','public.clinic_booking_policy','approved_at','SELECT')
+  as owner_cannot_read_schedule_approval_timestamp,
+ not has_table_privilege('anon','public.appointments','SELECT')
+  as anon_cannot_read_appointments,
+ not has_table_privilege('anon','public.pet_attachments','SELECT')
+  as anon_cannot_read_clinical_metadata,
+ not has_table_privilege('authenticated','public.clinic_services','INSERT')
+  as owner_cannot_publish_services;
 select count(*) as unapproved_catalog_service_rows,
  count(*) filter(where is_active or published_at is not null or owner_approved_at is not null)
     as unexpectedly_enabled_services from public.clinic_services;
