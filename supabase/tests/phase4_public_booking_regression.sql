@@ -275,4 +275,34 @@ begin
    where id='77777777-7777-4777-8777-777777777777')<>'requested'
    then raise exception 'Historical appointment changed';end if;
 end $last$;
+-- Service retirement cannot turn an exact retry into a new request.
+update public.clinic_services set is_active=false
+where id='88888888-8888-4888-8888-888888888888';
+set role authenticated;
+select pg_catalog.set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',false);
+do $retired$
+declare slot timestamptz; saved uuid;
+begin
+ slot:=(date_trunc('week',now() at time zone 'Asia/Manila')+interval '7 days 9 hours')
+       at time zone 'Asia/Manila';
+ select public.request_service_appointment(
+  '33333333-3333-4333-8333-333333333333',
+  '88888888-8888-4888-8888-888888888888',
+  '55555555-5555-4555-8555-555555555555',
+  slot,'11111111-1111-4111-8111-111111111111','CI consultation',null)
+ into saved;
+ if saved is distinct from (select id from public.appointments
+       where request_nonce='11111111-1111-4111-8111-111111111111') then
+   raise exception 'Retired-service retry lost its existing booking'; end if;
+ begin
+  perform public.request_service_appointment(
+    '33333333-3333-4333-8333-333333333333',
+    '88888888-8888-4888-8888-888888888888',
+    '55555555-5555-4555-8555-555555555555',
+    slot+interval '2 hours',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd','New retired service request',null);
+  raise exception 'Retired service admitted new booking';
+ exception when check_violation then null;end;
+end $retired$;
+reset role;
 select 'PASS: public service catalog, owner booking, idempotency, conflict, holiday, Manila, status RLS' as verdict;
