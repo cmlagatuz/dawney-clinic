@@ -40,3 +40,11 @@ The user can complete initial OAuth, Cloudflare Pages project setup, DNS, Supaba
 
 ## Done means done
 A task is complete only if it is implemented, tested (build/lint/unit/integration where applicable), pushed, reviewed or merged as appropriate, deployed if configured, and checked for working end-to-end persistence/security. Report what is verified versus pending. Stay within free quotas. Avoid claiming invisible work, background execution, or nonexistent services.
+
+
+## Four-agent specialist division (updated 2026-11-14)
+Supervisor-approved collaboration is documented in **[docs/FOUR_AI_COLLABORATION.md](docs/FOUR_AI_COLLABORATION.md)**. The two new agents are **Qwen** ([QWEN.md](QWEN.md)) for QA/browser regression/test automation and **Grok** ([GROK.md](GROK.md)) for independent security/system audit and negative test design. They are not additional competing architecture leads.
+- All four agents work on isolated `ai/chatgpt/*`, `ai/claude/*`, `ai/qwen/*`, `ai/grok/*` branches and push their own testable PRs if tools genuinely provide GitHub write access; **no direct master pushes by coding agents** and no self-merges. Supervisor/owner reviews.
+- Stable file ownership: Astra `supabase/migrations` + `web/src/lib`, Claude React pages/components/styles/brand, Qwen browser/test harness, Grok security audit docs/isolated security tests. Coordinate any exception before edits.
+- Free AI chat does **not** guarantee free API/CLI or GitHub write access. Do not install paid agents, add billable secrets, enable unrestricted auto-approve or claim completed pushes/deployments without actual tool verification.
+- Keep handoffs short and retrieve latest PR/issue diffs rather than copying full memory. No third-party access to real clinical/owner data or privileged Supabase credentials.
