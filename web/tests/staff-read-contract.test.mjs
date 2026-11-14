@@ -88,7 +88,12 @@ test('empty queue is real; denied/malformed responses never become fake emptines
   assert.deepEqual(await queryClinicQueue(queueDb(),START,END),[])
   const denied={code:'42501',message:'RLS denied'}
   await assert.rejects(queryClinicQueue(queueDb({error:denied}),START,END),e=>e===denied)
-  for(const data of [null,[{}],[{...row,status:'in_consult'}]]) {
+  for(const data of [null,[{}],[{...row,status:'in_consult'}],
+    [{...row,owner_id:null}],[{...row,resource_id:null}],
+    [{...row,pet_id:null}],[{...row,ends_at:null}],
+    [{...row,ends_at:'not-a-date'}],[{...row,ends_at:row.starts_at}],
+    [{...row,starts_at:'not-a-date'}],[{...row,concern:''}],
+    [{...row,concern:null}],[{...row,id:''}]]) {
     await assert.rejects(queryClinicQueue(queueDb({data}),START,END),/Clinic queue response could not be verified/)
   }
 })

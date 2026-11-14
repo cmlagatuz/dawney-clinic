@@ -34,6 +34,19 @@ export function validateClinicUtcWindow(fromUtc,toUtc) {
   return {from:from.toISOString(),to:to.toISOString()}
 }
 
+/** Check the complete typed payload before allowing the UI to use a queue row. */
+function isVerifiedQueueRow(row) {
+  if (!row || typeof row.id !== 'string' || !row.id ||
+      typeof row.pet_id !== 'string' || !row.pet_id ||
+      typeof row.owner_id !== 'string' || !row.owner_id ||
+      typeof row.resource_id !== 'string' || !row.resource_id ||
+      !statuses.has(row.status) ||
+      typeof row.starts_at !== 'string' || typeof row.ends_at !== 'string' ||
+      typeof row.concern !== 'string' || !row.concern.trim()) return false
+  const start = Date.parse(row.starts_at), end = Date.parse(row.ends_at)
+  return Number.isFinite(start) && Number.isFinite(end) && end > start
+}
+
 /** Return persisted appointment rows only. RLS must provide clinic staff scope. */
 export async function queryClinicQueue(db, fromUtc, toUtc) {
   const bounds = validateClinicUtcWindow(fromUtc,toUtc)
@@ -42,9 +55,7 @@ export async function queryClinicQueue(db, fromUtc, toUtc) {
     .gte('starts_at',bounds.from).lt('starts_at',bounds.to)
     .order('starts_at',{ascending:true}).limit(250)
   if (error) throw error
-  if (!Array.isArray(data) || data.some(row => !row ||
-      typeof row.id !== 'string' || typeof row.pet_id !== 'string' ||
-      !statuses.has(row.status) || typeof row.starts_at !== 'string')) {
+  if (!Array.isArray(data) || data.some(row => !isVerifiedQueueRow(row))) {
     throw Error('Clinic queue response could not be verified')
   }
   return data
