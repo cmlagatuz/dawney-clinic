@@ -27,10 +27,12 @@ type Props = {
   onRetry: () => void
   onDownload: (attachment: PetAttachment) => Promise<void>
   disabled?: boolean
+  /** Result of reading this patient's saved documents. Omitted/'idle' for a new patient. A failed read is never shown as "none saved". */
+  documentsStatus?: 'idle' | 'loading' | 'ready' | 'error'
 }
 
 /** One optional private document slot: pick → preview → upload status → retry/replace/download. No public URLs. */
-export function AttachmentField({ category, label, hint, accept, state, existing, onSelect, onInvalid, onRemove, onRetry, onDownload, disabled }: Props) {
+export function AttachmentField({ category, label, hint, accept, state, existing, onSelect, onInvalid, onRemove, onRetry, onDownload, disabled, documentsStatus = 'idle' }: Props) {
   const id = useId()
   const input = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
@@ -67,6 +69,9 @@ export function AttachmentField({ category, label, hint, accept, state, existing
       <div className="attachment-info">
         {state.file ? <p className="attachment-name"><strong>{state.file.name}</strong> <small>{formatBytes(state.file.size)}</small></p>
           : existing ? <p className="attachment-name"><strong>{existing.original_filename}</strong> <small>version {existing.version_no} · {formatBytes(existing.size_bytes)}</small></p>
+          : documentsStatus === 'loading' ? <p className="attachment-name field-help">Checking saved documents…</p>
+          : documentsStatus === 'error' ? <p className="attachment-name field-help">Saved documents could not be checked.</p>
+          : documentsStatus === 'ready' ? <p className="attachment-name field-help">No document saved yet.</p>
           : <p className="attachment-name field-help">No file selected.</p>}
         <p className={`attachment-status status-${state.status}`} role="status" aria-live="polite">
           {busy && <Spinner />} {statusText}</p>

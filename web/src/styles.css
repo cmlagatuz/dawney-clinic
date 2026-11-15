@@ -412,6 +412,7 @@ select:disabled, input:disabled { background: var(--surface-2); color: var(--mut
 .attachment-group h3 { display: flex; gap: .6rem; align-items: center; }
 .attachment { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin: 0; min-width: 0; background: var(--surface-2); }
 .attachment legend { padding: 0 .4rem; font-weight: 700; display: flex; gap: .5rem; align-items: center; }
+.attachment:disabled .file-button, .attachment:disabled .button { opacity: .55; cursor: not-allowed; } /* documents locked until the saved-file read succeeds */
 .attachment-body { display: flex; gap: 1rem; align-items: flex-start; margin-top: .6rem; }
 .attachment-thumb { flex: none; display: grid; place-items: center; width: 84px; height: 84px; border-radius: var(--radius-sm); background: var(--surface); border: 1px dashed var(--border-strong); color: var(--muted); overflow: hidden; }
 .attachment-thumb img, .patient-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
