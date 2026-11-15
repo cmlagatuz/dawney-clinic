@@ -44,7 +44,9 @@ select relname,relrowsecurity from pg_class
  'public.clinic_services'::regclass,'public.clinic_service_species'::regclass,
  'public.clinic_service_resources'::regclass,'public.clinic_booking_policy'::regclass);
 -- Public catalog and booking policy use COLUMN grants (not table-wide SELECT).
--- has_table_privilege(...,'SELECT') is false even when approved columns are readable.
+-- Negative SELECT/INSERT privilege flags below MUST include column-only grants.
+-- These report SQL grant metadata, NOT effective row access under RLS:
+-- RLS/owner isolation still requires separate authenticated JWT/API denials.
 select has_column_privilege('anon','public.clinic_services','display_name','SELECT')
   as anon_may_read_public_service_name,
  not has_column_privilege('anon','public.clinic_services','owner_approved_by','SELECT')
@@ -65,11 +67,11 @@ select has_column_privilege('anon','public.clinic_services','display_name','SELE
   as owner_cannot_read_schedule_approver,
  not has_column_privilege('authenticated','public.clinic_booking_policy','approved_at','SELECT')
   as owner_cannot_read_schedule_approval_timestamp,
- not has_table_privilege('anon','public.appointments','SELECT')
+ not has_any_column_privilege('anon','public.appointments','SELECT')
   as anon_cannot_read_appointments,
- not has_table_privilege('anon','public.pet_attachments','SELECT')
+ not has_any_column_privilege('anon','public.pet_attachments','SELECT')
   as anon_cannot_read_clinical_metadata,
- not has_table_privilege('authenticated','public.clinic_services','INSERT')
+ not has_any_column_privilege('authenticated','public.clinic_services','INSERT')
   as owner_cannot_publish_services;
 select count(*) as unapproved_catalog_service_rows,
  count(*) filter(where is_active or published_at is not null or owner_approved_at is not null)

@@ -5,11 +5,17 @@ on:
     paths:
       - 'scripts/recovery/**'
       - '.github/workflows/phase3-recovery.yml'
+      - 'supabase/checks/phase4_postflight_readonly.sql'
+      - 'supabase/tests/phase4_postflight_privileges.sh'
+      - 'docs/PHASE4_SUPERVISOR_ROLLOUT_REVIEW.md'
   push:
     branches: [master]
     paths:
       - 'scripts/recovery/**'
       - '.github/workflows/phase3-recovery.yml'
+      - 'supabase/checks/phase4_postflight_readonly.sql'
+      - 'supabase/tests/phase4_postflight_privileges.sh'
+      - 'docs/PHASE4_SUPERVISOR_ROLLOUT_REVIEW.md'
 
 permissions:
   contents: read
@@ -54,3 +60,38 @@ jobs:
         run: |
           bash -n scripts/recovery/tests/synthetic-full-set-restore.sh
           bash scripts/recovery/tests/synthetic-full-set-restore.sh
+
+  postflight-column-grants-pg17:
+    # Synthetic isolated PostgreSQL 17; metadata privilege checks are not RLS certification.
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-privilege-ci-only
+          POSTGRES_DB: postflight_privilege_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postflight_privilege_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: isolated-privilege-ci-only
+      PGDATABASE: postflight_privilege_ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL client
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+      - name: Confirm postflight rejects unexpected column-only grants and distinguish RLS
+        run: |
+          bash -n supabase/tests/phase4_postflight_privileges.sh
+          bash supabase/tests/phase4_postflight_privileges.sh

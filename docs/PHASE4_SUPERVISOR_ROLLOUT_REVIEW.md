@@ -58,7 +58,7 @@ Import from `web/src/lib/public-booking.ts` in future Claude-owned routes:
 | API | Returns / required inputs | UI behavior |
 | --- | --- | --- |
 | `listPublicClinicServices()` | `PublicClinicService[]` (`id, slug, display_name, summary, duration_minutes, published_at`) | Public `/services` and `/book`, no Auth required. If empty, clear no-approved-services state, not mock data |
-| `readApprovedPublicSchedule()` | `ApprovedClinicSchedule|null` | `null` means no official hours or booking availability published; provide contact/callback guidance, **no made-up slots** |
+| `readApprovedPublicSchedule()` | `ApprovedClinicSchedule\|null` | `null` means no official hours or booking availability published; provide contact/callback guidance, **no made-up slots** |
 | `listPublishedServiceResources(serviceId)` | `PublishedServiceResource[]` | Only approved policy/resources; capacity=1; **not** a real-time free-slot guarantee |
 | `freshBookingRequestNonce()` | UUID | Generate **once per logical submission**, retain on network retries, never regenerate on a retry |
 | `requestAuthenticatedServiceBooking(user,input)` | Persisted appointment row with true `status` | `input={petId,serviceId,resourceId,startsAtUtc,requestNonce,concern,details?}`. Require logged-in confirmed account, persisted owner, owned pet. Status starts `requested`; exact retry may show later staff-confirmed state, not a new confirmation |
