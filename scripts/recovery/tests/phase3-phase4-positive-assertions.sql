@@ -2,7 +2,6 @@
 -- four Phase4 SQL migrations before this suite. Disposable PG17 ONLY.
 -- This SQL cannot and must not modify hosted Supabase.
 do $migration_contract$
-declare p record;
 begin
  if (select count(*) from auth.users)<>5
     or (select count(*) from auth.identities)<>5
