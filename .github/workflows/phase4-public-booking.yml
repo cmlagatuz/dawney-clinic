@@ -63,6 +63,7 @@ jobs:
           set -euo pipefail
           psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_public_booking_bootstrap.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114090000_phase4_public_booking_contract.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_public_booking_species_rls.sql
           psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_public_booking_regression.sql
   postgres-17-concurrent-nonce-retry:
     runs-on: ubuntu-latest
