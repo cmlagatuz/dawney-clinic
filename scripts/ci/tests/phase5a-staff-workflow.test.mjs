@@ -120,6 +120,9 @@ test('actual fetch + reviewed SHA checks accept pinned heads and stop on PR40/43
   // Transfer the disposable commit object first; then move the fake PR ref.
   git(checkout, 'push', '-q', 'origin', new40 + ':refs/heads/ci-unreviewed-pr40')
   git(origin, 'update-ref', 'refs/pull/40/head', new40)
+  // Fresh synthetic tracking ref avoids shallow-test ancestry artifacts;
+  // the actual workflow must fetch current PR40 and reject its SHA drift.
+  git(checkout, 'update-ref', '-d', 'refs/remotes/origin/phase5a-pr40')
   const rejected40 = run()
   assert.equal(rejected40.status, 1, 'PR40 drift must fail at the exact-SHA comparison: ' + rejected40.stderr)
   assert.equal(git(checkout, 'rev-parse', 'refs/remotes/origin/phase5a-pr40'), new40)
