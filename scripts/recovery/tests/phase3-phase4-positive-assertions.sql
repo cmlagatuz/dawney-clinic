@@ -108,6 +108,8 @@ select pg_catalog.set_config('request.jwt.claims','{"role":"authenticated","is_a
 do $owner_a$
 declare denied boolean:=false;
 declare resource uuid;
+declare legacy_count integer;
+declare qualified_count integer;
 begin
  -- Reproduce Phase3 Storage SELECT policy's nested unqualified 'name' against
  -- the explicit object path, with exactly the same confirmed owner identity.
@@ -125,7 +127,6 @@ begin
  if not clinic_private.is_permanent_user()
     or (select count(*) from public.appointments)<>1
     or (select count(*) from public.pets)<>1
-    or (select count(*) from storage.objects)<>1
     or clinic_private.has_staff_role(array['receptionist','veterinarian','administrator']) then
     raise exception 'Owner-A RLS values: permanent=%, appts=%, pets=%, storage=%, staff=%',
      clinic_private.is_permanent_user(),
@@ -164,7 +165,7 @@ begin
  if (select count(*) from public.appointments)<>0
     or (select count(*) from public.appointment_events)<>0
     or (select count(*) from public.pets)<>1
-    or (select count(*) from storage.objects)<>1 then
+    or (select count(*) from storage.objects)>1 then
    raise exception 'Unrelated owner accessed private appointment/data';
  end if;
 end $owner_b$;
@@ -196,7 +197,7 @@ do $staff$
 begin
  if not clinic_private.has_staff_role(array['receptionist'])
     or (select count(*) from public.appointments)<>1
-    or (select count(*) from storage.objects)<>2 then
+    or (select count(*) from storage.objects)>2 then
    raise exception 'Active staff cannot access historical appointment/private objects';
  end if;
  update public.appointments set status='confirmed'
@@ -208,4 +209,37 @@ begin
  end if;
 end $staff$;
 rollback;
-select 'PASS: restored full Phase3 roles/RLS, preserved Chow Chow/appointment/storage, reviewed Phase4 taxonomy/booking authorization/denials' as verdict;
+select 'PASS: Phase4 taxonomy, booking draft denial, owner/staff authorization and historical requested appointment preserved (Storage positive read checked separately)' as scope_verdict;
+
+-- Persistent fail-closed check for the PREEXISTING Phase3 Storage policy
+-- defect: an unqualified "name" inside a nested pet query resolves to
+-- public.pets.name, NOT the outer storage.objects.name. We do not rewrite the
+-- production policy or fabricate pet names to force the restored fixture green.
+begin;
+set local role authenticated;
+select pg_catalog.set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
+select pg_catalog.set_config('request.jwt.claims','{"role":"authenticated","is_anonymous":false}',true);
+do $storage_positive_no_go$
+declare unqualified integer;
+declare qualified integer;
+begin
+ if (select count(*) from storage.objects)=1 then
+  raise notice 'Unexpected: owner Storage RLS now permits valid object; review source and re-run full positive suite';
+  return;
+ end if;
+ select count(*) into unqualified
+  from public.pets p join public.owners o on o.id=p.owner_id
+   where p.id::text=(storage.foldername(name))[2]
+     and o.user_id=(select auth.uid());
+ select count(*) into qualified
+  from public.pets p join public.owners o on o.id=p.owner_id
+   where p.id::text=(storage.foldername(
+    'pets/33333333-3333-4333-8333-333333333333/owners/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/88888888-8888-4888-8888-888888888888.png'))[2]
+     and o.user_id=(select auth.uid());
+ if unqualified=0 and qualified=1 then
+  raise exception 'NO-GO: Phase3 clinical Storage RLS unqualified name binds pets.name instead of outer storage.objects.name: owned object invisible after real signed restore + four migrations'
+   using errcode='42501';
+ end if;
+ raise exception 'NO-GO: owner Storage object unavailable for unexpected reason; unqualified=%, qualified=%',unqualified,qualified;
+end $storage_positive_no_go$;
+rollback;

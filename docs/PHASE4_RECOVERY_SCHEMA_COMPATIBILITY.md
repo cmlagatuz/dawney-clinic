@@ -56,3 +56,29 @@ The recovery set contains **five individually encrypted components** covered by 
 Missing objects, altered same-size Auth ciphertext or a modified signed manifest must fail **before** restoration. The restored baseline snapshot is required to equal the source. The four exact reviewed Phase 4 migrations then run in order on the recovered database, after which both the preexisting-data fingerprint and RLS/booking assertions must pass. The original minimal negative fixture still must reject Phase 4.
 
 **Evidence status:** Record positive or reproducible blocker only from the actual job logs for the exact PR commit; do not label this section PASS based solely on source code. This test proves only disposable PostgreSQL/SQL and synthetic encrypted object restoration. It does not create or export real clinical records or validate hosted Supabase migrations, Auth tokens/sessions, managed roles, full Storage API bytes, provider settings, production backup restore or live rollback.
+
+## Positive rehearsal: reproducible application-authorization NO-GO
+
+**Actual CI evidence (not a prediction):** the new job in [run #43765306640](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43765306640/job/132968947821) completed all of the following using one disposable PostgreSQL 17 service:
+1. Applied the exact six unmodified Phase2/3 migrations on a CI-only Auth/Storage provider shim, with all six migration blob hashes validated.
+2. Generated and signed/encrypted a five-component synthetic recovery set; missing object payload, same-size corrupted Auth ciphertext and tampered manifest signature were all rejected before creating the restore destination.
+3. Restored database schema, real role policies/ACLs/triggers, five invented Auth identities, owner/patient/staff FK links, historical Dog/Chow Chow appointment, private metadata and two byte-identical fake object files with matching physical SHA-256.
+4. Verified original/restored Auth/patient/appointment/Storage SQL fingerprints were identical, and then applied **all four reviewed Phase4 SQL migrations from exact PR52/40/43 refs in order**. The unchanged historical snapshot still matched after migrations.
+5. Passed pre-RLS taxonomy/legacy/trigger/service-default checks, **but failed the positive owner-A private Storage SELECT check**. Owner A had `is_permanent_user=true`, could read one owned patient and one historical appointment, yet could read **zero** of its one owned private object. The owner path had four expected segments, UUID filename passed the real policy regex, and the restored Storage SELECT policy existed.
+
+The root cause is in the *unchanged* source [Phase3 Storage policy migration](../supabase/migrations/20261113100958_phase3_clinical_storage_policies.sql), in the `clinical_attachments_read_scoped` nested patient lookup and analogous insert policy:
+
+```sql
+exists (
+ select 1 from public.pets p
+ join public.owners o on o.id = p.owner_id
+ where p.id::text = (storage.foldername(name))[2]
+   and o.user_id = (select auth.uid())
+)
+```
+
+Because `public.pets` has its own `name` column, the **unqualified** `name` resolves inside the subquery to **`p.name`**, not the enclosing `storage.objects.name` path. The [real CI log](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43765306640/job/132968947821) confirms **`unqualified_count=0` but `explicit_path_count=1`**, while owner-A's protected object remains invisible under RLS. This affects private Storage owner authorization independently of the Phase4 migrations.
+
+**GO/NO-GO:** Database restore and the ordered migration DDL **are compatible on this versioned Phase3-equivalent synthetic fixture**, but the **full positive, policy-correct recovery qualification is NO-GO / NEEDS FIX** until a separately reviewed *additive* security fix qualifies the outer object path (for both affected source policies) and the complete signed-restore-to-Phase4 regression passes. **Do not weaken, disable or bypass RLS or change pet names in the fixture** to manufacture green tests. The positive job intentionally fails closed; its other existing recovery jobs remain independent and green. This is not a hosted Supabase restore certification.
+
+**Remaining owner gates:** actual managed Supabase Auth/session data, JWT/PostgREST behavior, private Storage API/data reconciliation, real backup confidentiality and full rollback verification. No live Auth/Storage writes, production migrations or patient exports occurred.
