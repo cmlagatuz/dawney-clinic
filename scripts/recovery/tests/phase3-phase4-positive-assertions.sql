@@ -96,7 +96,12 @@ begin
     or (select count(*) from public.pets)<>1
     or (select count(*) from storage.objects)<>1
     or clinic_private.has_staff_role(array['receptionist','veterinarian','administrator']) then
-    raise exception 'Owner-A RLS after restored migrations is incorrect';
+    raise exception 'Owner-A RLS values: permanent=%, appts=%, pets=%, storage=%, staff=%',
+     clinic_private.is_permanent_user(),
+     (select count(*) from public.appointments),
+     (select count(*) from public.pets),
+     (select count(*) from storage.objects),
+     clinic_private.has_staff_role(array['receptionist','veterinarian','administrator']);
  end if;
  select id into resource from public.appointment_resources
     where name='General appointments';
