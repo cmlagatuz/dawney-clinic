@@ -108,7 +108,9 @@ test('actual fetch + reviewed SHA checks accept pinned heads and stop on PR40/43
   const new43 = commitFile(guardPath43, '-- unreviewed PR43 migration\n', 'unreviewed PR43 head')
   git(checkout, 'push', '-q', 'origin', new43 + ':refs/pull/43/head')
   rmSync(join(runner, 'phase5a-integration'), { recursive: true, force: true })
-  assert.notEqual(run().status, 0, 'unreviewed PR43 head must be rejected')
+  const rejected43 = run()
+  assert.equal(rejected43.status, 1, 'PR43 drift must fail at the exact-SHA comparison: ' + rejected43.stderr)
+  assert.equal(git(checkout, 'rev-parse', 'refs/remotes/origin/phase5a-pr43'), new43)
   assert.equal(existsSync(join(runner, 'phase5a-integration')), false, 'drift must stop before SQL extraction')
 
   // Advancing PR40 must also FAIL CLOSED at its own exact-head comparison.
@@ -118,6 +120,8 @@ test('actual fetch + reviewed SHA checks accept pinned heads and stop on PR40/43
   // Transfer the disposable commit object first; then move the fake PR ref.
   git(checkout, 'push', '-q', 'origin', new40 + ':refs/heads/ci-unreviewed-pr40')
   git(origin, 'update-ref', 'refs/pull/40/head', new40)
-  assert.notEqual(run().status, 0, 'unreviewed PR40 head must be rejected')
+  const rejected40 = run()
+  assert.equal(rejected40.status, 1, 'PR40 drift must fail at the exact-SHA comparison: ' + rejected40.stderr)
+  assert.equal(git(checkout, 'rev-parse', 'refs/remotes/origin/phase5a-pr40'), new40)
   assert.equal(existsSync(join(runner, 'phase5a-integration')), false)
 })
