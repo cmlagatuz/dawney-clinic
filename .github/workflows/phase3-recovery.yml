@@ -61,6 +61,43 @@ jobs:
           bash -n scripts/recovery/tests/synthetic-full-set-restore.sh
           bash scripts/recovery/tests/synthetic-full-set-restore.sh
 
+      - name: Pin exact Phase4 source heads and extract reviewed migration blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/recovery-phase4-pinned"
+          git fetch --no-tags --depth=1 origin \
+            'refs/pull/52/head:refs/remotes/origin/recovery-pr52'
+          test "$(git rev-parse refs/remotes/origin/recovery-pr52)" = \
+            '5272cadbef4cc966e1b650905c5680b8fdf56c99'
+          git fetch --no-tags --depth=1 origin \
+            'refs/pull/40/head:refs/remotes/origin/recovery-pr40'
+          test "$(git rev-parse refs/remotes/origin/recovery-pr40)" = \
+            '7f6b7b4b12c6d5c04a049f5427b77704d560e4f0'
+          git fetch --no-tags --depth=1 origin \
+            'refs/pull/43/head:refs/remotes/origin/recovery-pr43'
+          test "$(git rev-parse refs/remotes/origin/recovery-pr43)" = \
+            '2749f810a2d5195e974949cb8e23d4495a8b0d11'
+          git show 'refs/remotes/origin/recovery-pr52:supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql' \
+            > "$RUNNER_TEMP/recovery-phase4-pinned/20261113211600_phase4_taxonomy_attachments.sql"
+          git show 'refs/remotes/origin/recovery-pr52:supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql' \
+            > "$RUNNER_TEMP/recovery-phase4-pinned/20261113211700_phase4_animal_catalog_seed.sql"
+          git show 'refs/remotes/origin/recovery-pr40:supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql' \
+            > "$RUNNER_TEMP/recovery-phase4-pinned/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql"
+          git show 'refs/remotes/origin/recovery-pr43:supabase/migrations/20261114090000_phase4_public_booking_contract.sql' \
+            > "$RUNNER_TEMP/recovery-phase4-pinned/20261114090000_phase4_public_booking_contract.sql"
+          test "$(git show refs/remotes/origin/recovery-pr52:.github/workflows/phase4-four-migration-chain.yml | grep -Fc '2749f810a2d5195e974949cb8e23d4495a8b0d11')" = 1
+      - name: Verify recovered synthetic set cannot silently bypass Phase3 schema preflight
+        shell: bash
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: '5432'
+        run: |
+          set -euo pipefail
+          bash -n scripts/recovery/tests/phase4-restored-compatibility.sh
+          bash scripts/recovery/tests/phase4-restored-compatibility.sh \
+            "$RUNNER_TEMP/recovery-phase4-pinned"
+
   postflight-column-grants-pg17:
     # Synthetic isolated PostgreSQL 17; metadata privilege checks are not RLS certification.
     runs-on: ubuntu-latest
