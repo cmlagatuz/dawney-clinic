@@ -37,6 +37,16 @@ Once the owner connects a free hosting provider and necessary non-secret config,
 ## Token-efficient, persistent handoff
 The **shared source of truth is GitHub**, not either AI's private chat memory. Read `docs/AI_HANDOFF.md`, current issues/PRs, and only the specific relevant files before new work; retrieve earlier conversation memory only when materially needed. Claude must not repeatedly consume tokens on full-repo dumps, pasted logs or repeat analysis. Ask for concise diffs and summaries, narrow queries and incremental edits. Before usage limits or at task end, update `docs/AI_HANDOFF.md` with concise facts: branch, changed files, commit/PR, tests, blockers, DB/migration state, deployment URL/status and next owner. The next agent must reread that file and current GitHub state, not trust outdated chat. Keep documentation short and scrubbed of sensitive info.
 
+## Lean implementation — Ponytail-inspired (instruction-only)
+Source: [Ponytail 5.3.3](https://github.com/DietrichGebert/ponytail/tree/96608e078b2d5ea607c5c3b8b5a54d1c1fba6846) (MIT). These are adopted principles, **not** an installed plugin, measured token saving, or override of this contract.
+
+- Before editing, read the affected code and its callers, tests, fixtures and dependencies; use targeted files/diffs rather than full-repo dumps.
+- Make the smallest **complete** change: reuse current project code, standard libraries and installed dependencies before adding helpers, packages, abstractions or options.
+- Preserve trust-boundary checks, RLS/JWT/Storage denials, data recovery, Chow Chow history, accessibility, negative tests and release gates; reduction is never grounds to remove them.
+- Any new branching/security/business logic needs a focused executed test or an honestly labeled NOT EXECUTED blocker; no invented checks or silent regression.
+- Keep reports short: exact PR/head, changed files, tests/CI link, blocker and **one** next owner action. Do not redo completed investigations.
+- Benchmark savings on identical synthetic tasks before making any Dawney-specific token/cost claims. No third-party tool, hook, secret sharing, paid model or team reassignment is authorized by this note.
+
 ## Owner intervention
 The user can complete initial OAuth, Cloudflare Pages project setup, DNS, Supabase dashboard-only actions, secrets/environment variables, or approvals when connector permissions do not permit them. For each intervention provide: location/navigation, exact non-secret values, numbered steps, verification, and rollback. Minimize repeated questions; proceed independently on safe reversible tasks.
 
