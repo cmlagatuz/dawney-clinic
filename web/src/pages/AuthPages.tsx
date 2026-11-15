@@ -3,7 +3,8 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/AuthProvider'
 import { isValidNewPassword } from '../domain.mjs'
-import { authCallbackUrl, readBookingIntent, resolveAfterAuth } from '../booking-contract.mjs'
+import { readBookingIntent } from '../booking-contract.mjs'
+import { authCallbackUrl, resolveAfterAuth } from '../auth-return.mjs'
 
 /** Only the exact public booking path may be returned to after auth (no open redirects). */
 function useAfterAuth(useStoredIntent = false) {
