@@ -32,6 +32,7 @@ function Shell() {
   const loc = useLocation()
   const mainRef = useRef<HTMLElement>(null)
   const first = useRef(true)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const unread = kpis(state).unread
   const slug = loc.pathname.replace(BASE, '').replace(/^\//, '').replace(/\/$/, '')
   const mod = MODULES.find(m => m.path === slug) ?? MODULES[0]
@@ -43,6 +44,7 @@ function Shell() {
     if (!robots) { robots = document.createElement('meta'); robots.name = 'robots'; document.head.appendChild(robots) }
     robots.content = 'noindex, nofollow'
     setToast(null)
+    scrollRef.current?.scrollTo(0, 0)
     if (first.current) { first.current = false; return }
     mainRef.current?.focus({ preventScroll: false })
   }, [mod.title])
@@ -59,15 +61,17 @@ function Shell() {
       <main ref={mainRef} id="main-content" tabIndex={-1} className="alpha-main">
         <header className="alpha-head"><div><span className="eyebrow">Clinic operations · demo</span><h1>{mod.title}</h1></div>
           <p className="alpha-note">Invented patients and owners. Changes live only in this tab.</p></header>
-        {mod.path === '' && <FlowBoard state={state} dispatch={dispatch} say={say} />}
-        {mod.path === 'schedule' && <ScheduleView state={state} dispatch={dispatch} say={say} />}
-        {mod.path === 'inbox' && <InboxView state={state} dispatch={dispatch} say={say} />}
-        {mod.path === 'campaigns' && <CampaignsView state={state} dispatch={dispatch} say={say} />}
-      </main>
-    </div>
+        <div className="alpha-scroll" role="region" aria-label={`${mod.title} content, scrollable`} tabIndex={0} ref={scrollRef}>
+          {mod.path === '' && <FlowBoard state={state} dispatch={dispatch} say={say} />}
+          {mod.path === 'schedule' && <ScheduleView state={state} dispatch={dispatch} say={say} />}
+          {mod.path === 'inbox' && <InboxView state={state} dispatch={dispatch} say={say} />}
+          {mod.path === 'campaigns' && <CampaignsView state={state} dispatch={dispatch} say={say} />}
+        </div>
     <div className="a-toast-region" role="status" aria-live="polite">{toast && <div className="a-toast"><span>{toast.msg}</span>
       {toast.undoId && <button type="button" className="a-btn" onClick={() => { dispatch({ type: 'flow/undoCard', id: toast.undoId as string }); setToast({ msg: 'Move undone.' }) }}>Undo</button>}
       <button type="button" className="a-icon-btn" onClick={() => setToast(null)} aria-label="Dismiss"><AIcon name="close" /></button></div>}</div>
+      </main>
+    </div>
   </div>
 }
 

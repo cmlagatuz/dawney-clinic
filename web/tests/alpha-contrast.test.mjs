@@ -15,7 +15,7 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
 const text = [
   ['a-rail-text', 'a-rail'], ['a-rail-text', 'a-rail-hover'], ['a-rail-text', 'a-rail-active'], ['a-rail-muted', 'a-rail'],
   ['a-banner-text', 'a-banner'], ['a-on-accent', 'a-accent'], ['text', 'a-canvas'], ['muted', 'a-canvas'], ['a-accent', 'a-canvas'], ['text', 'a-accent-soft'], ['a-accent', 'surface'],
-  ['text', 't1-soft'], ['text', 't2-soft'], ['text', 't3-soft'], ['muted', 'surface-2'],
+  ['a-head-text', 'a-head'], ['a-head-eyebrow', 'a-head'], ['a-head-note', 'a-head'], ['text', 't1-soft'], ['text', 't2-soft'], ['text', 't3-soft'], ['muted', 'surface-2'],
 ]
 const nonText = [['a-rail-ring', 'a-rail'], ['t1', 'surface'], ['t2', 'surface'], ['t3', 'surface'], ['a-accent', 'surface']]
 for (const [name, t] of [['light', aLight], ['dark', aDark]]) {
