@@ -338,3 +338,6 @@ No API credentials, medical records, password hashes, patient contact details or
 - Valid `[]` mapping disables every patient; lookup/Auth/RLS/malformed errors block submit with retry and never say "unsupported". View is derived against the current service, so a late response for a previous service cannot enable a patient.
 - Tests: `node --test web/tests/*.test.mjs`; Chromium (stubbed harness over the real reader, NOT live DB) at 360/768/1440. Screenshots: `docs/phase4-ui/service-eligibility/`.
 - Open: separate-tab email verification loses tab-scoped intent (user re-selects); hosted Auth/RLS verification needs owner authorization.
+
+## Claude — integration rehearsal #34+#41+#48 (2026-11-15)
+- Disposable merge: only 3 conflicts (`App.tsx` Root()/flag, `styles.css` + handoff appends). CI-only job `.github/workflows/phase4-integration-rehearsal.yml` (pinned #41 `4276604`, #43 `2749f81`; fail-closed resolver `scripts/integration-rehearsal/`) reproduces it, then runs assertions, Node, strict tsc + Vite, Chromium. Details/procedure: `docs/phase4-ui/integration-rehearsal/README.md`. Remove after the real merge.
