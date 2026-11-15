@@ -14,6 +14,10 @@ export function readBookingIntent(
 export function clearBookingIntent(sessionStore:Pick<Storage,'removeItem'>|null):void
 export function signinForBooking(mode?:'signin'|'signup'):string
 export function safeBookingReturnPath(untrusted:unknown):'/book'|'/app/profile'
+export function resolveAfterAuth(nextParam:unknown,storedIntent:PublicBookingIntent|null):{
+ toBook:boolean;needsReselect:boolean;dest:'/book'|'/app/overview';suffix:''|'?next=%2Fbook'
+}
+export function authCallbackUrl(origin:string,toBook:boolean):string
 export function clinicSlotToUtc(date:string,time:string,timezone:string):string
 export function utcToClinicSlot(utcIso:string,timezone:string):{
  date:string;time:string;timezone:string

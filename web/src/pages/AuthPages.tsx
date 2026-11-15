@@ -3,15 +3,15 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/AuthProvider'
 import { isValidNewPassword } from '../domain.mjs'
-import { readBookingIntent, safeBookingReturnPath } from '../booking-contract.mjs'
+import { authCallbackUrl, readBookingIntent, resolveAfterAuth } from '../booking-contract.mjs'
 
 /** Only the exact public booking path may be returned to after auth (no open redirects). */
 function useAfterAuth(useStoredIntent = false) {
   const [params] = useSearchParams()
-  let toBook = safeBookingReturnPath(params.get('next')) === '/book'
-  // Just-verified accounts: continue to /book if this tab still holds a (PII-free, 30-min) booking intent.
-  if (!toBook && useStoredIntent) { try { toBook = readBookingIntent(window.sessionStorage) !== null } catch { /* storage blocked */ } }
-  return { dest: toBook ? '/book' : '/app/overview', suffix: toBook ? '?next=%2Fbook' : '' }
+  let intent = null
+  // Just-verified accounts: honour a PII-free, 30-minute intent if THIS tab still holds one.
+  if (useStoredIntent) { try { intent = readBookingIntent(window.sessionStorage) } catch { /* storage blocked */ } }
+  return resolveAfterAuth(params.get('next'), intent)
 }
 import { Brand } from '../components/Layout'
 
@@ -83,7 +83,7 @@ export function SignUpPage() {
     try {
       const { error } = await supabase.auth.signUp({ email: values.email.trim(), password: values.password,
         options: { data: { first_name: values.first.trim(), last_name: values.last.trim() },
-          emailRedirectTo: `${window.location.origin}/auth/callback` } })
+          emailRedirectTo: authCallbackUrl(window.location.origin, suffix !== '') } })
       if (error) throw error
       setSent(true)
     } catch (e) { setError(normalizeError(e)) }
@@ -91,7 +91,7 @@ export function SignUpPage() {
   }
   function field(k: keyof typeof values, value: string) { setValues(old => ({...old, [k]: value})) }
   return <Panel title="Create an account" intro="Register as a pet owner. Staff access requires separate clinic approval.">
-    {sent ? <><SuccessMessage message="If the address can receive mail, we sent a confirmation link. Verify your email before signing in."/><Link className="button button-primary" to={`/auth/signin${suffix}`}>Return to sign in</Link></> : <>
+    {sent ? <><SuccessMessage message="If the address can receive mail, we sent a confirmation link. Verify your email before signing in."/>{suffix && <p className="field-help" role="note">The link may open in a new tab. You can then continue to booking from there, but you may need to select your service and time again.</p>}<Link className="button button-primary" to={`/auth/signin${suffix}`}>Return to sign in</Link>{suffix && <Link className="button button-quiet" to="/book">Back to booking</Link>}</> : <>
       <ErrorMessage error={error}/><form className="form-stack" onSubmit={e => void submit(e)}>
         <div className="form-row"><label>First name<input required maxLength={150} autoComplete="given-name" value={values.first} onChange={e=>field('first',e.target.value)} /></label>
           <label>Last name<input required maxLength={150} autoComplete="family-name" value={values.last} onChange={e=>field('last',e.target.value)} /></label></div>
@@ -104,7 +104,7 @@ export function SignUpPage() {
 
 export function VerifyPage() {
   const navigate = useNavigate()
-  const { dest } = useAfterAuth(true)
+  const { dest, suffix } = useAfterAuth(true)
   const [email, setEmail] = useState('')
   const [token, setToken] = useState('')
   const [status, setStatus] = useState<string|null>(null)
@@ -124,7 +124,7 @@ export function VerifyPage() {
     if (!supabase) return
     setPending(true);setError(null);setStatus(null)
     try {
-      const {error} = await supabase.auth.resend({type:'signup',email: email.trim()})
+      const {error} = await supabase.auth.resend({type:'signup',email: email.trim(),options:{emailRedirectTo: authCallbackUrl(window.location.origin, suffix !== '')}})
       if(error) throw error
       setStatus('If eligible, a new confirmation message has been sent.')
     } catch(e) {setError(normalizeError(e))}
@@ -188,10 +188,11 @@ export function RecoveryPage() {
 
 export function CallbackPage() {
   const { user, checking, error } = useAuth()
-  const { dest } = useAfterAuth(true)
+  const { dest, suffix, needsReselect } = useAfterAuth(true)
   if (checking) return <Panel title="Confirming account" intro="Verifying your secure email link…"><p role="status">Connecting to Supabase Auth.</p></Panel>
   return <Panel title="Email confirmation" intro="Secure sign-in confirmation from Supabase.">
-    {user ? <><SuccessMessage message="Your account is verified."/><Link className="button button-primary" to={dest}>{dest === '/book' ? 'Continue to booking' : 'Continue to your overview'}</Link></>
-    : <><ErrorMessage error={error ?? 'We could not verify this link. It may have expired.'}/><Link to="/auth/verify">Try confirmation code or resend</Link></>}
+    {user ? <><SuccessMessage message="Your account is verified."/><Link className="button button-primary" to={dest}>{dest === '/book' ? 'Return to booking' : 'Continue to your overview'}</Link>
+      {needsReselect && <p className="field-help" role="note" style={{ marginBlockStart: "1rem" }}>Your earlier choices were kept only in the tab you started in. You may need to select your service and time again. Nothing has been requested or booked yet.</p>}</>
+    : <><ErrorMessage error={error ?? 'We could not verify this link. It may have expired.'}/><Link to={`/auth/verify${suffix}`}>Try confirmation code or resend</Link></>}
   </Panel>
 }
