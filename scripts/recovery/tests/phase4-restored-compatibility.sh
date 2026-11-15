@@ -25,6 +25,31 @@ work=$(mktemp -d "$RUNNER_TEMP/phase4-restored-compat.XXXXXXXX")
 export PGUSER=postgres PGSSLMODE=disable PGPASSFILE="$work/.pgpass"
 printf '%s\n' '127.0.0.1:5432:*:postgres:dawney-ci-only' > "$PGPASSFILE"
 chmod 600 "$PGPASSFILE"
+
+# Verify migration asset guards reject a missing file and changed/swap blob
+# BEFORE attempting any SQL, independently of the recovery ciphertext tests.
+mkdir -p "$work/negative/missing" "$work/negative/corrupt" "$work/negative/swapped"
+for variant in missing corrupt swapped; do
+ cp "$source_dir"/*.sql "$work/negative/$variant/"
+done
+rm "$work/negative/missing/20261113211700_phase4_animal_catalog_seed.sql"
+printf '\n-- synthetic tampering\n' \
+ >> "$work/negative/corrupt/20261114090000_phase4_public_booking_contract.sql"
+cp "$source_dir/20261113211700_phase4_animal_catalog_seed.sql" \
+ "$work/negative/swapped/20261114090000_phase4_public_booking_contract.sql"
+for variant in missing corrupt swapped; do
+ if bash "$0" "$work/negative/$variant" >"$work/negative-$variant.log" 2>&1; then
+  echo "BLOCKED: $variant migration asset unexpectedly passed fail-closed verification" >&2
+  exit 1
+ fi
+done
+grep -Fq 'BLOCKED: migration missing or empty:' "$work/negative-missing.log" ||
+ { echo 'Missing migration rejected for unexpected reason' >&2; exit 1; }
+for variant in corrupt swapped; do
+ grep -Fq 'BLOCKED: migration file checksum drift:' "$work/negative-$variant.log" ||
+  { echo "$variant migration rejected for unexpected reason" >&2; exit 1; }
+done
+echo 'PASS NEGATIVE: missing, altered and mismatched migration SQL blobs rejected BEFORE database access.'
 pgclient() {
  docker run --rm -i --network host -v "$work:$work:ro" \
   -e PGHOST -e PGPORT -e PGUSER -e PGPASSFILE -e PGSSLMODE postgres:17 "$@"
