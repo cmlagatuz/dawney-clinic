@@ -20,8 +20,6 @@ env:
   PR41_SHA: 4276604dbb153673d507db6a5204b3f222e3ab07
   BE_BRANCH: ai/chatgpt/phase4-public-booking-backend
   BE_SHA: 2749f810a2d5195e974949cb8e23d4495a8b0d11
-  VITE_SUPABASE_URL: https://lgimhirgvresvbsdugac.supabase.co
-  VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_offline_browser_test_dummy
 
 jobs:
   combined-41-48:
@@ -66,11 +64,17 @@ jobs:
       - name: Strict TypeScript and production Vite build (flag unset = default OFF)
         working-directory: web
         run: npm run build
-      - name: Assert no backend credentials shipped
+      - name: Assert no backend credentials shipped (same unconfigured build as phase3-web; a configured build legitimately bundles supabase-js)
         working-directory: web
         run: |
           if grep -RE '(service_role|sb_secret_|SUPABASE_SERVICE_ROLE_KEY)' dist; then echo "privileged marker in bundle"; exit 1; fi
           test -s dist/index.html
+      - name: Rebuild with inert publishable configuration for Chromium (flag still unset)
+        working-directory: web
+        env:
+          VITE_SUPABASE_URL: https://lgimhirgvresvbsdugac.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_offline_browser_test_dummy
+        run: npm run build
       - name: Chromium over the combined build (anonymous, inert key, no writes)
         shell: bash
         run: |
