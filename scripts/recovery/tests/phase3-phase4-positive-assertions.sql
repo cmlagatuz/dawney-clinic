@@ -109,6 +109,19 @@ do $owner_a$
 declare denied boolean:=false;
 declare resource uuid;
 begin
+ -- Reproduce Phase3 Storage SELECT policy's nested unqualified 'name' against
+ -- the explicit object path, with exactly the same confirmed owner identity.
+ -- Within the nested pets query 'name' can bind to p.name, not object.name.
+ raise notice 'SYNTHETIC Storage correlated path: unqualified_count=%, explicit_path_count=%',
+   (select count(*) from public.pets p
+     join public.owners o on o.id=p.owner_id
+     where p.id::text=(storage.foldername(name))[2]
+       and o.user_id=(select auth.uid())),
+   (select count(*) from public.pets p
+     join public.owners o on o.id=p.owner_id
+     where p.id::text=(storage.foldername(
+       'pets/33333333-3333-4333-8333-333333333333/owners/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/88888888-8888-4888-8888-888888888888.png'))[2]
+       and o.user_id=(select auth.uid()));
  if not clinic_private.is_permanent_user()
     or (select count(*) from public.appointments)<>1
     or (select count(*) from public.pets)<>1
