@@ -1,6 +1,6 @@
 import type {User} from '@supabase/supabase-js'
 import {supabase} from './supabase'
-import {STAFF_ROLES,verifyStaffFromRls,queryClinicQueue,queryClinicDashboardCounts} from '../staff-read-contract.mjs'
+import {STAFF_ROLES,verifyStaffFromRls,queryClinicQueue,queryClinicQueueWindow,queryClinicDashboardCounts} from '../staff-read-contract.mjs'
 
 /** Staff-facing read contracts only. All results come from persisted RLS queries.
  * No client-invented role, no role bootstrap, no mock dashboard statistics. */
@@ -14,6 +14,7 @@ export type ClinicQueueItem={
  id:string;pet_id:string;owner_id:string;resource_id:string;starts_at:string;ends_at:string;
  status:'requested'|'confirmed'|'checked_in'|'completed'|'cancelled'|'no_show';concern:string
 }
+export type ClinicQueueWindow={items:ClinicQueueItem[];hasMore:boolean}
 export type ClinicalRecord={
  id:string;pet_id:string;performed_at:string;procedure:string;
  temperature_c:number|null;weight_kg:number|null;comments:string|null;authored_by:string|null
@@ -55,6 +56,14 @@ export async function listClinicQueue(
 ):Promise<ClinicQueueItem[]>{
  await verifiedStaffSession(user)
  return queryClinicQueue(client(),fromUtc,toUtc)
+}
+
+/** New window-aware adapter for scheduling UIs; never display hasMore=true as a complete day. */
+export async function listClinicQueueWindow(
+ user:User,fromUtc:string,toUtc:string
+):Promise<ClinicQueueWindow>{
+ await verifiedStaffSession(user)
+ return queryClinicQueueWindow(client(),fromUtc,toUtc)
 }
 
 export async function listClinicClinicalRecords(

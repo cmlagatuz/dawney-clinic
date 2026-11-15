@@ -47,18 +47,27 @@ function isVerifiedQueueRow(row) {
   return Number.isFinite(start) && Number.isFinite(end) && end > start
 }
 
-/** Return persisted appointment rows only. RLS must provide clinic staff scope. */
-export async function queryClinicQueue(db, fromUtc, toUtc) {
+const QUEUE_VISIBLE_LIMIT = 250
+/** One extra row distinguishes exactly 250 from a truncated queue. */
+export async function queryClinicQueueWindow(db, fromUtc, toUtc) {
   const bounds = validateClinicUtcWindow(fromUtc,toUtc)
   const {data,error} = await db.from('appointments')
     .select('id,pet_id,owner_id,resource_id,starts_at,ends_at,status,concern')
     .gte('starts_at',bounds.from).lt('starts_at',bounds.to)
-    .order('starts_at',{ascending:true}).limit(250)
+    .order('starts_at',{ascending:true}).limit(QUEUE_VISIBLE_LIMIT+1)
   if (error) throw error
-  if (!Array.isArray(data) || data.some(row => !isVerifiedQueueRow(row))) {
+  if (!Array.isArray(data) || data.length > QUEUE_VISIBLE_LIMIT+1 ||
+      data.some(row => !isVerifiedQueueRow(row))) {
     throw Error('Clinic queue response could not be verified')
   }
-  return data
+  return {items:data.slice(0,QUEUE_VISIBLE_LIMIT),hasMore:data.length>QUEUE_VISIBLE_LIMIT}
+}
+
+/** Legacy array interface: fail closed rather than silently omit scheduled visits. */
+export async function queryClinicQueue(db, fromUtc, toUtc) {
+  const result = await queryClinicQueueWindow(db,fromUtc,toUtc)
+  if (result.hasMore) throw Error('Clinic queue exceeds 250 appointments; narrow the UTC window or use queryClinicQueueWindow')
+  return result.items
 }
 
 function exactCount(result) {

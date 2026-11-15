@@ -1,5 +1,10 @@
 # Dawney Clinic — Shared AI Handoff
 
+## 2026-11-15 — Astra PR #59 P1 staff queue completeness
+
+- Existing PR #59 adds `queryClinicQueueWindow` / typed `listClinicQueueWindow`: 251-row read, at most 250 displayed, `hasMore` warning on overflow; legacy `listClinicQueue` remains array-returning for complete windows but throws on truncation. Source-only; no SQL/clinical data/UI changes.
+- Node boundaries: 0/249/250/251/300, RLS denial, invalid/lookahead responses and UTC guards. See latest PR #59 head and GitHub checks for execution proof. No live staff or Auth/JWT verification; #58 integration approvals remain outstanding.
+
 ## 2026-11-14 — Phase 5A staff-readiness source PR (Astra)
 
 - [PR #59](https://github.com/cmlagatuz/dawney-clinic/pull/59), branch `ai/chatgpt/phase5a-staff-read-contract`, adds safe staff read contract `web/src/staff-read-contract.mjs` + type declarations, reuses `web/src/lib/staff-clinic.ts`, 9 synthetic/mock Node negative cases, and [staff contract document](PHASE5A_STAFF_READ_CONTRACT.md). Verified local Node 9/9; exact PR-head GitHub CI is the source for integration review.

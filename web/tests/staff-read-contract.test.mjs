@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   STAFF_ROLES,verifyStaffFromRls,validateClinicUtcWindow,
-  queryClinicQueue,queryClinicDashboardCounts
+  queryClinicQueue,queryClinicQueueWindow,queryClinicDashboardCounts
 } from '../src/staff-read-contract.mjs'
 const USER_A='11111111-1111-4111-8111-111111111111'
 const USER_B='22222222-2222-4222-8222-222222222222'
@@ -46,14 +46,14 @@ test('Auth and staff query errors reject, never imply staff access',async()=>{
   await assert.rejects(verifyStaffFromRls(staffDb({memberError:{code:'42501'}}),USER_A),/Clinic staff access is not approved/)
   await assert.rejects(verifyStaffFromRls(staffDb(),'not-a-uuid'),/Verified staff identity required/)
 })
-function queueDb({data=[],error=null}={}) {
+function queueDb({data=[],error=null,honorLimit=true}={}) {
   const calls=[]
   const db={calls,from:table=>{calls.push(['from',table]);return {
     select:fields=>{calls.push(['select',fields]);return {
       gte:(col,val)=>{calls.push(['gte',col,val]);return {
         lt:(col2,val2)=>{calls.push(['lt',col2,val2]);return {
           order:(field,sort)=>{calls.push(['order',field,sort]);return {
-            limit:async n=>{calls.push(['limit',n]);return {data,error}}
+            limit:async n=>{calls.push(['limit',n]);return {data:honorLimit&&Array.isArray(data)?data.slice(0,n):data,error}}
           }}
         }}
       }}
@@ -71,7 +71,23 @@ test('bounded UTC window is queried with a RLS-scoped SELECT and real rows',asyn
     ['select','id,pet_id,owner_id,resource_id,starts_at,ends_at,status,concern'],
     ['gte','starts_at','2032-01-02T00:00:00.000Z'],
     ['lt','starts_at','2032-01-03T00:00:00.000Z'],
-    ['order','starts_at',{ascending:true}],['limit',250]])
+    ['order','starts_at',{ascending:true}],['limit',251]])
+})
+test('0, 249 and 250 appointments are complete; 251+ report hasMore and display at most 250',async()=>{
+  for(const size of [0,249,250,251,300]) {
+    const data=Array.from({length:size},(_,i)=>({...row,id:`visit-${i}`}))
+    const db=queueDb({data})
+    const result=await queryClinicQueueWindow(db,START,END)
+    assert.deepEqual(result.items,data.slice(0,250))
+    assert.equal(result.items.length,Math.min(size,250))
+    assert.equal(result.hasMore,size>250)
+    assert.deepEqual(db.calls.at(-1),['limit',251])
+    if(size>250) {
+      await assert.rejects(queryClinicQueue(queueDb({data}),START,END),/Clinic queue exceeds 250 appointments/)
+    } else {
+      assert.deepEqual(await queryClinicQueue(queueDb({data}),START,END),data)
+    }
+  }
 })
 test('timezone guesses, malformed calendar dates and overlong windows are denied before reads',async()=>{
   for(const [from,to] of [
@@ -79,22 +95,25 @@ test('timezone guesses, malformed calendar dates and overlong windows are denied
     [START,START],[END,START],[START,'2032-01-04T00:00:00Z'],
     ['2032-01-02',END],['2032-01-02T00:00:00.0000Z',END]]) {
     const db=queueDb({data:[row]})
-    await assert.rejects(queryClinicQueue(db,from,to),/Valid UTC clinic queue window required/)
+    await assert.rejects(queryClinicQueueWindow(db,from,to),/Valid UTC clinic queue window required/)
     assert.deepEqual(db.calls,[])
   }
   assert.deepEqual(validateClinicUtcWindow(START,END),{from:'2032-01-02T00:00:00.000Z',to:'2032-01-03T00:00:00.000Z'})
 })
 test('empty queue is real; denied/malformed responses never become fake emptiness',async()=>{
-  assert.deepEqual(await queryClinicQueue(queueDb(),START,END),[])
+  assert.deepEqual(await queryClinicQueueWindow(queueDb(),START,END),{items:[],hasMore:false})
   const denied={code:'42501',message:'RLS denied'}
+  await assert.rejects(queryClinicQueueWindow(queueDb({error:denied}),START,END),e=>e===denied)
   await assert.rejects(queryClinicQueue(queueDb({error:denied}),START,END),e=>e===denied)
   for(const data of [null,[{}],[{...row,status:'in_consult'}],
     [{...row,owner_id:null}],[{...row,resource_id:null}],
     [{...row,pet_id:null}],[{...row,ends_at:null}],
     [{...row,ends_at:'not-a-date'}],[{...row,ends_at:row.starts_at}],
     [{...row,starts_at:'not-a-date'}],[{...row,concern:''}],
-    [{...row,concern:null}],[{...row,id:''}]]) {
-    await assert.rejects(queryClinicQueue(queueDb({data}),START,END),/Clinic queue response could not be verified/)
+    [{...row,concern:null}],[{...row,id:''}],
+    [...Array.from({length:250},(_,i)=>({...row,id:`visit-${i}`})),{...row,status:'in_consult'}],
+    Array.from({length:252},(_,i)=>({...row,id:`visit-${i}`}))]) {
+    await assert.rejects(queryClinicQueueWindow(queueDb({data,honorLimit:false}),START,END),/Clinic queue response could not be verified/)
   }
 })
 function countsDb({counts=[0,2,3],errors=[null,null,null]}={}) {
