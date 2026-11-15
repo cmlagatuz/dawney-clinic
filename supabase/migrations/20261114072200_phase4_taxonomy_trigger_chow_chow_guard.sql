@@ -6,13 +6,14 @@
 
 do $guard$
 declare installed record;
+declare configured_columns text[];
 begin
  if to_regprocedure('clinic_private.resolve_pet_taxonomy()') is null
     or to_regclass('public.pets') is null
     or to_regclass('public.breed_catalog') is null then
     raise exception 'Phase 4 schema and catalog must be installed before P0 correction';
  end if;
- select t.tgfoid, t.tgenabled into installed
+ select t.tgfoid, t.tgenabled, t.tgtype, t.tgqual, t.tgattr into installed
  from pg_trigger t
  where t.tgrelid='public.pets'::regclass
    and t.tgname='pet_taxonomy_before_write' and not t.tgisinternal;
@@ -24,6 +25,19 @@ begin
    if installed.tgfoid <> 'clinic_private.resolve_pet_taxonomy()'::regprocedure
       or installed.tgenabled not in ('O','A') then
       raise exception 'Existing patient taxonomy trigger is replaced or disabled; manual review required';
+   end if;
+   -- pg_trigger.tgtype = ROW(1) + BEFORE(2) + INSERT(4) + UPDATE(16).
+   -- A same-name, same-function enabled trigger may still silently miss INSERT
+   -- or taxonomy column UPDATE events; reject altered timing, WHEN or columns.
+   select array_agg(a.attname::text order by a.attname::text)
+     into configured_columns from pg_attribute a
+    where a.attrelid='public.pets'::regclass
+      and a.attnum=any(installed.tgattr::smallint[]);
+   if installed.tgtype<>23 or installed.tgqual is not null
+      or cardinality(installed.tgattr::smallint[])<>4
+      or configured_columns is distinct from
+        array['breed','breed_id','species','species_id']::text[] then
+     raise exception 'Patient taxonomy trigger timing/columns mismatch; manual review required';
    end if;
  end if;
  if (select count(*) from pg_trigger t where t.tgrelid='public.pets'::regclass

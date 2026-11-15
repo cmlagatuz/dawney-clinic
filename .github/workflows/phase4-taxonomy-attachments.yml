@@ -81,6 +81,36 @@ jobs:
           fi
           psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_isolated_taxonomy_regression.sql
           psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_taxonomy_p0_regression.sql
+          # Negative integrity test: a same-name, enabled, same-function trigger
+          # must be rejected if event timing or UPDATE OF columns were altered.
+          # Only on one matrix variant; all data is disposable PG17.
+          if [[ "${{ matrix.repair_missing_trigger }}" == "false" ]]; then
+            guard=supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql
+            psql -v ON_ERROR_STOP=1 -c '
+              drop trigger pet_taxonomy_before_write on public.pets;
+              create trigger pet_taxonomy_before_write
+                after insert or update of species,breed,species_id,breed_id on public.pets
+                for each row execute function clinic_private.resolve_pet_taxonomy();'
+            if psql -v ON_ERROR_STOP=1 -f "$guard" > "$RUNNER_TEMP/taxonomy-invalid-trigger.log" 2>&1; then
+              echo "FAIL: AFTER-trigger variant bypassed taxonomy guard"; exit 1
+            fi
+            grep -F 'Patient taxonomy trigger timing/columns mismatch' "$RUNNER_TEMP/taxonomy-invalid-trigger.log"
+            psql -v ON_ERROR_STOP=1 -c '
+              drop trigger pet_taxonomy_before_write on public.pets;
+              create trigger pet_taxonomy_before_write
+                before insert or update of species,breed,species_id on public.pets
+                for each row execute function clinic_private.resolve_pet_taxonomy();'
+            if psql -v ON_ERROR_STOP=1 -f "$guard" > "$RUNNER_TEMP/taxonomy-invalid-trigger.log" 2>&1; then
+              echo "FAIL: incomplete UPDATE OF variant bypassed taxonomy guard"; exit 1
+            fi
+            grep -F 'Patient taxonomy trigger timing/columns mismatch' "$RUNNER_TEMP/taxonomy-invalid-trigger.log"
+            psql -v ON_ERROR_STOP=1 -c '
+              drop trigger pet_taxonomy_before_write on public.pets;
+              create trigger pet_taxonomy_before_write
+                before insert or update of species,breed,species_id,breed_id on public.pets
+                for each row execute function clinic_private.resolve_pet_taxonomy();'
+            psql -v ON_ERROR_STOP=1 -f "$guard"
+          fi
   browser-adapter-build:
     runs-on: ubuntu-latest
     timeout-minutes: 8

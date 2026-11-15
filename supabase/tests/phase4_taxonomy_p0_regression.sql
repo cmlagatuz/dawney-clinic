@@ -46,6 +46,18 @@ begin
        where tgrelid='public.pets'::regclass and tgname='pet_taxonomy_before_write'
          and not tgisinternal)<>1 then
      raise exception 'Incorrect patient taxonomy trigger name/count'; end if;
+ -- Structural guard: 1 row + BEFORE INSERT/UPDATE, all four taxonomy columns,
+ -- no WHEN predicate that could silently disable validation on some writes.
+ if exists (
+   select 1 from pg_trigger t where t.tgrelid='public.pets'::regclass
+     and t.tgname='pet_taxonomy_before_write'
+     and (t.tgtype<>23 or t.tgqual is not null
+       or cardinality(t.tgattr::smallint[])<>4
+       or (select array_agg(a.attname::text order by a.attname::text)
+             from pg_attribute a where a.attrelid='public.pets'::regclass
+               and a.attnum=any(t.tgattr::smallint[]))
+          is distinct from array['breed','breed_id','species','species_id']::text[])
+ ) then raise exception 'Patient taxonomy trigger does not protect all writes'; end if;
  if exists(select 1 from pg_proc
        where oid='clinic_private.resolve_pet_taxonomy()'::regprocedure
          and prosecdef) then raise exception 'Taxonomy trigger must not bypass RLS'; end if;
