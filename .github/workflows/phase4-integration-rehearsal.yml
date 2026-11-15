@@ -1,0 +1,89 @@
+name: Phase 4 integration rehearsal (#41 + #48 on #34) — throw-away, never merges anything
+
+# REHEARSAL ONLY. Merges PR #41's pinned head into a disposable CI checkout of this branch (#48, stacked on #34), resolves the
+# known conflicts with a fail-closed script, then runs strict TypeScript, Vite, Node and Chromium checks on the combined tree.
+# Nothing is pushed, merged, retargeted or deployed. Delete this workflow and scripts/integration-rehearsal/ once #34/#41/#48 are integrated.
+# When #41 or #43 move, bump PR41_SHA / BE_SHA below (the job fails closed if the pinned commits are not reachable).
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/integration-rehearsal/**'
+      - '.github/workflows/phase4-integration-rehearsal.yml'
+
+permissions:
+  contents: read
+
+env:
+  PR41_BRANCH: ai/claude/phase4-patient-form
+  PR41_SHA: 4276604dbb153673d507db6a5204b3f222e3ab07
+  BE_BRANCH: ai/chatgpt/phase4-public-booking-backend
+  BE_SHA: 2749f810a2d5195e974949cb8e23d4495a8b0d11
+
+jobs:
+  combined-41-48:
+    if: github.event_name != 'pull_request' || github.head_ref == 'ai/claude/public-website'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Rehearsal scripts self-test
+        run: node --test scripts/integration-rehearsal/tests/*.test.mjs
+      - name: Fetch pinned PR #41 and #43 commits (read-only)
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$PR41_BRANCH" "$BE_BRANCH"
+          git cat-file -e "$PR41_SHA^{commit}"
+          git cat-file -e "$BE_SHA^{commit}"
+          git merge-base --is-ancestor "$PR41_SHA" "origin/$PR41_BRANCH" || { echo "#41 branch no longer contains the pinned head; bump PR41_SHA"; exit 1; }
+      - name: Merge #41 into a disposable checkout and resolve the known conflicts
+        run: |
+          set -uo pipefail
+          git config user.name rehearsal && git config user.email rehearsal@example.invalid
+          git merge --no-commit --no-ff "$PR41_SHA" || true
+          node scripts/integration-rehearsal/resolve-41-48.mjs
+          git -c core.hooksPath=/dev/null commit -q -m "rehearsal: disposable #41 + #48 merge (never pushed)"
+          git log --oneline -1
+      - name: Static compatibility assertions (flag OFF, contract bytes, private Storage, isolation)
+        run: node scripts/integration-rehearsal/assert-combined.mjs "$PWD"
+      - name: Reproducible dependencies
+        working-directory: web
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Node tests (all combined suites)
+        working-directory: web
+        run: npm test
+      - name: Strict TypeScript and production Vite build (flag unset = default OFF)
+        working-directory: web
+        run: npm run build
+      - name: Assert no backend credentials shipped (same unconfigured build as phase3-web; a configured build legitimately bundles supabase-js)
+        working-directory: web
+        run: |
+          if grep -RE '(service_role|sb_secret_|SUPABASE_SERVICE_ROLE_KEY)' dist; then echo "privileged marker in bundle"; exit 1; fi
+          test -s dist/index.html
+      - name: Rebuild with inert publishable configuration for Chromium (flag still unset)
+        working-directory: web
+        env:
+          VITE_SUPABASE_URL: https://lgimhirgvresvbsdugac.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_offline_browser_test_dummy
+        run: npm run build
+      - name: Chromium over the combined build (anonymous, inert key, no writes)
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v google-chrome >/dev/null || command -v chromium >/dev/null || { echo 'No Chrome/Chromium found on runner'; exit 1; }
+          (cd web && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort) > "$RUNNER_TEMP/rehearsal-preview.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in {1..40}; do curl --silent --fail http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+          curl --silent --fail http://127.0.0.1:4173/ >/dev/null
+          node scripts/browser/anonymous.mjs http://127.0.0.1:4173
+          node scripts/integration-rehearsal/public-routes.mjs http://127.0.0.1:4173

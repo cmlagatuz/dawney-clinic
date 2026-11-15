@@ -334,3 +334,28 @@ No API credentials, medical records, password hashes, patient contact details or
 - **Blocked / not done:** Species/breed selector, attachments UI and staff workspace wait for Astra's typed adapters; no role data is available to the UI yet.
 - Behaviour change to review: post-login/verify redirect and `/` now go to `/app/overview` (was `/app/profile`).
 - Verified locally: contrast/theme tests, harness renders at 360/768/1440 light+dark (fake data), drawer/keyboard checks. Strict `tsc` + `vite build` only via CI.
+
+### Claude — Public website PR (branch `ai/claude/public-website`, stacked on #34) — Issue #42
+- Public `/`, `/services`, `/about` (+`/location`,`/contact`), `/book`; unknown paths → friendly 404; `/app/*` and `/auth/*` unchanged. Root no longer redirects to login.
+- Only facts: General Trias, Cavite, Philippines + owner's Maps link verbatim. **Phone, hours, street address are `null` pending owner confirmation** (`web/src/public-site/clinic-info.mjs`); UI shows "to be confirmed". Services/slots come only from Astra's #43 contract (`lib/public-booking.ts`, `booking-contract.mjs` copied byte-identically from #43 so this branch compiles; drop on merge of #43). No approved catalog/policy → pending states, no slots.
+- Booking: anonymous browse → intent (ids only, sessionStorage 30 min) → `/auth/signin|signup?next=/book` → return; signed-in: patient + reason → `requestAuthenticatedServiceBooking`; shows persisted status (requested ≠ confirmed), clinic-time (Asia/Manila) display, nonce reuse on retry.
+- Release notes: `web/public/robots.txt` still `Disallow: /` (left for supervisor); old `/app/appointments` form stops working for new bookings once the schedule is approved (needs its own PR); Verify/Callback flows still land on `/app/overview`.
+
+## Claude — Issue #51 owner appointment compatibility (PR #48)
+- `AppointmentsPage` now submits only via Astra's `submitOwnerAppointment()` (temp byte-identical copy from #43: `booking-transition.mjs/.d.mts`, `lib/owner-booking-transition.ts`, its test).
+- Mode (`public-site/booking-mode.mjs`, `useBookingMode`): `legacy` only if policy table missing (PGRST205/42P01 naming `clinic_booking_policy`) or policy null; approved+usable+services → `service` form (`ServiceBookingForm`, clinic-time slots from approved policy, RPC); approved w/o services / incomplete → paused message; any other read error → fail closed ("Try again", nothing submitted). Adapter "policy changed" errors trigger a mode reload.
+- Retry keeps nonce; any field edit refreshes it. Status shown is the persisted one. Open: pet species `clinic_supported` pre-check (server still enforces), replacing temp copies after #43 merge. Browser evidence is stubbed harness, not live DB.
+
+## Claude — booking eligibility UX (PR #48)
+- Patient picker (`PatientSelect`, `usePatientEligibility`, `public-site/eligibility.mjs`) in owner `/app/appointments` (service mode) and public `/book`. Eligibility comes only from typed `listCatalogPets` (`species_id`, `taxonomy_review_needed`) + `listAnimalTypes` (`clinic_supported`, `is_active`, `review_status`); never from the free-text species label. Ineligible patients stay listed (disabled, with reason); legacy records untouched; fail closed when the catalog can't be read. Legacy mode unchanged.
+- Missing: per-service species reader (`clinic_service_species`) — see `docs/phase4-ui/appointments/ELIGIBILITY_CONTRACT_REQUEST.md` for Astra. Evidence is a stubbed harness, not live DB.
+
+## Claude — #48 reconciled with #43 secure booking contract (2026-11-15)
+- Replaced #48's temporary copies with the reviewed #43 (`35d2f1c`) bytes: `booking-contract.mjs/.d.mts`, `lib/public-booking.ts`, tests. Added `service-species-reader.mjs/.d.mts` + its test. (`booking-transition*`, `owner-booking-transition.ts` were already byte-identical.) Drop all of these from #48 once #43 merges.
+- New per-service eligibility: `public-site/service-eligibility.mjs` (pure: view/apply/gate), `useServiceSpecies.ts` (authenticated `listServiceSpeciesIds`; anonymous never reads). Wired into BOTH `BookPage` and `ServiceBookingForm`; `PatientSelect` shows "not offered for this service".
+- Valid `[]` mapping disables every patient; lookup/Auth/RLS/malformed errors block submit with retry and never say "unsupported". View is derived against the current service, so a late response for a previous service cannot enable a patient.
+- Tests: `node --test web/tests/*.test.mjs`; Chromium (stubbed harness over the real reader, NOT live DB) at 360/768/1440. Screenshots: `docs/phase4-ui/service-eligibility/`.
+- Open: separate-tab email verification loses tab-scoped intent (user re-selects); hosted Auth/RLS verification needs owner authorization.
+
+## Claude — integration rehearsal #34+#41+#48 (2026-11-15)
+- Disposable merge: only 3 conflicts (`App.tsx` Root()/flag, `styles.css` + handoff appends). CI-only job `.github/workflows/phase4-integration-rehearsal.yml` (pinned #41 `4276604`, #43 `2749f81`; fail-closed resolver `scripts/integration-rehearsal/`) reproduces it, then runs assertions, Node, strict tsc + Vite, Chromium. Details/procedure: `docs/phase4-ui/integration-rehearsal/README.md`. Remove after the real merge.
