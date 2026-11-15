@@ -1,0 +1,88 @@
+name: Phase3 private Storage scoped object path (PG17)
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/tests/phase3_storage_outer_path_*.sql'
+      - 'scripts/ci/phase3_storage_outer_path_pg17.sh'
+      - '.github/workflows/phase3-storage-outer-path.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/tests/phase3_storage_outer_path_*.sql'
+      - 'scripts/ci/phase3_storage_outer_path_pg17.sh'
+      - '.github/workflows/phase3-storage-outer-path.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  correction-before-phase4-pg17:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: clinic-disposable-only
+          POSTGRES_DB: clinic_storage_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clinic_storage_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: clinic-disposable-only
+      PGDATABASE: clinic_storage_ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL 17 client if missing
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+      - name: Verify six Phase3 sources; reproduce defect, fix, assert and upgrade through four pinned Phase4 migrations
+        run: |
+          bash -n scripts/ci/phase3_storage_outer_path_pg17.sh
+          bash scripts/ci/phase3_storage_outer_path_pg17.sh before
+
+  correction-after-phase4-pg17:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: clinic-disposable-only
+          POSTGRES_DB: clinic_storage_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clinic_storage_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: clinic-disposable-only
+      PGDATABASE: clinic_storage_ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL 17 client if missing
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+      - name: Apply four exact pinned Phase4 migrations before additive fix, then verify full owner/staff access and denials
+        run: |
+          bash -n scripts/ci/phase3_storage_outer_path_pg17.sh
+          bash scripts/ci/phase3_storage_outer_path_pg17.sh after
