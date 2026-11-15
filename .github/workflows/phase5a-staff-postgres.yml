@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/phase5a-staff-postgres.yml'
       - 'supabase/tests/phase5a_staff_*.sql'
+      - 'supabase/migrations/**'
+      - 'scripts/ci/tests/phase5a-staff-workflow.test.mjs'
       - 'web/src/staff-read-contract.mjs'
       - 'web/tests/staff-read-contract.test.mjs'
       - 'docs/PHASE5A_STAFF_READ_CONTRACT.md'
@@ -13,6 +15,8 @@ on:
     paths:
       - '.github/workflows/phase5a-staff-postgres.yml'
       - 'supabase/tests/phase5a_staff_*.sql'
+      - 'supabase/migrations/**'
+      - 'scripts/ci/tests/phase5a-staff-workflow.test.mjs'
       - 'web/src/staff-read-contract.mjs'
       - 'web/tests/staff-read-contract.test.mjs'
 
@@ -92,12 +96,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Verify Phase5A migration triggers and fail-closed dependency-head drift
+        run: node --test scripts/ci/tests/phase5a-staff-workflow.test.mjs
       - name: Check exact Phase5A staff queue reader and fetch pinned booking/taxonomy commits
         shell: bash
         run: |
           set -euo pipefail
           test "$(git hash-object web/src/staff-read-contract.mjs)" = \
             '403cb2fd1710cb80b9b213271ebcb6b8257aeb27'
+          # Intentionally inspect CURRENT PR heads. A moved dependency must STOP
+          # until separately reviewed and re-pinned; fetching only old commit
+          # IDs would silently accept stale upstream code.
           git fetch --no-tags --depth=1 origin \
             'refs/pull/40/head:refs/remotes/origin/phase5a-pr40'
           test "$(git rev-parse refs/remotes/origin/phase5a-pr40)" = \
