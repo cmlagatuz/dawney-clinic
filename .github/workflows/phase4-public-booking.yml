@@ -64,6 +64,43 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_public_booking_bootstrap.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114090000_phase4_public_booking_contract.sql
           psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_public_booking_regression.sql
+  postgres-17-concurrent-nonce-retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-test-only
+          POSTGRES_DB: clinic_race
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clinic_race"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: isolated-test-only
+      PGDATABASE: clinic_race
+      PHASE4_EXPECT_EXCLUSION_REPRO: 'YES'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL client
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+      - name: Prepare synthetic policy and verify real two-session exact retry race
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_public_booking_bootstrap.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114090000_phase4_public_booking_contract.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_public_booking_concurrency_setup.sql
+          bash supabase/tests/phase4_public_booking_concurrency.sh
+
   node-typescript-build:
     runs-on: ubuntu-latest
     timeout-minutes: 8
