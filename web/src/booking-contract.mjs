@@ -12,13 +12,31 @@ export function validUtcInstant(value){
  return Number.isFinite(date.valueOf())&&date.toISOString().slice(0,19)===value.slice(0,19)
 }
 export function validateBookingIntent(value){
- if(!value||typeof value!=='object'||!uuid.test(value.serviceId))throw Error('A published service is required')
- if(value.resourceId!=null&&!uuid.test(value.resourceId))throw Error('Invalid resource')
+ if(!value||typeof value!=='object'||typeof value.serviceId!=='string'||
+    !uuid.test(value.serviceId))throw Error('A published service is required')
+ if(value.resourceId!=null&&(typeof value.resourceId!=='string'||
+    !uuid.test(value.resourceId)))throw Error('Invalid resource')
  if(value.startsAtUtc!=null&&!validUtcInstant(value.startsAtUtc))throw Error('Invalid UTC slot')
  if(value.startsAtUtc!=null&&!value.resourceId)throw Error('Resource required for selected slot')
- return {serviceId:value.serviceId,
-  ...(value.resourceId?{resourceId:value.resourceId}:{}),
+ return {serviceId:value.serviceId.toLowerCase(),
+  ...(value.resourceId?{resourceId:value.resourceId.toLowerCase()}:{}),
   ...(value.startsAtUtc?{startsAtUtc:value.startsAtUtc}:{})}
+}
+/** Normalize accepted UUIDs to PostgreSQL's lowercase canonical representation.
+ * This is input normalization, never an authorization decision. */
+export function normalizeBookingRequestIds(value){
+ const fields=['petId','serviceId','resourceId','requestNonce']
+ if(!value||typeof value!=='object'||fields.some(k=>
+   typeof value[k]!=='string'||!uuid.test(value[k])))
+  throw Error('A valid patient, service, resource and retry token are required')
+ return Object.fromEntries(fields.map(k=>[k,value[k].toLowerCase()]))
+}
+export function persistedBookingIdsMatch(row,ids){
+ return !!row&&!!ids&&
+  [['pet_id','petId'],['service_id','serviceId'],['resource_id','resourceId']]
+   .every(([col,input])=>typeof row[col]==='string'&&
+    typeof ids[input]==='string'&&uuid.test(row[col])&&
+    row[col].toLowerCase()===ids[input].toLowerCase())
 }
 export function saveBookingIntent(sessionStore,input,nowMs=Date.now()){
  if(!sessionStore||!Number.isSafeInteger(nowMs)||nowMs<0)throw Error('Invalid session store or clock')

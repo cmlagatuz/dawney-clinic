@@ -1,4 +1,4 @@
-export type Eligibility = 'eligible' | 'unsupported' | 'review' | 'unknown'
+export type Eligibility = 'eligible' | 'unsupported' | 'review' | 'unknown' | 'service'
 type PetLike = { id: string; species_id?: string | null; taxonomy_review_needed?: boolean }
 type SpeciesLike = { id: string; is_active: boolean; clinic_supported: boolean; review_status: string }
 export function petEligibility(pet: PetLike | null | undefined, speciesById: Map<string, SpeciesLike>): Eligibility

@@ -331,3 +331,10 @@ No API credentials, medical records, password hashes, patient contact details or
 ## Claude — booking eligibility UX (PR #48)
 - Patient picker (`PatientSelect`, `usePatientEligibility`, `public-site/eligibility.mjs`) in owner `/app/appointments` (service mode) and public `/book`. Eligibility comes only from typed `listCatalogPets` (`species_id`, `taxonomy_review_needed`) + `listAnimalTypes` (`clinic_supported`, `is_active`, `review_status`); never from the free-text species label. Ineligible patients stay listed (disabled, with reason); legacy records untouched; fail closed when the catalog can't be read. Legacy mode unchanged.
 - Missing: per-service species reader (`clinic_service_species`) — see `docs/phase4-ui/appointments/ELIGIBILITY_CONTRACT_REQUEST.md` for Astra. Evidence is a stubbed harness, not live DB.
+
+## Claude — #48 reconciled with #43 secure booking contract (2026-11-15)
+- Replaced #48's temporary copies with the reviewed #43 (`35d2f1c`) bytes: `booking-contract.mjs/.d.mts`, `lib/public-booking.ts`, tests. Added `service-species-reader.mjs/.d.mts` + its test. (`booking-transition*`, `owner-booking-transition.ts` were already byte-identical.) Drop all of these from #48 once #43 merges.
+- New per-service eligibility: `public-site/service-eligibility.mjs` (pure: view/apply/gate), `useServiceSpecies.ts` (authenticated `listServiceSpeciesIds`; anonymous never reads). Wired into BOTH `BookPage` and `ServiceBookingForm`; `PatientSelect` shows "not offered for this service".
+- Valid `[]` mapping disables every patient; lookup/Auth/RLS/malformed errors block submit with retry and never say "unsupported". View is derived against the current service, so a late response for a previous service cannot enable a patient.
+- Tests: `node --test web/tests/*.test.mjs`; Chromium (stubbed harness over the real reader, NOT live DB) at 360/768/1440. Screenshots: `docs/phase4-ui/service-eligibility/`.
+- Open: separate-tab email verification loses tab-scoped intent (user re-selects); hosted Auth/RLS verification needs owner authorization.

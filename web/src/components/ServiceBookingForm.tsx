@@ -8,6 +8,8 @@ import { Spinner } from './ui'
 import { PatientSelect } from './PatientSelect'
 import { usePatientEligibility } from '../public-site/usePatientEligibility'
 import { firstEligibleId } from '../public-site/eligibility.mjs'
+import { applyServiceSpecies, canBookPet, serviceSpeciesErrorText } from '../public-site/service-eligibility.mjs'
+import { useServiceSpecies } from '../public-site/useServiceSpecies'
 
 const generic = 'We could not save this request. The time may no longer be available, or this service may not be offered for the selected animal. Please choose another time or contact the clinic.'
 
@@ -18,9 +20,12 @@ export function ServiceBookingForm({ user, services, policy, onBooked, onPolicyC
 }) {
   const elig = usePatientEligibility(user)
   const [petId, setPetId] = useState('')
-  useEffect(() => { setPetId(cur => elig.pets.some(p => p.id === cur && p.eligibility === 'eligible') ? cur : firstEligibleId(elig.pets)) }, [elig.pets])
-  const chosen = elig.pets.find(p => p.id === petId)
   const [serviceId, setServiceId] = useState('')
+  const sp = useServiceSpecies(user, serviceId)
+  const pets = useMemo(() => applyServiceSpecies(elig.pets, sp), [elig.pets, sp])
+  useEffect(() => { setPetId(cur => pets.some(p => p.id === cur && p.eligibility === 'eligible') ? cur : firstEligibleId(pets)) }, [pets])
+  const chosen = pets.find(p => p.id === petId)
+  const canBook = canBookPet(chosen, sp)
   const [resources, setResources] = useState<PublishedServiceResource[] | null>(null)
   const [resourceId, setResourceId] = useState('')
   const [date, setDate] = useState('')
@@ -45,7 +50,7 @@ export function ServiceBookingForm({ user, services, policy, onBooked, onPolicyC
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (saving || !petId || chosen?.eligibility !== 'eligible' || !serviceId || !resourceId || !startsAtUtc) return
+    if (saving || !petId || !canBook || !serviceId || !resourceId || !startsAtUtc) return
     setSaving(true); setError(null)
     try {
       const booking = await submitOwnerAppointment(user, { kind: 'service', booking: { petId, serviceId, resourceId, startsAtUtc, requestNonce: nonce, concern: concern.trim(), details: details.trim() || null } }) as RequestedBooking
@@ -61,9 +66,11 @@ export function ServiceBookingForm({ user, services, policy, onBooked, onPolicyC
   if (elig.status === 'loading') return <p role="status" className="field-help"><Spinner /> Checking which patients can be booked online…</p>
   if (elig.status === 'error') return <p role="alert" className="alert alert-error">We could not check which patients can be booked online, so nothing was submitted. <button type="button" className="button-quiet" onClick={elig.reload}>Try again</button></p>
   return <form className="form-stack" onSubmit={e => void submit(e)} aria-label="Appointment request">
-    <PatientSelect pets={elig.pets} value={petId} onChange={id => { setPetId(id); touch() }} />
+    <PatientSelect pets={pets} value={petId} onChange={id => { setPetId(id); touch() }} />
     <label>Service<select required value={serviceId} onChange={e => { setServiceId(e.target.value); touch() }}>
       <option value="">Choose a service</option>{services.map(s => <option key={s.id} value={s.id}>{s.display_name} (about {s.duration_minutes} min)</option>)}</select></label>
+    {service && sp.status === 'loading' && <p role="status" className="field-help"><Spinner /> Checking which animals this service is offered for…</p>}
+    {service && sp.status === 'error' && <p role="alert" className="alert alert-error">{serviceSpeciesErrorText(sp)} <button type="button" className="button-quiet" onClick={sp.reload}>Try again</button></p>}
     {service && (resources === null ? <p role="status" className="field-help"><Spinner /> Loading options…</p>
       : resources.length === 0 ? <p className="alert alert-info" role="note">No bookable options are published for this service yet. Please contact the clinic.</p> : <>
         {resources.length > 1 && <label>Option<select required value={resourceId} onChange={e => { setResourceId(e.target.value); touch() }}><option value="">Choose an option</option>{resources.map((r, i) => <option key={r.resource_id} value={r.resource_id}>{r.public_label ?? `Option ${i + 1}`}</option>)}</select></label>}
@@ -75,6 +82,6 @@ export function ServiceBookingForm({ user, services, policy, onBooked, onPolicyC
     <label>Details (optional)<textarea rows={3} maxLength={3000} value={details} onChange={e => { setDetails(e.target.value); touch() }} /></label>
     <p className="small-help">A request is <strong>not confirmed</strong> until the clinic confirms it. Times are clinic time.</p>
     {error && <p role="alert" className="alert alert-error">{error}</p>}
-    <button className="button button-primary" disabled={saving || chosen?.eligibility !== 'eligible' || !resourceId || !startsAtUtc || !concern.trim()}>{saving ? 'Sending…' : 'Request appointment'}</button>
+    <button className="button button-primary" disabled={saving || !canBook || !resourceId || !startsAtUtc || !concern.trim()}>{saving ? 'Sending…' : 'Request appointment'}</button>
   </form>
 }

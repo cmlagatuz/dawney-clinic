@@ -1,7 +1,8 @@
 import type {User} from '@supabase/supabase-js'
 import {supabase} from './supabase'
 import {readOwner} from './owners'
-import {validUtcInstant} from '../booking-contract.mjs'
+import {validUtcInstant,normalizeBookingRequestIds,persistedBookingIdsMatch} from '../booking-contract.mjs'
+import {readServiceSpeciesIds} from '../service-species-reader.mjs'
 
 export type PublicClinicService={
  id:string;slug:string;display_name:string;summary:string|null;
@@ -32,6 +33,11 @@ export async function listPublicClinicServices():Promise<PublicClinicService[]>{
  if(error)throw error
  return (data??[]) as PublicClinicService[]
 }
+/** Authenticated, RLS-filtered species for a published service. An empty list
+ * is different from a failed lookup; the booking RPC remains authoritative. */
+export async function listServiceSpeciesIds(serviceId:string):Promise<string[]>{
+ return readServiceSpeciesIds(client(),serviceId)
+}
 export async function listPublishedServiceResources(serviceId:string):Promise<PublishedServiceResource[]>{
  if(!uuid.test(serviceId))throw Error('Invalid service')
  const {data,error}=await client().from('clinic_service_resources')
@@ -52,8 +58,7 @@ export function freshBookingRequestNonce():string{return crypto.randomUUID()}
 export async function requestAuthenticatedServiceBooking(
  user:User,form:RequestBookingInput
 ):Promise<RequestedBooking>{
- if(!form||![form.petId,form.serviceId,form.resourceId,form.requestNonce].every(x=>typeof x==='string'&&uuid.test(x)))
-  throw Error('A valid patient, service, resource and retry token are required')
+ const ids=normalizeBookingRequestIds(form)
  if(!validUtcInstant(form.startsAtUtc))throw Error('Explicit UTC appointment start required')
  if(typeof form.concern!=='string'||!form.concern.trim()||form.concern.length>300||
    (form.details!=null&&form.details.length>3000))throw Error('Invalid booking concern/details')
@@ -64,11 +69,11 @@ export async function requestAuthenticatedServiceBooking(
  const owner=await readOwner(user)
  if(!owner)throw Error('Complete owner profile before booking')
  const {data:pet,error:petError}=await db.from('pets').select('id,owner_id')
- .eq('id',form.petId).eq('owner_id',owner.id).maybeSingle()
+ .eq('id',ids.petId).eq('owner_id',owner.id).maybeSingle()
  if(petError||!pet)throw Error('Select a registered patient owned by your account')
  const {data:bookingId,error:requestError}=await db.rpc('request_service_appointment',{
-  p_pet_id:form.petId,p_service_id:form.serviceId,p_resource_id:form.resourceId,
-  p_starts_at:form.startsAtUtc,p_request_nonce:form.requestNonce,
+  p_pet_id:ids.petId,p_service_id:ids.serviceId,p_resource_id:ids.resourceId,
+  p_starts_at:form.startsAtUtc,p_request_nonce:ids.requestNonce,
   p_concern:form.concern,p_details:form.details??null
  })
  if(requestError)throw requestError
@@ -76,8 +81,8 @@ export async function requestAuthenticatedServiceBooking(
  const {data:row,error:readError}=await db.from('appointments')
  .select('id,status,service_id,owner_id,pet_id,resource_id,starts_at,ends_at')
  .eq('id',bookingId).eq('owner_id',owner.id).single()
- if(readError||!row||row.service_id!==form.serviceId||row.pet_id!==form.petId||
-    row.resource_id!==form.resourceId)throw Error('Cannot verify persisted booking')
+ if(readError||!persistedBookingIdsMatch(row,ids))
+  throw Error('Cannot verify persisted booking')
  // Exact retry may return a later staff-confirmed status, which is NOT a newly
  // confirmed request. Frontend must display the real persisted status.
  if(!['requested','confirmed','checked_in','completed','cancelled','no_show'].includes(row.status))

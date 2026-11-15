@@ -12,6 +12,8 @@ import { ContactDetails, DirectionsButton } from '../../components/SiteLayout'
 import { PatientSelect } from '../../components/PatientSelect'
 import { usePatientEligibility } from '../../public-site/usePatientEligibility'
 import { firstEligibleId } from '../../public-site/eligibility.mjs'
+import { applyServiceSpecies, canBookPet, serviceSpeciesErrorText } from '../../public-site/service-eligibility.mjs'
+import { useServiceSpecies } from '../../public-site/useServiceSpecies'
 import { EmptyState, LoadingCard, PageHeading, Spinner, StatusBadge } from '../../components/ui'
 
 const adapterMessage = /^(Complete owner profile|Select a registered patient|Verified customer login|A valid patient|Explicit UTC|Invalid booking)/
@@ -33,7 +35,8 @@ export function BookPage() {
   const [date, setDate] = useState('')
   const [startsAtUtc, setStartsAtUtc] = useState('')
   const elig = usePatientEligibility(user)
-  const pets = elig.status === 'ready' ? elig.pets : null
+  const sp = useServiceSpecies(user, serviceId)
+  const pets = useMemo(() => elig.status === 'ready' ? applyServiceSpecies(elig.pets, sp) : null, [elig.status, elig.pets, sp])
   const [hasOwner, setHasOwner] = useState<boolean | null>(null)
   const [petId, setPetId] = useState('')
   const [concern, setConcern] = useState('')
@@ -87,7 +90,7 @@ export function BookPage() {
   }, [user])
 
   useEffect(() => { if (pets) setPetId(cur => pets.some(p => p.id === cur && p.eligibility === 'eligible') ? cur : firstEligibleId(pets)) }, [pets])
-  const chosenOk = pets?.find(p => p.id === petId)?.eligibility === 'eligible'
+  const chosenOk = canBookPet(pets?.find(p => p.id === petId), sp)
 
   function continueToLogin(mode: 'signin' | 'signup') {
     if (!serviceId) return
@@ -158,6 +161,8 @@ export function BookPage() {
         <section className="card book-step"><h2>{step(3)}Your patient and request</h2>
           {hasOwner === false && <p className="alert alert-info" role="note">Please complete your owner profile first. <Link to="/app/profile">Set up profile</Link></p>}
           {elig.status === 'error' && <p role="alert" className="alert alert-error">We could not check which patients can be booked online, so nothing can be submitted. <button type="button" className="button-quiet" onClick={elig.reload}>Try again</button></p>}
+          {sp.status === 'loading' && <p role="status" className="field-help"><Spinner /> Checking which animals this service is offered for…</p>}
+          {sp.status === 'error' && <p role="alert" className="alert alert-error">{serviceSpeciesErrorText(sp)} <button type="button" className="button-quiet" onClick={sp.reload}>Try again</button></p>}
           {hasOwner && pets !== null && pets.length === 0 && <p className="alert alert-info" role="note">Register a patient before requesting an appointment. <Link to="/app/pets">Add a patient</Link></p>}
           <PatientSelect pets={pets ?? []} value={petId} onChange={id => { setPetId(id); touch() }} />
           <div className="form-row"><label>Reason for visit<input required maxLength={300} value={concern} onChange={e => { setConcern(e.target.value); touch() }} placeholder="Short reason" /></label></div>
