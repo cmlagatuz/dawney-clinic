@@ -1,0 +1,34 @@
+name: Phase 4 staging auth/RLS/Storage harness (OFFLINE only)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/staging/**'
+      - 'docs/PHASE4_STAGING_AUTH_RLS_STORAGE_RUNBOOK.md'
+      - '.github/workflows/phase4-staging-harness-offline.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/staging/**'
+      - 'docs/PHASE4_STAGING_AUTH_RLS_STORAGE_RUNBOOK.md'
+      - '.github/workflows/phase4-staging-harness-offline.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-contract-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # No staging/production Supabase URL or credentials in this workflow.
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate staging-only harness syntax
+        run: node --check scripts/staging/verify-staging.mjs
+      - name: Run fake-HTTP and production-guard regression tests (NO hosted requests)
+        run: node --test scripts/staging/tests/*.test.mjs
