@@ -337,21 +337,27 @@ end $last$;
 set role authenticated;
 select pg_catalog.set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',false);
 do $uuid_case$
-declare saved uuid; slot timestamptz; before_count integer;
+declare saved uuid; slot timestamptz; before_count integer; before_pets integer;
 begin
  slot:=(date_trunc('week',now() at time zone 'Asia/Manila')+
  interval '7 days 9 hours') at time zone 'Asia/Manila';
  select count(*) into before_count from public.appointments;
+ select count(*) into before_pets from public.pets;
  select public.request_service_appointment(
   upper('33333333-3333-4333-8333-333333333333')::uuid,
   upper('88888888-8888-4888-8888-888888888888')::uuid,
   upper('55555555-5555-4555-8555-555555555555')::uuid,
   slot,upper('11111111-1111-4111-8111-111111111111')::uuid,
   'CI consultation',null) into saved;
+ -- PostgreSQL canonicalizes uppercase UUID hex digits on readback.
+ if upper('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')::uuid::text
+    <> 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' then
+  raise exception 'PG17 UUID output differs from canonical lowercase';
+ end if;
  if saved is distinct from (select id from public.appointments
    where request_nonce='11111111-1111-4111-8111-111111111111')
    or (select count(*) from public.appointments)<>before_count
-   or (select count(*) from public.pets)<>2 then
+   or (select count(*) from public.pets)<>before_pets then
   raise exception 'Uppercase UUID replay wrote another appointment or patient';
  end if;
 end $uuid_case$;
