@@ -6,9 +6,9 @@
 
 ## Current decision summary
 
-- **Master:** `2a29019c52152b7d1944012df1e66018d6cb2101`.
-- **First source-merge candidate:** [PR #46](https://github.com/cmlagatuz/dawney-clinic/pull/46), head `9b35e08c5d46fbbdeb0e6bd879832e7356f7f9e9`. It changes only four Chromium/CI files and has seven applicable exact-head checks passing. It is **not merged**; owner/supervisor approval remains required.
-- **Current public Pages deployment:** [dawney-clinic.pages.dev](https://dawney-clinic.pages.dev/) is a static React/Vite deployment from `master`. The current verified production deployment is `764624c4-4baa-428d-896f-766cca47e08b` at master commit `2a29019c`; this is public website hosting, not approval for real clinic records.
+- **Master:** `5fb7972e6844c18fa2f668566c450ea06123b59e` (merge commit for PR #46).
+- **First source integration:** [PR #46](https://github.com/cmlagatuz/dawney-clinic/pull/46), head `9b35e08c5d46fbbdeb0e6bd879832e7356f7f9e9`, is merged as `5fb7972e6844c18fa2f668566c450ea06123b59e`. Its seven applicable checks passed; no clinical feature, migration or patient data change was introduced.
+- **Current public Pages deployment:** [dawney-clinic.pages.dev](https://dawney-clinic.pages.dev/) is a static React/Vite deployment from `master`. The current verified production deployment is `15168ca6-f88e-4d30-9915-1dcc2cf5b75a` at master commit `5fb7972`; the previous successful deployment `764624c4-4baa-428d-896f-766cca47e08b` at `2a29019` is the known rollback baseline; this is public website hosting, not approval for real clinic records.
 - **Clinical release:** **NO-GO / NOT VERIFIED.** No Phase 4 migration has been authorized on live Supabase, and hosted JWT/RLS/Storage security, full recovery, clinic policy and owner clinical approval remain outstanding.
 - **Synthetic Alpha:** [PR #56](https://github.com/cmlagatuz/dawney-clinic/pull/56) is an unmerged synthetic CRM preview. It remains isolated from `master` and must not be described as a clinic deployment.
 
@@ -32,28 +32,27 @@ The owner controls production, database, clinical-policy, credentials and spendi
 
 | Area | Current evidence | Status |
 | --- | --- | --- |
-| Chromium/browser CI reliability | [PR #46](https://github.com/cmlagatuz/dawney-clinic/pull/46), exact head `9b35e08`; [Pages check](https://github.com/cmlagatuz/dawney-clinic/runs/132632457641) and browser/regression/source/audit/PHP checks pass | **SOURCE READY; owner approval pending** |
+| Chromium/browser CI reliability | [PR #46](https://github.com/cmlagatuz/dawney-clinic/pull/46), exact head `9b35e08`; [Pages check](https://github.com/cmlagatuz/dawney-clinic/runs/132632457641) and browser/regression/source/audit/PHP checks pass; merged in `5fb7972` | **SOURCE INTEGRATED; Pages deployed** |
 | React foundation | [PR #34](https://github.com/cmlagatuz/dawney-clinic/pull/34), head `85132e0`; build, verify, anonymous browser, Pages, PHP and legacy checks pass | **OPEN; refresh after #46 before merge** |
 | Taxonomy and Chow Chow preservation | [PR #40](https://github.com/cmlagatuz/dawney-clinic/pull/40), head `7f6b7b4`; isolated PostgreSQL/RLS, unit, browser-adapter, source-guard and legacy checks pass | **SOURCE EVIDENCE; not live** |
 | Secure public/owner booking | [PR #43](https://github.com/cmlagatuz/dawney-clinic/pull/43), head `2749f81`; booking, nonce/concurrency, unit, build, audit and Pages checks pass | **SOURCE READY; migration and clinical policy owner-gated** |
-| Recovery/staging harness | [PR #49](https://github.com/cmlagatuz/dawney-clinic/pull/49), head `1583d11`; offline contract, isolated PostgreSQL drill, recovery-safety and related checks pass; authenticated HTTP is skipped | **SYNTHETIC/STAGING NOT VERIFIED** |
+| Recovery/staging harness | [PR #49](https://github.com/cmlagatuz/dawney-clinic/pull/49), head `9c15f79`; offline contract, isolated PostgreSQL drill, recovery-safety and related checks pass; authenticated HTTP is skipped | **SCHEMA COMPATIBILITY BLOCKED; staging NOT VERIFIED** |
 | Four-migration rehearsal | [PR #52](https://github.com/cmlagatuz/dawney-clinic/pull/52), head `5272cad`; four-migration legacy-record, unit, PHP, source-guard and Pages checks pass; authenticated HTTP is skipped | **REGRESSION EVIDENCE; no live SQL authorized** |
-| Patient form and private attachments | [PR #41](https://github.com/cmlagatuz/dawney-clinic/pull/41), head `4276604`; exact-head CI and CodeRabbit checks pass, feature flag remains off | **SOURCE READY pending four CodeRabbit findings; hosted JWT/RLS/Storage NOT VERIFIED** |
+| Patient form and private attachments | [PR #41](https://github.com/cmlagatuz/dawney-clinic/pull/41), head `59f8cb1`; exact-head build/verify/browser/legacy/PHP/Pages checks pass; four CodeRabbit findings were fixed and independently regression-tested, with Qwen re-review pending | **SOURCE READY; hosted JWT/RLS/Storage NOT VERIFIED** |
 | Public website and booking UI | [PR #48](https://github.com/cmlagatuz/dawney-clinic/pull/48), head `e7c070e`; combined #41/#48 checks and Pages pass | **STACKED; reconcile after #34/#40/#43 sequencing** |
-| Phase 5A staff read contract | [PR #59](https://github.com/cmlagatuz/dawney-clinic/pull/59), head `e4553f9`; PostgreSQL 17 staff/queue, adapter, build, browser and Pages checks pass; hosted Auth is skipped | **SOURCE EVIDENCE; staff UI and hosted clinical proof pending** |
+| Phase 5A staff read contract | [PR #59](https://github.com/cmlagatuz/dawney-clinic/pull/59), head `df802a7`; PostgreSQL 17 staff/queue and booking-RPC integration checks pass; hosted Auth is skipped; two new CodeRabbit workflow findings await Astra triage | **SOURCE READY FOR SUPERVISED REVIEW; hosted Auth/JWT/RLS NOT VERIFIED** |
 
 Passing CI or a Pages preview proves neither real hosted authorization nor clinical readiness. Historical Workers Build failures are separate from current Pages checks after the redundant Worker Git integration cleanup; do not treat them as current source failures.
 
-## Four pending CodeRabbit findings on PR #41
+## PR #41 CodeRabbit findings: corrected, hosted security still open
 
-The completed automated review for [PR #41](https://github.com/cmlagatuz/dawney-clinic/pull/41#issuecomment-6893627942) identified four actionable items. They remain **pending independent validation and correction**; no CodeRabbit Autofix was used:
+The four actionable CodeRabbit findings on [PR #41](https://github.com/cmlagatuz/dawney-clinic/pull/41#issuecomment-6900819954) were confirmed and fixed on head `59f8cb1` without CodeRabbit Autofix: account-switch patient reload race; duplicate-byte attachment finalization retry; save/close while upload retry is in flight; and Download remaining hidden after successful retry. Claude reports Node 46/46, the focused stubbed Chromium finding suite 22/22, attachment 50/50 and responsive checks passing. The feature flag remains off.
 
-1. `web/src/pages/PetsPageCatalog.tsx` line 88: guard the asynchronous patient reload so a late account-switch response cannot display owner A’s patients to owner B.
-2. `web/src/pages/PetsPageCatalog.tsx` line 135: an `unindexed` attachment finalization retry may re-upload existing bytes instead of retrying metadata finalization.
-3. `web/src/pages/PetsPageCatalog.tsx` line 219: saving while an upload retry is in flight may clear the form before the later upload failure is surfaced.
-4. `web/src/components/AttachmentField.tsx` line 86: Download may remain hidden after a successful retry until the form is reopened.
+This is source and synthetic evidence only. Qwen’s independent re-review is pending; hosted JWT/RLS/private Storage behavior is **NOT VERIFIED** and requires owner authorization. Private immutable Storage behavior, the legacy Chow Chow record, keyboard behavior and fail-closed states must remain preserved.
 
-Claude owns validation/fixes on the existing branch. The feature flag must remain off, private immutable Storage behavior must be preserved, and hosted JWT/RLS/Storage tests remain owner-gated.
+## New PR #59 CodeRabbit findings pending
+
+The latest completed CodeRabbit review on [PR #59](https://github.com/cmlagatuz/dawney-clinic/pull/59#issuecomment-6900932629) raised two findings for Astra to verify: the workflow path filters may omit `supabase/migrations/**`, and the PG17 job’s mutable #40/#43 ref fetches may conflict with its intended SHA-pinned/fail-closed dependency guard. These are reviewer allegations, not accepted defects; they remain **pending verification and correction or documented intentional-stop disposition**. Do not weaken the exact-head safety guard merely to make a stale dependency fetchable.
 
 ## Legacy Laravel context and historical Phases 1–3
 
@@ -72,16 +71,16 @@ Source-level verification in #40/#52 preserves the historical Dog/Chow Chow pati
 ## Deployment, staging and live-clinic boundaries
 
 1. **Unmerged source:** Open PR code and passing branch CI are not in `master` and do not change production.
-2. **Synthetic Alpha previews:** Cloudflare previews such as #56 are demos using synthetic UI/fixtures. They are not staging, are not approved for patient data, and remain separate from the source-merge queue.
+2. **Synthetic Alpha previews:** Cloudflare previews such as #56 are demos using synthetic UI/fixtures. They are not staging, are not approved for patient data, and remain separate from the source-merge queue. PR #46’s merge does not change this boundary.
 3. **Staging verification:** #49, #52 and #59 provide offline or disposable PostgreSQL evidence. Hosted JWT/RLS/Storage, real Auth/Storage restore and owner-controlled staging checks remain unverified unless a linked run proves otherwise.
 4. **Public Pages:** Cloudflare Pages serves the static React/Vite `web` build from `master`; a successful public HTTPS response does not prove clinical authorization, migrations, RLS, Storage or backup readiness.
 5. **Live clinical deployment:** requires owner approval, approved clinic hours/time zone/services/species/resources, exact migration order, recoverable Auth/database/Storage backup and restoration rehearsal, real A/B/anonymous/staff JWT/RLS/Storage negative tests, and post-deploy rollback verification. It is not approved.
 
 ## Current blockers and merge order
 
-The controlled source sequence is **#46 owner approval → #34 refresh/merge → #40 taxonomy review → #43 secure booking review → #49/#52 recovery and migration evidence → #41/#48 frontend reconciliation → #59 staff contract review**. The exact order may be revised by the Project Manager when current dependency evidence changes.
+The controlled source sequence is **#34 refresh against merged #46/master → #40 taxonomy review → #43 secure booking review → #52 pin refresh and four-migration regression → #49 recovery/schema compatibility gate → #41 Qwen re-review → #48 frontend reconciliation → #59 CodeRabbit triage/staff review**. The exact order may be revised by the Project Manager when current dependency evidence changes.
 
-Remaining blockers are: **(1)** owner approval for #46 and later master merges; **(2)** frontend base/overlap reconciliation, including the four pending #41 findings; **(3)** hosted JWT/RLS/Storage security and staging verification; **(4)** real Auth/database/Storage recovery and restoration; and **(5)** veterinarian/owner clinical policy approval for services, species, resources, hours and live cutover.
+Remaining blockers are: **(1)** refreshing each open PR onto current master and obtaining owner approval; **(2)** #49’s reproducible recovered-schema-to-Phase-4 compatibility blocker, including missing `anon` and other Phase 3 schema elements in the simplified restored fixture; **(3)** Qwen re-review of #41 and Astra triage of #59 CodeRabbit findings; **(4)** hosted JWT/RLS/Storage security and real Auth/database/Storage recovery verification; and **(5)** veterinarian/owner clinical-policy approval for services, species, resources, hours and live cutover.
 
 ## Free-tier and safety restrictions
 
