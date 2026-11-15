@@ -65,7 +65,7 @@ jobs:
             git fetch --no-tags --depth=1 origin \
               'refs/pull/40/head:refs/remotes/origin/phase4-pr40'
             test "$(git rev-parse refs/remotes/origin/phase4-pr40)" = \
-              '54b4f7b449bde76f0ae226202d57c4d2fcb7b9cd'
+              '7f6b7b4b12c6d5c04a049f5427b77704d560e4f0'
             git show "refs/remotes/origin/phase4-pr40:$guard" > "$RUNNER_TEMP/phase4/guard.sql"
           fi
           if [[ -f "$booking" ]]; then
@@ -74,7 +74,7 @@ jobs:
             git fetch --no-tags --depth=1 origin \
               'refs/pull/43/head:refs/remotes/origin/phase4-pr43'
             test "$(git rev-parse refs/remotes/origin/phase4-pr43)" = \
-              'e8853f3023191cb05e5a2afd6ad2fbb53834102c'
+              'c7286dc0990170deb884b9dacee45c900646c72d'
             git show "refs/remotes/origin/phase4-pr43:$booking" > "$RUNNER_TEMP/phase4/booking.sql"
           fi
           test -s "$RUNNER_TEMP/phase4/guard.sql"
