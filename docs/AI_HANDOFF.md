@@ -331,3 +331,6 @@ No API credentials, medical records, password hashes, patient contact details or
 ## Claude — booking eligibility UX (PR #48)
 - Patient picker (`PatientSelect`, `usePatientEligibility`, `public-site/eligibility.mjs`) in owner `/app/appointments` (service mode) and public `/book`. Eligibility comes only from typed `listCatalogPets` (`species_id`, `taxonomy_review_needed`) + `listAnimalTypes` (`clinic_supported`, `is_active`, `review_status`); never from the free-text species label. Ineligible patients stay listed (disabled, with reason); legacy records untouched; fail closed when the catalog can't be read. Legacy mode unchanged.
 - Missing: per-service species reader (`clinic_service_species`) — see `docs/phase4-ui/appointments/ELIGIBILITY_CONTRACT_REQUEST.md` for Astra. Evidence is a stubbed harness, not live DB.
+
+## Claude — Issue #55 CRM Alpha Preview (synthetic, branch `ai/claude/alpha-clinic-ops`, stacked on #48)
+- `/alpha/clinic-ops[/schedule|/inbox|/campaigns]`: patient flow (move/undo), day/week schedule (vet filters, drawer, unavailable time), simulated inbox, campaigns with disabled send. Synthetic only; zero Supabase/network/storage (source-scan test); refused on the production host. See `docs/alpha-preview/README.md`. Do not merge to master.

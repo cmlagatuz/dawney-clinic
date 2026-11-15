@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router'
 import { AuthProvider, useAuth } from './hooks/AuthProvider'
 import { AppLayout, PublicLayout } from './components/Layout'
@@ -20,7 +21,11 @@ function Guard() {
   if(error) return <main className="center-state"><p role="alert">{error}</p><button className="button button-primary" onClick={()=>void refresh()}>Retry</button></main>
   return user ? <Outlet /> : <Navigate to="/auth/signin" replace />
 }
+// ALPHA DEMO (Issue #55): synthetic, isolated, no auth/Supabase. Loaded only for /alpha/* and refused on the production host.
+const AlphaApp = lazy(() => import('./alpha/AlphaApp'))
+
 export function App() {
+  if (window.location.pathname.startsWith('/alpha/')) return <Suspense fallback={<main className="center-state" role="status">Loading demo…</main>}><AlphaApp /></Suspense>
   if(!configured) return <main className="config-error"><h1>Clinic setup required</h1>
     <p>This preview needs the public Supabase URL and publishable API key. No secret keys are needed.</p>
     <p>Ask the administrator to configure <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> before publishing.</p></main>
