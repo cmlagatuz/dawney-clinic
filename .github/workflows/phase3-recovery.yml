@@ -132,3 +132,64 @@ jobs:
         run: |
           bash -n supabase/tests/phase4_postflight_privileges.sh
           bash supabase/tests/phase4_postflight_privileges.sh
+
+  full-phase3-signed-recovery-to-phase4-pg17:
+    # Independent positive rehearsal; preserves existing minimal negative tests.
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: dawney-phase3-ci-only
+          POSTGRES_DB: phase3_source_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d phase3_source_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fail closed on current reviewed PR40, PR43 and PR52 source-head drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/positive-recovery-pinned"
+          git fetch --no-tags --depth=1 origin \
+            'refs/pull/52/head:refs/remotes/origin/positive-pr52'
+          test "$(git rev-parse refs/remotes/origin/positive-pr52)" = \
+            '5272cadbef4cc966e1b650905c5680b8fdf56c99'
+          git fetch --no-tags --depth=1 origin \
+            'refs/pull/40/head:refs/remotes/origin/positive-pr40'
+          test "$(git rev-parse refs/remotes/origin/positive-pr40)" = \
+            '7f6b7b4b12c6d5c04a049f5427b77704d560e4f0'
+          git fetch --no-tags --depth=1 origin \
+            'refs/pull/43/head:refs/remotes/origin/positive-pr43'
+          test "$(git rev-parse refs/remotes/origin/positive-pr43)" = \
+            '2749f810a2d5195e974949cb8e23d4495a8b0d11'
+          git show 'refs/remotes/origin/positive-pr52:supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql' \
+            > "$RUNNER_TEMP/positive-recovery-pinned/20261113211600_phase4_taxonomy_attachments.sql"
+          git show 'refs/remotes/origin/positive-pr52:supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql' \
+            > "$RUNNER_TEMP/positive-recovery-pinned/20261113211700_phase4_animal_catalog_seed.sql"
+          git show 'refs/remotes/origin/positive-pr40:supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql' \
+            > "$RUNNER_TEMP/positive-recovery-pinned/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql"
+          git show 'refs/remotes/origin/positive-pr43:supabase/migrations/20261114090000_phase4_public_booking_contract.sql' \
+            > "$RUNNER_TEMP/positive-recovery-pinned/20261114090000_phase4_public_booking_contract.sql"
+      - name: Restore real Phase3-shaped signed five-component set and apply exact Phase4
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/recovery/tests/synthetic-phase3-phase4-positive.sh
+          bash scripts/recovery/tests/synthetic-phase3-phase4-positive.sh \
+            "$RUNNER_TEMP/positive-recovery-pinned"
