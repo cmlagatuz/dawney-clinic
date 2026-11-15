@@ -62,69 +62,71 @@ test('actual fetch + reviewed SHA checks accept pinned heads and stop on PR40/43
 
   const base = mkdtempSync(join(tmpdir(), 'phase5a-head-guard-'))
   t.after(() => rmSync(base, { recursive: true, force: true }))
-  const checkout = join(base, 'checkout')
+  const author = join(base, 'author')
   const origin = join(base, 'origin.git')
-  const runner = join(base, 'runner')
-  mkdirSync(checkout)
-  mkdirSync(runner)
+  mkdirSync(author)
   git(base, 'init', '--bare', '-q', origin)
-  git(checkout, 'init', '-q')
-  git(checkout, 'config', 'user.email', 'ci@example.invalid')
-  git(checkout, 'config', 'user.name', 'Synthetic CI')
+  git(author, 'init', '-q')
+  git(author, 'config', 'user.email', 'ci@example.invalid')
+  git(author, 'config', 'user.name', 'Synthetic CI')
 
-  const reader = 'web/src/staff-read-contract.mjs'
-  mkdirSync(dirname(join(checkout, reader)), { recursive: true })
-  copyFileSync(join(root, reader), join(checkout, reader))
   function commitFile(path, content, message) {
-    mkdirSync(dirname(join(checkout, path)), { recursive: true })
-    writeFileSync(join(checkout, path), content)
-    git(checkout, 'add', path)
-    git(checkout, 'commit', '-q', '-m', message)
-    return git(checkout, 'rev-parse', 'HEAD')
+    mkdirSync(dirname(join(author, path)), { recursive: true })
+    writeFileSync(join(author, path), content)
+    git(author, 'add', path)
+    git(author, 'commit', '-q', '-m', message)
+    return git(author, 'rev-parse', 'HEAD')
   }
+  // All 4 synthetic commits exist on the *local* bare origin; never fetch
+  // any real PR from this test or change a real repository's refs.
   const head40 = commitFile(guardPath40, '-- synthetic pinned PR40 migration\n', 'synthetic PR40 reviewed')
   const head43 = commitFile(guardPath43, '-- synthetic pinned PR43 migration\n', 'synthetic PR43 reviewed')
-  git(checkout, 'remote', 'add', 'origin', origin)
-  git(checkout, 'push', '-q', 'origin', head40 + ':refs/pull/40/head')
-  git(checkout, 'push', '-q', 'origin', head43 + ':refs/pull/43/head')
-
-  // Replace only expected commit literals to make a safe, local Git fixture.
-  // The actual production workflow retains its immutable reviewed values.
+  const new43 = commitFile(guardPath43, '-- unreviewed PR43 migration\n', 'unreviewed PR43 head')
+  const new40 = commitFile(guardPath40, '-- unreviewed PR40 migration\n', 'unreviewed PR40 head')
+  git(author, 'remote', 'add', 'origin', origin)
+  git(author, 'push', '-q', 'origin', new40 + ':refs/heads/synthetic-fixture-history')
   const localStep = step.replace(reviewed40, head40).replace(reviewed43, head43)
   assert.equal(localStep.split(head40).length, 2)
   assert.equal(localStep.split(head43).length, 2)
-  const run = () => spawnSync('bash', ['-e', '-o', 'pipefail', '-c', localStep], {
-    cwd: checkout,
-    encoding: 'utf8',
-    env: { ...process.env, RUNNER_TEMP: runner, GIT_TERMINAL_PROMPT: '0' },
-  })
-  const ok = run()
-  assert.equal(ok.status, 0, 'unchanged source heads should pass: ' + ok.stderr)
-  assert.equal(readFileSync(join(runner, 'phase5a-integration/chowchow-guard.sql'), 'utf8'), '-- synthetic pinned PR40 migration\n')
-  assert.equal(readFileSync(join(runner, 'phase5a-integration/booking.sql'), 'utf8'), '-- synthetic pinned PR43 migration\n')
 
-  // Advancing only PR43 must FAIL before SQL materialization, even though
-  // the old reviewed commit remains fetchable by its immutable SHA.
-  const new43 = commitFile(guardPath43, '-- unreviewed PR43 migration\n', 'unreviewed PR43 head')
-  git(checkout, 'push', '-q', 'origin', new43 + ':refs/pull/43/head')
-  rmSync(join(runner, 'phase5a-integration'), { recursive: true, force: true })
-  const rejected43 = run()
-  assert.equal(rejected43.status, 1, 'PR43 drift must fail at the exact-SHA comparison: ' + rejected43.stderr)
-  assert.equal(git(checkout, 'rev-parse', 'refs/remotes/origin/phase5a-pr43'), new43)
-  assert.equal(existsSync(join(runner, 'phase5a-integration')), false, 'drift must stop before SQL extraction')
+  function setHeads(sha40, sha43) {
+    git(origin, 'update-ref', 'refs/pull/40/head', sha40)
+    git(origin, 'update-ref', 'refs/pull/43/head', sha43)
+  }
+  function runScenario(name) {
+    // Fresh repository for EACH scenario avoids unrelated shallow-fetch
+    // remote-tracking ancestry failures, so a status 1 means source drift.
+    const checkout = join(base, 'checkout-' + name)
+    const runner = join(base, 'runner-' + name)
+    mkdirSync(checkout)
+    mkdirSync(runner)
+    git(checkout, 'init', '-q')
+    git(checkout, 'remote', 'add', 'origin', origin)
+    const reader = 'web/src/staff-read-contract.mjs'
+    mkdirSync(dirname(join(checkout, reader)), { recursive: true })
+    copyFileSync(join(root, reader), join(checkout, reader))
+    const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', localStep], {
+      cwd: checkout,
+      encoding: 'utf8',
+      env: { ...process.env, RUNNER_TEMP: runner, GIT_TERMINAL_PROMPT: '0' },
+    })
+    return { checkout, runner, result }
+  }
+  setHeads(head40, head43)
+  const ok = runScenario('reviewed')
+  assert.equal(ok.result.status, 0, 'unchanged heads should pass: ' + ok.result.stderr)
+  assert.equal(readFileSync(join(ok.runner, 'phase5a-integration/chowchow-guard.sql'), 'utf8'), '-- synthetic pinned PR40 migration\n')
+  assert.equal(readFileSync(join(ok.runner, 'phase5a-integration/booking.sql'), 'utf8'), '-- synthetic pinned PR43 migration\n')
 
-  // Advancing PR40 must also FAIL CLOSED at its own exact-head comparison.
-  const new40 = commitFile(guardPath40, '-- unreviewed PR40 migration\n', 'unreviewed PR40 head')
-  // Local bare-repo ref mutation: no real remote push or forced branch update.
-  // Shallow fetching inside this same synthetic checkout can obscure ancestry.
-  // Transfer the disposable commit object first; then move the fake PR ref.
-  git(checkout, 'push', '-q', 'origin', new40 + ':refs/heads/ci-unreviewed-pr40')
-  git(origin, 'update-ref', 'refs/pull/40/head', new40)
-  // Fresh synthetic tracking ref avoids shallow-test ancestry artifacts;
-  // the actual workflow must fetch current PR40 and reject its SHA drift.
-  git(checkout, 'update-ref', '-d', 'refs/remotes/origin/phase5a-pr40')
-  const rejected40 = run()
-  assert.equal(rejected40.status, 1, 'PR40 drift must fail at the exact-SHA comparison: ' + rejected40.stderr)
-  assert.equal(git(checkout, 'rev-parse', 'refs/remotes/origin/phase5a-pr40'), new40)
-  assert.equal(existsSync(join(runner, 'phase5a-integration')), false)
+  setHeads(head40, new43)
+  const bad43 = runScenario('advanced43')
+  assert.equal(bad43.result.status, 1, 'PR43 SHA mismatch must stop the job: ' + bad43.result.stderr)
+  assert.equal(git(bad43.checkout, 'rev-parse', 'refs/remotes/origin/phase5a-pr43'), new43)
+  assert.equal(existsSync(join(bad43.runner, 'phase5a-integration')), false)
+
+  setHeads(new40, head43)
+  const bad40 = runScenario('advanced40')
+  assert.equal(bad40.result.status, 1, 'PR40 SHA mismatch must stop the job: ' + bad40.result.stderr)
+  assert.equal(git(bad40.checkout, 'rev-parse', 'refs/remotes/origin/phase5a-pr40'), new40)
+  assert.equal(existsSync(join(bad40.runner, 'phase5a-integration')), false)
 })
