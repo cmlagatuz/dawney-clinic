@@ -69,3 +69,10 @@ test('error text is safe: no technical detail, and does not claim there are no f
   assert.doesNotMatch(t, /permission|rls|42501|supabase|storage|policy|jwt/i)
   assert.doesNotMatch(t, /no (saved )?(files|documents)|nothing (saved|uploaded)/i)
 })
+
+import { metadataSynced } from '../src/attachment-load.mjs'
+test('metadata is authoritative only after a settled, successful read with no refresh pending', () => {
+  assert.equal(metadataSynced({ status: 'ready', list: [] }, false), true)
+  assert.equal(metadataSynced({ status: 'ready', list: [] }, true), false)   // refreshing after an upload: old list is not yet current
+  for (const status of ['idle', 'loading', 'error']) assert.equal(metadataSynced({ status, list: [] }, false), false)
+})

@@ -34,6 +34,11 @@ export function documentsLocked(editingPetId, view) {
   return Boolean(editingPetId) && view?.status !== 'ready'
 }
 
+/** Saved metadata is authoritative only after a settled, successful read with no newer refresh outstanding. */
+export function metadataSynced(view, refreshing) {
+  return view?.status === 'ready' && !refreshing
+}
+
 export function attachmentErrorText() {
   return 'We could not check this patient’s saved documents, so existing files may not be shown. Nothing was changed.'
 }

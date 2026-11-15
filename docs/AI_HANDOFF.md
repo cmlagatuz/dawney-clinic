@@ -326,3 +326,8 @@ No API credentials, medical records, password hashes, patient contact details or
 - Form `session` token ignores late upload/save/download results after close, patient switch or account change; `AttachmentField` is keyed per patient. Download only for settled rows of the selected patient. PatientPhoto and the patient load key on account id (token refresh no longer refetches/blanks).
 - Unchanged: private Storage calls, immutable versions, upload retry, legacy Chow Chow record, flag OFF.
 - Tests: `tests/attachment-load.test.mjs` (10); Chromium (stubbed harness, NOT live Supabase) 49 checks; screenshots `docs/phase4-ui/attachments/`. Hosted RLS/Storage denied-read behaviour not verified.
+
+## Claude — #41 CodeRabbit findings (2026-11-15)
+- All 4 reproduced against `4276604` (Chromium, stubbed) and fixed: (1) `reload()` ignores results after an account change (`accountRef`; `saving` cleared only for the starting account); (2) `retryMode()` finalises a retained private `objectPath` whatever the status (no second upload); (3) Save/Close/Cancel/Add/Edit disabled while any upload or save is in flight, with a status line; (4) successful uploads refresh private metadata, then the saved pending file is replaced by it so Download appears without reopening (unsaved/pending files and not-yet-synced metadata are never downloadable).
+- Behaviour change: after a successful retry the field shows the stored record (name/version + Download) instead of "Saved securely"; the page notice still says "File uploaded securely."
+- Tests: `catalog-guards`, extended `attachment-load` / `patient-form-logic` unit tests; Chromium `find41` 22 checks (old build fails the finding checks). Hosted RLS/Storage still unverified.

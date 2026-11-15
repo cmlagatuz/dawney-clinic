@@ -57,3 +57,36 @@ test('upload errors expose only safe, actionable messages', () => {
   assert.match(friendlyUploadError(new Error('relation "storage.objects" violates row-level security')), /could not be uploaded/)
   assert.match(friendlyUploadError('boom'), /could not be uploaded/)
 })
+
+import { retryMode, uploadsBusy, savedToClear, uploadReducer as ur, emptyUpload as eu } from '../src/patient-form-logic.mjs'
+const f = { name: 'a.pdf', type: 'application/pdf', size: 4 }
+test('retryMode: a retained private object path is ONLY finalised, whatever the status (unindexed or error after failed finalisation)', () => {
+  let s = ur(eu, { type: 'select', file: f })
+  assert.equal(retryMode(s), 'upload')
+  s = ur(ur(s, { type: 'start' }), { type: 'unindexed', objectPath: 'pets/p/x' })
+  assert.equal(retryMode(s), 'finalize')
+  s = ur(ur(s, { type: 'start' }), { type: 'error', message: 'boom' })        // finalisation failed
+  assert.equal(s.status, 'error'); assert.equal(s.objectPath, 'pets/p/x')
+  assert.equal(retryMode(s), 'finalize')                                      // the regression: previously fell through to a second upload
+  assert.equal(retryMode(ur(ur(s, { type: 'start' }), { type: 'saved' })), 'upload')   // saved clears the path
+})
+test('retryMode: an upload that failed before reaching storage (no path) uploads again; no file → upload', () => {
+  const s = ur(ur(ur(eu, { type: 'select', file: f }), { type: 'start' }), { type: 'error', message: 'net' })
+  assert.equal(s.objectPath, null); assert.equal(retryMode(s), 'upload')
+  assert.equal(retryMode({ ...eu, objectPath: 'pets/p/x' }), 'upload')         // path without a file is never finalised
+  assert.equal(retryMode(null), 'upload')
+})
+test('uploadsBusy: true only while a transfer is in flight', () => {
+  const u = { a: eu, b: { ...eu, status: 'ready', file: f } }
+  assert.equal(uploadsBusy(u), false)
+  assert.equal(uploadsBusy({ ...u, b: ur(u.b, { type: 'start' }) }), true)
+  assert.equal(uploadsBusy(undefined), false)
+})
+test('savedToClear: saved pending files are dropped only after metadata is synced; unsaved/failed files are never touched', () => {
+  const saved = ur(ur(ur(eu, { type: 'select', file: f }), { type: 'start' }), { type: 'saved' })
+  const ready = ur(eu, { type: 'select', file: f })
+  const failed = ur(ur(ready, { type: 'start' }), { type: 'error', message: 'x' })
+  const u = { health_card: saved, vaccination_card: ready, profile_photo: failed }
+  assert.deepEqual(savedToClear(u, false), [])
+  assert.deepEqual(savedToClear(u, true), ['health_card'])
+})

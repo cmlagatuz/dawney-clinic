@@ -5,9 +5,9 @@ import { readOwner } from '../lib/owners'
 import { addCatalogPet, editCatalogPet, listAnimalTypes, listBreedsForSpecies, listCatalogPets, type CatalogPet, type SpeciesOption } from '../lib/taxonomy'
 import { currentAttachment, downloadPatientAttachment, finalizeUploadedAttachment, listPatientAttachments, uploadPatientAttachment, type AttachmentCategory } from '../lib/pet-attachments'
 import { usePatientAttachments } from '../hooks/usePatientAttachments'
-import { attachmentErrorText, attachmentsForPet, canActOnAttachment, documentsLocked } from '../attachment-load.mjs'
+import { attachmentErrorText, attachmentsForPet, canActOnAttachment, documentsLocked, metadataSynced } from '../attachment-load.mjs'
 import { sanitizeFilename } from '../attachment-policy.mjs'
-import { emptyUpload, friendlyUploadError, pendingUploads, uploadReducer, type UploadAction, type UploadState } from '../patient-form-logic.mjs'
+import { emptyUpload, friendlyUploadError, pendingUploads, retryMode, savedToClear, uploadsBusy, uploadReducer, type UploadAction, type UploadState } from '../patient-form-logic.mjs'
 import { AttachmentField, blobToDataUrl } from '../components/AttachmentField'
 import { SpeciesBreedFields, type Taxonomy } from '../components/SpeciesBreedFields'
 import { EmptyState, Icon, LoadingCard, PageHeading, Spinner } from '../components/ui'
@@ -72,6 +72,10 @@ export function PetsPageCatalog() {
   const existing = attachmentsForPet(att, editing ?? '')
   const locked = documentsLocked(editing, att)
   const userId = user?.id ?? null
+  const accountRef = useRef(userId) // latest signed-in account id; async work that started under another account checks it before writing
+  accountRef.current = userId
+  const uploadBusy = uploadsBusy(uploads)
+  const busy = saving || uploadBusy // the form may not be saved, closed or re-targeted while anything is in flight
   const session = useRef(0) // bumped whenever the form is closed/re-targeted or the account changes; late async work checks it
   const [photoVersion, setPhotoVersion] = useState(0)
   const uploadsRef = useRef(uploads)
@@ -84,7 +88,9 @@ export function PetsPageCatalog() {
 
   async function reload() {
     if (!user) return
+    const uid = user.id
     const [owner, items] = await Promise.all([readOwner(user), listCatalogPets(user)])
+    if (accountRef.current !== uid) return // the account changed while loading: never show another account's patients
     setOwnerReady(Boolean(owner)); setPets(items)
   }
   useEffect(() => {
@@ -108,8 +114,14 @@ export function PetsPageCatalog() {
   }
   // A different signed-in account must never inherit the previous account's form, patients, messages or document list.
   useEffect(() => {
-    reset(); setPets([]); setOwnerReady(false); setError(null); setNotice(null)
+    reset(); setPets([]); setOwnerReady(false); setError(null); setNotice(null); setSaving(false)
   }, [userId])
+  // Once the refreshed private metadata is authoritative, a successfully saved pending file is replaced by it (so Download works and
+  // an unsaved/pending file can never be downloaded or mistaken for the stored one).
+  const synced = metadataSynced(att, att.refreshing)
+  useEffect(() => {
+    for (const c of savedToClear(uploads, synced)) setUploads(u => (u[c as AttachmentCategory].status === 'saved' ? { ...u, [c]: uploadReducer(u[c as AttachmentCategory], { type: 'remove' }) } : u))
+  }, [uploads, synced])
   function openNew() { reset(); setFormOpen(true); setNotice(null); setError(null) }
   function openEdit(pet: CatalogPet) {
     setFields({ name: pet.name, sex: pet.sex, color: pet.color ?? '', birth_date: pet.birth_date ?? '' })
@@ -132,17 +144,17 @@ export function PetsPageCatalog() {
       if (!file) continue
       dispatch(c, { type: 'start' })
       try {
-        if (u.status === 'unindexed' && u.objectPath) {
+        if (retryMode(u) === 'finalize' && u.objectPath) {
+          // The private object already exists: only record its metadata again (never upload a second object).
           await finalizeUploadedAttachment(user, petId, c, u.objectPath, sanitizeFilename(file.name), file.type, file.size)
-          dispatch(c, { type: 'saved' })
+          dispatch(c, { type: 'saved' }); attReload()
         } else {
           const result = await uploadPatientAttachment(user, petId, c, file, 'owners')
-          if (result.status === 'saved') dispatch(c, { type: 'saved' })
+          if (result.status === 'saved') { dispatch(c, { type: 'saved' }); attReload() }
           else { dispatch(c, { type: 'unindexed', objectPath: result.objectPath }); failures += 1 }
         }
       } catch (e) { dispatch(c, { type: 'error', message: friendlyUploadError(e) }); failures += 1 }
     }
-    if (current()) attReload()
     setPhotoVersion(v => v + 1)
     return failures
   }
@@ -155,10 +167,11 @@ export function PetsPageCatalog() {
   }
 
   async function save(e: FormEvent) {
-    e.preventDefault(); if (!user) return
+    e.preventDefault(); if (!user || busy || uploadsBusy(uploadsRef.current)) return
     if (!taxonomy.speciesId) { setSpeciesError('Choose a species from the list.'); document.getElementById('patient-form-top')?.scrollIntoView(); return }
     setSaving(true); setError(null); setNotice(null); setSpeciesError(null)
     const s0 = session.current
+    const uid0 = user.id
     try {
       const input = { name: fields.name, speciesId: taxonomy.speciesId, breedId: taxonomy.breedId, sex: fields.sex, color: fields.color, birth_date: fields.birth_date }
       const pet = editing ? await editCatalogPet(user, editing, input) : await addCatalogPet(user, input)
@@ -176,20 +189,20 @@ export function PetsPageCatalog() {
     } catch (err) {
       if (session.current !== s0) return
       setError(err instanceof Error && safeMessage.test(err.message) ? err.message : 'Patient could not be saved. Please check the information and try again.')
-    } finally { setSaving(false) }
+    } finally { if (accountRef.current === uid0) setSaving(false) }
   }
 
   const fieldUpdate = <K extends keyof Fields>(k: K, v: Fields[K]) => setFields(f => ({ ...f, [k]: v }))
   return <section className="page" aria-labelledby="pet-heading">
     <PageHeading id="pet-heading" eyebrow="Patient care" title="My patients"
-      actions={ownerReady && <button className="button button-primary" type="button" onClick={openNew}><Icon name="plus" width={18} height={18} />Add patient</button>}>
+      actions={ownerReady && <button className="button button-primary" type="button" onClick={openNew} disabled={busy}><Icon name="plus" width={18} height={18} />Add patient</button>}>
       Register your animals and keep their details and documents together. Records are private to your account.</PageHeading>
     {error && <p role="alert" className="alert alert-error">{error}</p>}
     {notice && <p role="status" className="alert alert-success">{notice}</p>}
     {loading ? <LoadingCard label="Loading your patients…" /> :
       !ownerReady ? <EmptyState icon="user" title="Complete your owner profile first" action={<Link className="button button-primary" to="/app/profile">Set up owner profile</Link>}>Your profile is needed to securely connect an animal to your account.</EmptyState> : <>
         {formOpen && <div className="card form-card" ref={formRef} id="patient-form-top">
-          <div className="section-heading"><h2>{editing ? 'Edit patient' : 'Register a patient'}</h2><button type="button" className="button-quiet" onClick={reset}>Close</button></div>
+          <div className="section-heading"><h2>{editing ? 'Edit patient' : 'Register a patient'}</h2><button type="button" className="button-quiet" onClick={reset} disabled={busy}>Close</button></div>
           <form className="form-stack" onSubmit={e => void save(e)} noValidate={false}>
             <div className="form-row"><label>Name<input required maxLength={150} autoComplete="off" value={fields.name} onChange={e => fieldUpdate('name', e.target.value)} /></label>
               <label>Sex<select value={fields.sex} onChange={e => fieldUpdate('sex', e.target.value as Fields['sex'])}><option value="unknown">Unknown</option><option value="female">Female</option><option value="male">Male</option></select></label></div>
@@ -216,15 +229,16 @@ export function PetsPageCatalog() {
                   setTimeout(() => URL.revokeObjectURL(url), 1000)
                 }} />)}
             </div>
-            <div className="form-actions"><button disabled={saving} className="button button-primary">{saving ? 'Saving…' : editing ? 'Save patient changes' : 'Save patient'}</button>
-              <button type="button" className="button button-secondary" onClick={reset}>Cancel</button></div>
+            {uploadBusy && !saving && <p role="status" className="field-help"><Spinner /> Finishing a private upload. Please wait before saving or closing.</p>}
+            <div className="form-actions"><button disabled={busy} className="button button-primary">{saving ? 'Saving…' : editing ? 'Save patient changes' : 'Save patient'}</button>
+              <button type="button" className="button button-secondary" onClick={reset} disabled={busy}>Cancel</button></div>
           </form></div>}
-        {pets.length === 0 ? <EmptyState title="No patients registered yet" action={<button type="button" className="button button-primary" onClick={openNew}>Register your first patient</button>}>Add an animal to book visits. Their record is saved to your account.</EmptyState> :
+        {pets.length === 0 ? <EmptyState title="No patients registered yet" action={<button type="button" className="button button-primary" onClick={openNew} disabled={busy}>Register your first patient</button>}>Add an animal to book visits. Their record is saved to your account.</EmptyState> :
           <div className="patient-grid">{pets.map(pet => <article className="card patient-card" key={pet.id}>
             <div className="patient-top"><PatientPhoto petId={pet.id} name={pet.name} version={photoVersion} /><div><h2>{pet.name}</h2><p className="subtitle">{pet.species}{pet.breed ? ' · ' + pet.breed : ''}</p></div></div>
             <div className="chip-row"><span className="tag">{pet.sex === 'unknown' ? 'Sex not recorded' : pet.sex === 'female' ? 'Female' : 'Male'}</span>{pet.birth_date && <span className="tag">Born {pet.birth_date}</span>}{pet.color && <span className="tag">{pet.color}</span>}
               {pet.taxonomy_review_needed && <span className="badge badge-requested">Animal type needs review</span>}</div>
-            <button type="button" className="button button-secondary button-small" aria-label={`${pet.taxonomy_review_needed ? 'Review & edit' : 'Edit details'} for ${pet.name}`} onClick={() => openEdit(pet)}>{pet.taxonomy_review_needed ? 'Review & edit' : 'Edit details'}</button>
+            <button type="button" className="button button-secondary button-small" aria-label={`${pet.taxonomy_review_needed ? 'Review & edit' : 'Edit details'} for ${pet.name}`} onClick={() => openEdit(pet)} disabled={busy}>{pet.taxonomy_review_needed ? 'Review & edit' : 'Edit details'}</button>
           </article>)}</div>}
       </>}
   </section>

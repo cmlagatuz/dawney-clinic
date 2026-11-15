@@ -15,5 +15,8 @@ export function breedControl(speciesId: string | null, status: 'idle' | 'loading
 export function breedIsLoadedFor(breedId: string | null, breeds: readonly { id: string }[]): boolean
 export function uploadReducer(state: UploadState, action: UploadAction): UploadState
 export function pendingUploads(uploads: Record<string, UploadState>): string[]
+export function retryMode(u: UploadState | null | undefined): 'finalize' | 'upload'
+export function uploadsBusy(uploads: Record<string, UploadState> | null | undefined): boolean
+export function savedToClear(uploads: Record<string, UploadState> | null | undefined, metadataSynced: boolean): string[]
 export function friendlyUploadError(err: unknown): string
 export function formatBytes(n: number): string

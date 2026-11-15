@@ -78,6 +78,29 @@ export function pendingUploads(uploads) {
   return Object.entries(uploads).filter(([, u]) => u.file && (u.status === 'ready' || u.status === 'error' || u.status === 'unindexed')).map(([category]) => category)
 }
 
+/**
+ * How a retry must proceed. A private object that already reached Storage (objectPath retained, whatever the current
+ * status: 'unindexed' OR 'error' after a failed finalisation) is only ever FINALISED; uploading again would create an
+ * extra unindexed private object. No retained path → a normal upload.
+ */
+export function retryMode(u) {
+  return u && u.file && typeof u.objectPath === 'string' && u.objectPath ? 'finalize' : 'upload'
+}
+
+/** True while any attachment transfer is in flight (retry or save). The form must not be saved, closed or re-targeted meanwhile. */
+export function uploadsBusy(uploads) {
+  return Object.values(uploads ?? {}).some(u => u && u.status === 'uploading')
+}
+
+/**
+ * Categories whose "saved" pending file can be dropped, because the refreshed private metadata (the only source Download may use)
+ * is now authoritative. Nothing is cleared until the metadata read has settled successfully, so an unsaved file is never
+ * swapped for stale metadata and never offered for download.
+ */
+export function savedToClear(uploads, metadataSynced) {
+  return metadataSynced ? Object.entries(uploads ?? {}).filter(([, u]) => u && u.status === 'saved').map(([c]) => c) : []
+}
+
 /** Only known, user-actionable adapter messages are shown; anything else becomes a generic retry message. */
 export function friendlyUploadError(err) {
   const msg = err instanceof Error ? err.message : ''
