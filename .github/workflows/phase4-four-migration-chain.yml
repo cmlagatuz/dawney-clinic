@@ -74,7 +74,7 @@ jobs:
             git fetch --no-tags --depth=1 origin \
               'refs/pull/43/head:refs/remotes/origin/phase4-pr43'
             test "$(git rev-parse refs/remotes/origin/phase4-pr43)" = \
-              'c7286dc0990170deb884b9dacee45c900646c72d'
+              '35d2f1c599784d87305ff289e106079e086e3afb'
             git show "refs/remotes/origin/phase4-pr43:$booking" > "$RUNNER_TEMP/phase4/booking.sql"
           fi
           test -s "$RUNNER_TEMP/phase4/guard.sql"
