@@ -86,7 +86,6 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: isolated-test-only
       PGDATABASE: clinic_race
-      PHASE4_EXPECT_EXCLUSION_REPRO: 'YES'
     steps:
       - uses: actions/checkout@v4
         with:

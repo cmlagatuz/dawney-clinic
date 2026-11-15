@@ -2,6 +2,9 @@ export type PublicBookingIntent={serviceId:string;resourceId?:string;startsAtUtc
 export const BOOKING_RETURN_PATH:'/book'
 export function validUtcInstant(value:unknown):boolean
 export function validateBookingIntent(value:unknown):PublicBookingIntent
+export type BookingRequestIds={petId:string;serviceId:string;resourceId:string;requestNonce:string}
+export function normalizeBookingRequestIds(value:unknown):BookingRequestIds
+export function persistedBookingIdsMatch(row:unknown,ids:BookingRequestIds):boolean
 export function saveBookingIntent(
  sessionStore:Pick<Storage,'setItem'>,value:PublicBookingIntent,nowMs?:number
 ):'/book'

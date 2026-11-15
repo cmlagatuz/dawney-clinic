@@ -293,8 +293,10 @@ begin
       p_concern,p_details)
   returning id into v_id;
   return v_id;
- exception when unique_violation then
-  -- Handles concurrent same-token retries; never hide a distinct token conflict.
+ exception when unique_violation or exclusion_violation then
+  -- PG17 can report the resource GiST exclusion before the owner+nonce
+  -- unique index. Only the committed, exact nonce+payload is replayable;
+  -- all genuine slot conflicts and altered request payloads are rethrown.
   select * into v_existing from public.appointments
     where owner_id=v_owner and request_nonce=p_request_nonce;
   if found and v_existing.pet_id=p_pet_id and v_existing.service_id=p_service_id

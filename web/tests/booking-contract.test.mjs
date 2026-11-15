@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
- BOOKING_RETURN_PATH,validateBookingIntent,saveBookingIntent,readBookingIntent,
+ BOOKING_RETURN_PATH,validateBookingIntent,normalizeBookingRequestIds,persistedBookingIdsMatch,saveBookingIntent,readBookingIntent,
  clearBookingIntent,signinForBooking,safeBookingReturnPath,clinicSlotToUtc,
  utcToClinicSlot,validUtcInstant
 } from '../src/booking-contract.mjs'
@@ -46,6 +46,40 @@ test('expired malformed or forged booking payload is discarded',()=>{
  assert.throws(()=>validateBookingIntent({serviceId:SERVICE,resourceId:RESOURCE,startsAtUtc:'2026-11-14T09:00:00+08:00'}),/UTC/)
  assert.equal(validUtcInstant('2026-02-30T09:00:00Z'),false)
  assert.equal(validUtcInstant('2026-11-14T01:00:00Z'),true)
+})
+test('array-valued, non-string and stored booking UUID intents fail closed',()=>{
+ const bad=[[SERVICE],42,true,{},['invalid'],{0:SERVICE,length:1}]
+ for(const id of bad){
+  assert.throws(()=>validateBookingIntent({serviceId:id}),/service/)
+  assert.throws(()=>validateBookingIntent({serviceId:SERVICE,resourceId:id}),/resource/)
+  const st=storage()
+  for(const props of [{serviceId:id},{serviceId:SERVICE,resourceId:id}]){
+   st.setItem('dawney.publicBookingIntent.v1',JSON.stringify({v:1,expiresAt:600000,...props}))
+   assert.equal(readBookingIntent(st,100),null)
+   assert.deepEqual(st.raw(),[])
+  }
+ }
+ assert.deepEqual(validateBookingIntent({serviceId:SERVICE,resourceId:null}),{serviceId:SERVICE})
+ assert.deepEqual(validateBookingIntent({serviceId:SERVICE}),{serviceId:SERVICE})
+})
+test('uppercase UUID inputs normalize before RPC and persisted-row checks',()=>{
+ const ids=normalizeBookingRequestIds({
+  petId:'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
+  serviceId:SERVICE.toUpperCase(),resourceId:RESOURCE.toUpperCase(),
+  requestNonce:'BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB'})
+ assert.deepEqual(ids,{petId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  serviceId:SERVICE,resourceId:RESOURCE,requestNonce:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'})
+ assert.equal(persistedBookingIdsMatch({
+  pet_id:ids.petId,service_id:ids.serviceId,resource_id:ids.resourceId},ids),true)
+ assert.equal(persistedBookingIdsMatch({
+  pet_id:ids.petId,service_id:ids.serviceId,
+  resource_id:'11111111-1111-4111-8111-111111111111'},ids),false)
+ assert.equal(persistedBookingIdsMatch({
+  pet_id:[ids.petId],service_id:ids.serviceId,resource_id:ids.resourceId},ids),false)
+ assert.deepEqual(validateBookingIntent({
+  serviceId:SERVICE.toUpperCase(),resourceId:RESOURCE.toUpperCase()}),
+  {serviceId:SERVICE,resourceId:RESOURCE})
+ assert.throws(()=>normalizeBookingRequestIds({...ids,petId:[ids.petId]}),/valid patient/)
 })
 test('Asia/Manila clinic local time roundtrips and does not use visitor/device timezone',()=>{
  assert.equal(clinicSlotToUtc('2026-11-14','09:00','Asia/Manila'),'2026-11-14T01:00:00.000Z')

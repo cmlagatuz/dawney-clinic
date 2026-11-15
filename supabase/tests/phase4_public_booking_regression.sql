@@ -332,6 +332,30 @@ begin
    where id='77777777-7777-4777-8777-777777777777')<>'requested'
    then raise exception 'Historical appointment changed';end if;
 end $last$;
+-- Canonical UUID roundtrip: uppercase caller strings must map to the same
+-- persisted request nonce without creating an extra appointment or patient.
+set role authenticated;
+select pg_catalog.set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',false);
+do $uuid_case$
+declare saved uuid; slot timestamptz; before_count integer;
+begin
+ slot:=(date_trunc('week',now() at time zone 'Asia/Manila')+
+ interval '7 days 9 hours') at time zone 'Asia/Manila';
+ select count(*) into before_count from public.appointments;
+ select public.request_service_appointment(
+  upper('33333333-3333-4333-8333-333333333333')::uuid,
+  upper('88888888-8888-4888-8888-888888888888')::uuid,
+  upper('55555555-5555-4555-8555-555555555555')::uuid,
+  slot,upper('11111111-1111-4111-8111-111111111111')::uuid,
+  'CI consultation',null) into saved;
+ if saved is distinct from (select id from public.appointments
+   where request_nonce='11111111-1111-4111-8111-111111111111')
+   or (select count(*) from public.appointments)<>before_count
+   or (select count(*) from public.pets)<>2 then
+  raise exception 'Uppercase UUID replay wrote another appointment or patient';
+ end if;
+end $uuid_case$;
+reset role;
 -- Service retirement cannot turn an exact retry into a new request.
 update public.clinic_services set is_active=false
 where id='88888888-8888-4888-8888-888888888888';
