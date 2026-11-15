@@ -53,7 +53,9 @@ function queueDb({data=[],error=null,honorLimit=true}={}) {
       gte:(col,val)=>{calls.push(['gte',col,val]);return {
         lt:(col2,val2)=>{calls.push(['lt',col2,val2]);return {
           order:(field,sort)=>{calls.push(['order',field,sort]);return {
-            limit:async n=>{calls.push(['limit',n]);return {data:honorLimit&&Array.isArray(data)?data.slice(0,n):data,error}}
+            order:(nextField,nextSort)=>{calls.push(['order',nextField,nextSort]);return {
+              limit:async n=>{calls.push(['limit',n]);return {data:honorLimit&&Array.isArray(data)?data.slice(0,n):data,error}}
+            }}
           }}
         }}
       }}
@@ -71,7 +73,7 @@ test('bounded UTC window is queried with a RLS-scoped SELECT and real rows',asyn
     ['select','id,pet_id,owner_id,resource_id,starts_at,ends_at,status,concern'],
     ['gte','starts_at','2032-01-02T00:00:00.000Z'],
     ['lt','starts_at','2032-01-03T00:00:00.000Z'],
-    ['order','starts_at',{ascending:true}],['limit',251]])
+    ['order','starts_at',{ascending:true}],['order','id',{ascending:true}],['limit',251]])
 })
 test('0, 249 and 250 appointments are complete; 251+ report hasMore and display at most 250',async()=>{
   for(const size of [0,249,250,251,300]) {

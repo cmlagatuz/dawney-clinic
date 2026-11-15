@@ -54,7 +54,8 @@ export async function queryClinicQueueWindow(db, fromUtc, toUtc) {
   const {data,error} = await db.from('appointments')
     .select('id,pet_id,owner_id,resource_id,starts_at,ends_at,status,concern')
     .gte('starts_at',bounds.from).lt('starts_at',bounds.to)
-    .order('starts_at',{ascending:true}).limit(QUEUE_VISIBLE_LIMIT+1)
+    .order('starts_at',{ascending:true}).order('id',{ascending:true})
+    .limit(QUEUE_VISIBLE_LIMIT+1)
   if (error) throw error
   if (!Array.isArray(data) || data.length > QUEUE_VISIBLE_LIMIT+1 ||
       data.some(row => !isVerifiedQueueRow(row))) {
