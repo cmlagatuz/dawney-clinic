@@ -1,130 +1,104 @@
-# Dawney Veterinary Clinic
+# Dawney Animal Clinic
 
-**Veterinary clinic management system — modernization in progress**
+**Secure veterinary clinic management system — modernization and release integration in progress**
 
-> **New P0 scope (14 Nov 2026):** No public customer-facing home/services/contact/location page exists on current `master`. `/` redirects into the signed-in owner portal, and customers currently must register/authenticate, complete owner/pet records and request (not confirm) a provisional device-local 30-minute appointment. Dawney Animal Clinic is in **General Trias, Cavite, Philippines**; exact phone, unit and opening hours require owner verification. [Public clinic website + safe booking contract](docs/PHASE4_PUBLIC_SITE_BOOKING_SPEC.md) · [Issue #42](https://github.com/cmlagatuz/dawney-clinic/issues/42). Claude PRs #34 and #41 are open/NOT deployed; Astra PR #40 is open/NOT live. No Phase4 migrations applied.\n
+> **Status date:** 15 November 2026. This README distinguishes source code, CI, synthetic previews, staging evidence and clinical production. The authoritative shared record is the current `master` branch plus linked GitHub Issues, pull requests and check runs.
 
-> **Supervisor status (14 November 2026):** Astra's Phase 4 **backend code** for 50 animal types, breed relationships and private attachment metadata has merged via PRs #29–#33, but the two additive Phase 4 migrations are **not applied** to the connected Supabase. Claude's actual Dawney logo, new React theme/navigation and owner overview are in **open PR #34**, with passing CI but **not merged/deployed**. Species/Breed are still free-text in PR #34, and photo/health/vaccination uploads are not yet in the page. **Live patient Dog/Chow Chow is absent from the new seed — P0 [issue #35](https://github.com/cmlagatuz/dawney-clinic/issues/35) must be fixed before migration.** See [current supervisor brief](docs/PHASE4_CURRENT_SUPERVISOR_BRIEF.md) for merge and QA gates.
+## Current decision summary
 
-> **Phase 4 product/QA direction:** The current deployed React UI is a **working pet-owner prototype, not a complete staff-facing veterinary clinic system**. P0 work required: exact owner-supplied Dawney brand logo, searchable species with species-matched locked breed choices (including cattle/livestock), private patient photo/health-card/vaccination-card uploads, and explicit testable UX/privacy acceptance. P1/P2: role-aware staff workspace, encounter workflow, treatment/vaccination/prescription, inventory and billing. See [Phase 4 QA spec](docs/PHASE4_PRODUCT_QA_SPEC.md) and [current concise supervisor brief](docs/PHASE4_CURRENT_SUPERVISOR_BRIEF.md). These features are **requirements, not completed implementations**.
+- **Master:** `5fb7972e6844c18fa2f668566c450ea06123b59e` (merge commit for PR #46).
+- **First source integration:** [PR #46](https://github.com/cmlagatuz/dawney-clinic/pull/46), head `9b35e08c5d46fbbdeb0e6bd879832e7356f7f9e9`, is merged as `5fb7972e6844c18fa2f668566c450ea06123b59e`. Its seven applicable checks passed; no clinical feature, migration or patient data change was introduced.
+- **Current public Pages deployment:** [dawney-clinic.pages.dev](https://dawney-clinic.pages.dev/) is a static React/Vite deployment from `master`. The current verified production deployment is `15168ca6-f88e-4d30-9915-1dcc2cf5b75a` at master commit `5fb7972`; the previous successful deployment `764624c4-4baa-428d-896f-766cca47e08b` at `2a29019` is the known rollback baseline; this is public website hosting, not approval for real clinic records.
+- **Clinical release:** **NO-GO / NOT VERIFIED.** No Phase 4 migration has been authorized on live Supabase, and hosted JWT/RLS/Storage security, full recovery, clinic policy and owner clinical approval remain outstanding.
+- **Synthetic Alpha:** [PR #56](https://github.com/cmlagatuz/dawney-clinic/pull/56) is an unmerged synthetic CRM preview. It remains isolated from `master` and must not be described as a clinic deployment.
 
-> **Project status (13 November 2026): Phases 1–2 security foundations and Phase 3 React frontend, pet/appointment workflows, staff safeguards, private Storage RLS, and recovery tools are merged. Six Supabase migrations are applied. Real two-account Auth/JWT owner-row RLS and owner-profile persistence **passed**; the separate read-only HTTPS security smoke **passed** (#43443472697). Offline Phase 4 scheduling, staff, recovery-set, Chromium and dependency-security safeguards are merged and CI-tested. Cloudflare Pages public deployment is verified at https://dawney-clinic.pages.dev with 10 HTTPS routes and real anonymous Chromium guards passing; **authenticated hosted-browser persistence**, clinical/Storage synthetic-write security tests, clinical data migration, and full real Auth/Storage restore remain pending.** Not approved for real clinic records.
+## Team ownership and review
 
-**Phase 4 Astra backend milestone (PR #29):** Normalized animal taxonomy (50 types, 237 curated breed/fallback options), composite species/breed DB validation, immutable private patient attachment metadata, TypeScript adapters and isolated security regression tests are **merged and CI-tested**. The new two SQL migrations are **not applied to live Supabase yet**; the existing free-text UI must first be coordinated with Claude's dependent-selector integration. [Backend integration/rollout](docs/PHASE4_TAXONOMY_ATTACHMENTS.md) · [Clinical/staff permission architecture](docs/PHASE4_CLINICAL_ARCHITECTURE.md). Do not claim live attachments, species enforcement or clinical go-live until migration and owner-approved live tests pass.
+The current operating model is Project Manager plus five specialist AIs:
 
-## Overview
+| Owner | Responsibility | Current status |
+| --- | --- | --- |
+| **GPT-6 Supervisor / Project Manager** | Architecture, priorities, dependency order, owner decision packets and release GO/NO-GO recommendations | Coordinates approval; does not invent deployment or clinical evidence |
+| **Astra** | Supabase schema, PostgreSQL/RLS/Auth/Storage, booking contracts, migrations, recovery and backend CI | Owns [#40](https://github.com/cmlagatuz/dawney-clinic/pull/40), [#43](https://github.com/cmlagatuz/dawney-clinic/pull/43), [#49](https://github.com/cmlagatuz/dawney-clinic/pull/49), [#52](https://github.com/cmlagatuz/dawney-clinic/pull/52) and [#59](https://github.com/cmlagatuz/dawney-clinic/pull/59); all remain unmerged |
+| **Claude** | React/Vite website, owner portal, patient form, staff CRM UX, branding and accessibility | Owns [#34](https://github.com/cmlagatuz/dawney-clinic/pull/34), [#41](https://github.com/cmlagatuz/dawney-clinic/pull/41), [#48](https://github.com/cmlagatuz/dawney-clinic/pull/48) and synthetic [#56](https://github.com/cmlagatuz/dawney-clinic/pull/56) |
+| **Qwen** | Independent read-only QA, accessibility, customer-path and adversarial test review | Findings are evidence proposals unless actual execution is linked; does not self-merge or claim hosted tests |
+| **Manus** | GitHub/Cloudflare operations, CI/PR triage, deployment evidence, release readiness and handoffs | Read-only by default; no source ownership, live SQL or production approval |
+| **Grok** | Independent security/threat-model review and negative-test design | **Paused/quota-limited**; draft security work is not release sign-off |
+| **CodeRabbit** | Automated code reviewer | Review output is advisory and must be independently validated; no Autofix or paid review is authorized |
 
-Dawney Veterinary Clinic aims to provide a practical, secure, accessible, and responsive workflow for clinic administrators, staff, veterinarians, pet owners and patients. The project is modernizing an existing 2019-era Laravel application, preserving legacy data and useful behavior while planning a free-tier deployable architecture.
+The owner controls production, database, clinical-policy, credentials and spending decisions. No AI may merge its own work.
 
-**Repository:** [cmlagatuz/dawney-clinic](https://github.com/cmlagatuz/dawney-clinic)  
-**Default branch:** `master`  
-**Collaboration:** ChatGPT GPT-6 Astra (architecture, security, backend, integration) + Claude Sonnet Free (UI/UX, accessibility, frontend), coordinated through GitHub.  
-**Budget:** No paid backend, hosting subscription, mandatory payment API or compulsory purchase. Free service limits apply; no uptime or backup SLA is implied.
-
-## Current implementation — distinguish existing code from planned features
-
-The checked-in **legacy application** uses Laravel 5.8, PHP 7.1-era requirements, Blade, Bootstrap 4, Vue 2, Laravel Mix, and a MySQL database configuration. Because several dependencies are end-of-life, **do not publish the legacy PHP application as a production clinic system without appropriate security modernization**.
+## Source progress and evidence
 
 | Area | Current evidence | Status |
 | --- | --- | --- |
-| Login, registration and email verification | Laravel authentication routes and controllers | Legacy source present; production behavior not verified |
-| Pet owner and user management | Existing users/owners models and admin workflows | Legacy source present |
-| Patients/pets and clinical records | Models, views, controllers and migrations | Legacy source present |
-| Appointments | Legacy create/list/detail flow; targeted owner-scoping and input validation fixes | Security fixes merged; conflict handling still needed |
-| Admin dashboard | Legacy dashboards and patient/appointment views | Legacy source present; UI PR in progress |
-| Inventory / purchasing / orders | Models, controllers and views present; main routes commented out | Disabled; not safe to enable unchanged |
-| Modern Supabase-backed frontend | Standalone `web/` React/TypeScript/Vite with Supabase Auth, profile, pets and booking workflows; TypeScript/Vite CI green | Source implemented; real browser/API persistence checks and deployment pending |
-| Supabase schema | Six applied migrations: 7 public RLS tables, staff audit, appointment lifecycle/overlap and private Storage object policies | SQL tests passed; owner Auth/JWT baseline passed; clinical and Storage API negative tests pending |
-| Cloud hosting and live URL | Cloudflare Pages Free at [dawney-clinic.pages.dev](https://dawney-clinic.pages.dev), React/Vite static app | Real live public HTTPS/Chromium anonymous checks PASSED ([run #43467749073](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43467749073)); hosted authenticated clinical/recovery validation pending; no release tag |
-| Production backups, restore drill and cutover | GPG-encrypted app-only exports, tamper detection and actual disposable PostgreSQL 17+GPG isolated restore CI | **Synthetic restore verified**; live clinic Auth/Storage backup and full restore pending |
+| Chromium/browser CI reliability | [PR #46](https://github.com/cmlagatuz/dawney-clinic/pull/46), exact head `9b35e08`; [Pages check](https://github.com/cmlagatuz/dawney-clinic/runs/132632457641) and browser/regression/source/audit/PHP checks pass; merged in `5fb7972` | **SOURCE INTEGRATED; Pages deployed** |
+| React foundation | [PR #34](https://github.com/cmlagatuz/dawney-clinic/pull/34), head `85132e0`; build, verify, anonymous browser, Pages, PHP and legacy checks pass | **OPEN; refresh after #46 before merge** |
+| Taxonomy and Chow Chow preservation | [PR #40](https://github.com/cmlagatuz/dawney-clinic/pull/40), head `7f6b7b4`; isolated PostgreSQL/RLS, unit, browser-adapter, source-guard and legacy checks pass | **SOURCE EVIDENCE; not live** |
+| Secure public/owner booking | [PR #43](https://github.com/cmlagatuz/dawney-clinic/pull/43), head `2749f81`; booking, nonce/concurrency, unit, build, audit and Pages checks pass | **SOURCE READY; migration and clinical policy owner-gated** |
+| Recovery/staging harness | [PR #49](https://github.com/cmlagatuz/dawney-clinic/pull/49), head `9c15f79`; offline contract, isolated PostgreSQL drill, recovery-safety and related checks pass; authenticated HTTP is skipped | **SCHEMA COMPATIBILITY BLOCKED; staging NOT VERIFIED** |
+| Four-migration rehearsal | [PR #52](https://github.com/cmlagatuz/dawney-clinic/pull/52), head `5272cad`; four-migration legacy-record, unit, PHP, source-guard and Pages checks pass; authenticated HTTP is skipped | **REGRESSION EVIDENCE; no live SQL authorized** |
+| Patient form and private attachments | [PR #41](https://github.com/cmlagatuz/dawney-clinic/pull/41), head `59f8cb1`; exact-head build/verify/browser/legacy/PHP/Pages checks pass; four CodeRabbit findings were fixed and independently regression-tested, with Qwen re-review pending | **SOURCE READY; hosted JWT/RLS/Storage NOT VERIFIED** |
+| Public website and booking UI | [PR #48](https://github.com/cmlagatuz/dawney-clinic/pull/48), head `e7c070e`; combined #41/#48 checks and Pages pass | **STACKED; reconcile after #34/#40/#43 sequencing** |
+| Phase 5A staff read contract | [PR #59](https://github.com/cmlagatuz/dawney-clinic/pull/59), head `df802a7`; PostgreSQL 17 staff/queue and booking-RPC integration checks pass; hosted Auth is skipped; two new CodeRabbit workflow findings await Astra triage | **SOURCE READY FOR SUPERVISED REVIEW; hosted Auth/JWT/RLS NOT VERIFIED** |
 
-**Audit scope:** Source review and targeted regression tests, not a full browser-based security test or a validated production environment. Do not enter real clinic records into an unverified deployment.
+Passing CI or a Pages preview proves neither real hosted authorization nor clinical readiness. Historical Workers Build failures are separate from current Pages checks after the redundant Worker Git integration cleanup; do not treat them as current source failures.
 
-## Progress and evidence
+## PR #41 CodeRabbit findings: corrected, hosted security still open
 
-- **Phase 4 readiness (PRs #19–#25):** [#19 Pages rollback fingerprint](https://github.com/cmlagatuz/dawney-clinic/pull/19), [#20 offline five-part encrypted recovery checks](https://github.com/cmlagatuz/dawney-clinic/pull/20), [#21 scheduling contract](https://github.com/cmlagatuz/dawney-clinic/pull/21), [#22 staff intent guards](https://github.com/cmlagatuz/dawney-clinic/pull/22), [#23 real local Chromium anonymous acceptance](https://github.com/cmlagatuz/dawney-clinic/pull/23), [#24 repository guard/least-privilege CI](https://github.com/cmlagatuz/dawney-clinic/pull/24), [#25 pinned npm advisory check](https://github.com/cmlagatuz/dawney-clinic/pull/25). All relevant scoped PR CI passed; npm audit reported 0 vulnerabilities in the locked web graph. **These are offline/preview-readiness safeguards, not live clinical proof.** See [full recovery](docs/PHASE3_FULL_RECOVERY_PLAN.md), [staff](docs/PHASE4_STAFF_SECURITY.md), [scheduling](docs/PHASE4_SCHEDULING_POLICY.md), [browser](docs/PHASE4_BROWSER_TESTS.md), and [repository](docs/PHASE4_REPO_SECURITY.md) runbooks.
-- **Read-only Auth security smoke PASSED:** [workflow #43443472697](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43443472697), real A/B HTTPS sessions, owner isolation, SDK session rehydration and anonymous privacy. No clinical/Storage synthetic write occurred.
+The four actionable CodeRabbit findings on [PR #41](https://github.com/cmlagatuz/dawney-clinic/pull/41#issuecomment-6900819954) were confirmed and fixed on head `59f8cb1` without CodeRabbit Autofix: account-switch patient reload race; duplicate-byte attachment finalization retry; save/close while upload retry is in flight; and Download remaining hidden after successful retry. Claude reports Node 46/46, the focused stubbed Chromium finding suite 22/22, attachment 50/50 and responsive checks passing. The feature flag remains off.
 
-- **Phase 1 completed (2026-11-13):** [Legacy audit and modernization gates](docs/PHASE1_LEGACY_AUDIT.md), security hardening for patient appointment ownership and forged foreign-pet bookings, bounded booking inputs, regression tests and GitHub Actions legacy PHP checks.
-- **[PR #2](https://github.com/cmlagatuz/dawney-clinic/pull/2):** Phase 1 merged to `master`; CI passed **5 tests / 11 assertions**, with PHP 7.4 and a compatibility install. See [the passing Actions run](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43378768881). This is targeted coverage, not a guarantee of full-system correctness.
-- **[PR #1](https://github.com/cmlagatuz/dawney-clinic/pull/1):** Claude's accessible UI foundation (dark/light mode, components, layouts, responsive styling) is **open, not merged**. Blade view compile/render tests and frontend/legacy PHP CI passed on its branch; production browser/MySQL integration and lead review remain outstanding. After the Phase 2 merge, GitHub reports the PR as conflicted with updated `master`; it must be reconciled before merging. Do not describe it as merged or deployed.
-- **Phase 2 foundation (2026-11-13):** [Supabase schema, security tests and recovery contract](docs/PHASE2_DATA_SECURITY.md), [Phase 2 PR #3](https://github.com/cmlagatuz/dawney-clinic/pull/3). Two migrations applied, RLS and appointment overlap constraint verified with rollback-only test fixtures. Real Auth login/RLS HTTP checks and backup/restore rehearsal are still required.
-- **[PR #4](https://github.com/cmlagatuz/dawney-clinic/pull/4):** adds a third verified-user/security migration and a dependency-free Supabase Auth/owner profile integration contract, unit tests, and an opt-in live two-account HTTP test workflow. See [Phase 2 Auth verification and owner steps](docs/PHASE2_AUTH_INTEGRATION.md). Real sign-up/verification and HTTP RLS testing require owner-controlled temporary mailboxes and GitHub Actions secrets; **not yet verified live**.
-- **Historical Auth checkpoint before the passing tests (2026-11-13):** [Registration-only run](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43425109459) successfully registered disposable Account A. Latest read-only Supabase verification reports **two registered, email-confirmed accounts, both with sign-in activity**, but **the newer passing tests documented below supersede that earlier observation**. Do **not** repeat registration; run `test` on `master` using the existing private GitHub Actions secrets. At last check, app owners/pets/appointments/staff still had zero records. See [Phase 2 Auth guide](docs/PHASE2_AUTH_INTEGRATION.md).
-- **Latest verified live Auth/JWT baseline:** [operation=test run 43438147911](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438147911) and [repeat run 43438358753](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43438358753) both PASS (1/1 live test). Two confirmed disposable identities created and persisted exactly two synthetic owner profiles; HTTP cross-owner SELECT deny, staff self-escalation deny and logout/re-login persistence passed. A fresh read-only project query confirms **2 owners, 0 pets, 0 bookings, 0 staff, 1 active appointment resource and 0 private objects**. Further read-only/clinical/Storage tests remain pending and owner-gated. [Follow the acceptance runbook](docs/PHASE3_LIVE_BROWSER_ACCEPTANCE.md).
-- **Supabase:** 7 public application tables have RLS enabled; no real user/patient data imported or stored in the application schema. No live data migration has occurred.
-- **Phase 3 integration readiness ([PR #12](https://github.com/cmlagatuz/dawney-clinic/pull/12), [#13](https://github.com/cmlagatuz/dawney-clinic/pull/13), [#14](https://github.com/cmlagatuz/dawney-clinic/pull/14)):** Manual real JWT clinical/Storage smoke tests (explicit synthetic-write opt-in), Cloudflare Pages Git preview and checksum-protected GitHub Release readiness, and a **passing genuine synthetic PostgreSQL 17/GPG restore and tamper-denial CI**. The synthetic restore **does not** recover real Supabase Auth/Storage. Docs: [HTTP and Storage smoke](docs/PHASE3_HTTP_STORAGE_SMOKE.md), [deployment/release](docs/PHASE3_DEPLOY_RELEASE.md), [synthetic restore](docs/PHASE3_SYNTHETIC_RESTORE_DRILL.md).
-- **Private Storage bucket verified:** `clinical-attachments` exists, `public=false`, 5 MB maximum, MIME allowlist PDF/PNG/JPEG, zero objects at last check. Existing two RLS policies and SQL verification passed. Live A/B Storage upload/download denies **not yet run**.
-- **Phase 3 merged:** [PR #5](https://github.com/cmlagatuz/dawney-clinic/pull/5) modern React/Vite app; [#6](https://github.com/cmlagatuz/dawney-clinic/pull/6) persisted pet/appointment workflows; [#7](https://github.com/cmlagatuz/dawney-clinic/pull/7) encrypted export tools; [#8](https://github.com/cmlagatuz/dawney-clinic/pull/8) private Storage policies; [#9](https://github.com/cmlagatuz/dawney-clinic/pull/9) staff safety/audit. See [web](docs/PHASE3_WEB_FOUNDATION.md), [clinical workflows](docs/PHASE3_CLINICAL_CORE.md), [private Storage](docs/PHASE3_PRIVATE_STORAGE.md), [staff safeguards](docs/PHASE3_STAFF_AUDIT.md) and [recovery](docs/PHASE3_FREE_RECOVERY.md). All PR GitHub checks passed; connected DB SQL tests were transaction scoped.
-- **Latest integration audit:** [PR #15](https://github.com/cmlagatuz/dawney-clinic/pull/15) reconciled live-test/release blockers, and [PR #16](https://github.com/cmlagatuz/dawney-clinic/pull/16) added CI syntax validation for manual clinical smoke tests. [Supervisor's current execution plan](docs/PHASE3_SUPERVISOR_PLAN.md) reflects the two confirmed test accounts and ready private bucket. Neither PR proves a successful live two-account HTTP test or deployed Pages website.
-- **Latest verified read-only security smoke:** [GitHub Actions run 43443472697](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43443472697) passed two real HTTPS Auth sessions, owner RLS isolation, SDK session rehydration, and anonymous access denial with **no application records written**. This does not replace browser reload, clinical/Storage negative write checks or full recovery verification. [Next supervised tasks](docs/PHASE3_SUPERVISOR_PLAN.md).
-- **Limitations:** The later live A/B Auth contract tests passed and produced two disposable owner profiles, but still no pets, appointments or staff. The private Storage bucket exists with zero stored files; cross-account file API testing is still pending. The isolated restore test used **synthetic PostgreSQL data only**, and no full Supabase Auth/Storage recovery snapshot exists.
-- **Deployment:** Owner screenshot confirms Cloudflare Pages deployed; real public HTTPS/Chromium checks on [dawney-clinic.pages.dev](https://dawney-clinic.pages.dev) PASSED. Exact Cloudflare deployed Git SHA, Supabase Auth redirect setup, logged-in browser persistence, Storage denies and full recovery are still unverified.
+This is source and synthetic evidence only. Qwen’s independent re-review is pending; hosted JWT/RLS/private Storage behavior is **NOT VERIFIED** and requires owner authorization. Private immutable Storage behavior, the legacy Chow Chow record, keyboard behavior and fail-closed states must remain preserved.
 
-For live agent ownership and new changes, read **[docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)**. This README is a project overview rather than a replacement for the frequently updated handoff.
+## New PR #59 CodeRabbit findings pending
 
-## Modernization stages
+The latest completed CodeRabbit review on [PR #59](https://github.com/cmlagatuz/dawney-clinic/pull/59#issuecomment-6900932629) raised two findings for Astra to verify: the workflow path filters may omit `supabase/migrations/**`, and the PG17 job’s mutable #40/#43 ref fetches may conflict with its intended SHA-pinned/fail-closed dependency guard. These are reviewer allegations, not accepted defects; they remain **pending verification and correction or documented intentional-stop disposition**. Do not weaken the exact-head safety guard merely to make a stale dependency fetchable.
 
-| Phase | Goal | Gate / evidence |
-| --- | --- | --- |
-| **1 — Legacy assessment** | Feature inventory, security findings, minimal high-risk fixes, tests | **Merged**; focused CI green |
-| **2 — Data contract and access** | Legacy mapping, Supabase schema, roles and RLS | Six applied migrations, SQL tests pass; owner Auth/JWT baseline passed; clinical JWT and full recovery rehearsal pending |
-| **3 — Modern frontend foundation** | React/TypeScript/Vite and accessible authenticated owner UI | Merged and CI built; live UI/HTTP verification and deployment pending |
-| **4 — Core clinical parity** | Owners, pets, appointments, medical history | Owner/pet/appointment UI built with RLS; medical records UI and real-data migration pending |
-| **5 — Operations** | Vaccines, prescription flows, inventory stock ledger, invoices/receipts, reporting and audit logs | Pending |
-| **6 — Pilot and deployment** | Free GitHub-linked hosting, migration rehearsal, restore drill, live security/persistence smoke tests | Pending |
+## Legacy Laravel context and historical Phases 1–3
 
-No phase is considered complete solely because screens, migrations or code were drafted; integration and verification gates are required.
+The repository preserves a 2019-era Laravel 5.8 / PHP 7.1-era / MySQL application using Blade, Bootstrap 4, Vue 2 and Laravel Mix. It contains legacy authentication, owner/user, pet/patient, medical-record, appointment and admin routes. Inventory, purchasing and order code exists but relevant routes are disabled. Laravel dependencies are end-of-life; do not deploy the legacy application unchanged as a clinical production system.
 
-## Free-only deployment architecture (frontend and schema built; hosting not connected)
+- **Phase 1 — legacy assessment:** [PR #2](https://github.com/cmlagatuz/dawney-clinic/pull/2) merged targeted appointment ownership, foreign-pet rejection, bounded input validation and PHP regression coverage ([CI](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43378768881)).
+- **Phase 2 — data and access foundation:** [PR #3](https://github.com/cmlagatuz/dawney-clinic/pull/3) and [PR #4](https://github.com/cmlagatuz/dawney-clinic/pull/4) established versioned Supabase/RLS/Auth contracts and security tests. Real baseline Auth checks passed for disposable identities, but this does not certify clinical production.
+- **Phase 3 — modern web and safeguards:** merged PRs #5–#25 added the React/Vite client, owner workflows, private Storage policies, staff safeguards, recovery tooling, scheduling contracts, browser checks, repository guards and dependency auditing. The synthetic PostgreSQL/GPG recovery drill is not a full real Auth/Storage/clinical restore.
 
-```text
-GitHub master + verified CI
-          |
-          v
-Cloudflare Pages Free (static frontend: React + TypeScript + Vite)
-          |
-          v
-Supabase Free (Postgres + Auth + private Storage + RLS)
-```
+The legacy Blade [PR #1](https://github.com/cmlagatuz/dawney-clinic/pull/1) remains a distinct open UI change and is **not** automatically superseded by React #34. Keep it open/deferred until the owner decides whether the legacy admin surface remains supported; its raw clinical-note rendering concern must be resolved before merge.
 
-Cloudflare Pages **cannot run Laravel/PHP** in this static architecture. The team must build a separate frontend, migrate the required functionality and data safely, and verify access control before cutover. Free quotas, potential Supabase project pausing, email limits and lack of free managed database backups must be addressed; see the [Phase 1 audit](docs/PHASE1_LEGACY_AUDIT.md). No paid provider is authorized.
+## Chow Chow and migration safety
 
-## Development and collaboration
+Source-level verification in #40/#52 preserves the historical Dog/Chow Chow patient and appointment through synthetic PostgreSQL 17 migration tests, including taxonomy mapping and regression assertions. **No authorized live Phase 4 migration has occurred.** Do not apply the ordered migrations, rewrite existing patient data, or publish supported species/services until the owner and veterinarian approve the preservation plan, policy and recovery window.
 
-Before making changes, agents and contributors must read:
+## Deployment, staging and live-clinic boundaries
 
-1. **[AGENTS.md](AGENTS.md)** — shared engineering, privacy, branches, release and verification rules.
-2. **[CLAUDE.md](CLAUDE.md)** — Claude-specific scoped-work guidance.
-3. **[docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)** — current branch/PR ownership, blockers and upcoming task.
-4. **[docs/PHASE1_LEGACY_AUDIT.md](docs/PHASE1_LEGACY_AUDIT.md)** — feature parity and migration/security requirements.
+1. **Unmerged source:** Open PR code and passing branch CI are not in `master` and do not change production.
+2. **Synthetic Alpha previews:** Cloudflare previews such as #56 are demos using synthetic UI/fixtures. They are not staging, are not approved for patient data, and remain separate from the source-merge queue. PR #46’s merge does not change this boundary.
+3. **Staging verification:** #49, #52 and #59 provide offline or disposable PostgreSQL evidence. Hosted JWT/RLS/Storage, real Auth/Storage restore and owner-controlled staging checks remain unverified unless a linked run proves otherwise.
+4. **Public Pages:** Cloudflare Pages serves the static React/Vite `web` build from `master`; a successful public HTTPS response does not prove clinical authorization, migrations, RLS, Storage or backup readiness.
+5. **Live clinical deployment:** requires owner approval, approved clinic hours/time zone/services/species/resources, exact migration order, recoverable Auth/database/Storage backup and restoration rehearsal, real A/B/anonymous/staff JWT/RLS/Storage negative tests, and post-deploy rollback verification. It is not approved.
 
-Use separate `ai/chatgpt/*` and `ai/claude/*` branches; propose tested changes through PRs, check conflict status and checks before merge, and update the shared handoff. Do not store credentials, raw client/animal records or private backups in GitHub.
+## Current blockers and merge order
 
-### Supabase skills
+The controlled source sequence is **#34 refresh against merged #46/master → #40 taxonomy review → #43 secure booking review → #52 pin refresh and four-migration regression → #49 recovery/schema compatibility gate → #41 Qwen re-review → #48 frontend reconciliation → #59 CodeRabbit triage/staff review**. The exact order may be revised by the Project Manager when current dependency evidence changes.
 
-When running a compatible terminal-based development agent inside the repository, install official skills with:
+Remaining blockers are: **(1)** refreshing each open PR onto current master and obtaining owner approval; **(2)** #49’s reproducible recovered-schema-to-Phase-4 compatibility blocker, including missing `anon` and other Phase 3 schema elements in the simplified restored fixture; **(3)** Qwen re-review of #41 and Astra triage of #59 CodeRabbit findings; **(4)** hosted JWT/RLS/Storage security and real Auth/database/Storage recovery verification; and **(5)** veterinarian/owner clinical-policy approval for services, species, resources, hours and live cutover.
 
-```bash
-npx skills add supabase/agent-skills
-```
+## Free-tier and safety restrictions
 
-This command installs agent skills in a compatible local environment; **it does not automatically add tools to ChatGPT.com or Claude.ai browser conversations**. GitHub and Supabase connectors remain separate. Read current documentation and verify every database migration and RLS policy; do not expose any service-role/secret key in frontend code.
-
-### Legacy local testing (maintenance only)
-
-The legacy project is an old Laravel/PHP application with dependencies that may require an isolated, compatible environment. Do not blindly upgrade runtime or Composer or deploy it publicly. A constrained PHP 7.4 compatibility setup was used for the Phase 1 GitHub Actions regression job. See [the workflow](.github/workflows/legacy-static-audit.yml) for the actual test setup and [the Phase 1 audit](docs/PHASE1_LEGACY_AUDIT.md) for unresolved issues. The modern app's pinned dependencies, lockfile, build and deployment instructions are in [web/README.md](web/README.md) and [Phase 3 web guidance](docs/PHASE3_WEB_FOUNDATION.md).
-
-## Outstanding security and operations risks
-
-Legacy code includes overlapping-booking race conditions, charged SMS behavior, unsafe password onboarding, disabled purchase flows, incomplete DB constraints and legacy dependency vulnerabilities. The baseline Supabase schema now enforces row-level security (RLS), trusted staff roles, client ownership and two-account SQL deny tests. Private Storage RLS exists and the private `clinical-attachments` bucket is created with a 5 MiB PDF/PNG/JPEG allowlist; real cross-account Storage API testing, real Auth HTTP verification, full Auth/Storage backup and migration rehearsal are still required. Paid SMS must not be required. Before any real-world clinic launch: reconcile old IDs and records, export and restore backups, confirm data retention and secure staff permissions, run integration tests, and verify the live URL.
+The project remains free-tier and zero-cost by default. No paid backend, hosting subscription, mandatory payment API, paid AI API or upgrade is authorized. Free plans may pause, limit email, storage, database capacity, concurrency and availability; no uptime or backup SLA is implied. Never commit credentials, service-role keys, database passwords, tokens, private owner/animal records or private backups. No production SQL, synthetic clinical/Storage writes, staff bootstrap, DNS change, deployment setting change, merge, release tag or external messaging is allowed without the specific owner approval required by the current operating instructions.
 
 ## Project links
 
-- [Source and active branches](https://github.com/cmlagatuz/dawney-clinic)
+- [Repository and branches](https://github.com/cmlagatuz/dawney-clinic)
 - [Pull requests](https://github.com/cmlagatuz/dawney-clinic/pulls)
 - [GitHub Actions](https://github.com/cmlagatuz/dawney-clinic/actions)
+- [Integration and release issue #58](https://github.com/cmlagatuz/dawney-clinic/issues/58)
 - [Shared AI handoff](docs/AI_HANDOFF.md)
-- [Phase 1 audit](docs/PHASE1_LEGACY_AUDIT.md)
+- [Five-agent orchestration](docs/FIVE_AGENT_ORCHESTRATION.md)
+- [Legacy audit](docs/PHASE1_LEGACY_AUDIT.md)
+- [Web client README](web/README.md)
 
-**Documentation policy:** Update verified feature statuses and hosting URL on each major merge/release. Do not turn anticipated capabilities into completed claims.
+## Local web client
+
+See [web/README.md](web/README.md) for the React/Vite client setup. Keep browser variables limited to the public Supabase URL and publishable key; never expose `service_role`, `sb_secret_`, database credentials or clinic records.
+
+**Documentation policy:** update verified statuses, exact heads and deployment evidence after material merges. Do not turn planned capabilities, synthetic fixtures or unmerged branches into completed clinical claims.
