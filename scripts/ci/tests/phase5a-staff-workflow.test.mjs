@@ -115,6 +115,8 @@ test('actual fetch + reviewed SHA checks accept pinned heads and stop on PR40/43
   const new40 = commitFile(guardPath40, '-- unreviewed PR40 migration\n', 'unreviewed PR40 head')
   // Local bare-repo ref mutation: no real remote push or forced branch update.
   // Shallow fetching inside this same synthetic checkout can obscure ancestry.
+  // Transfer the disposable commit object first; then move the fake PR ref.
+  git(checkout, 'push', '-q', 'origin', new40 + ':refs/heads/ci-unreviewed-pr40')
   git(origin, 'update-ref', 'refs/pull/40/head', new40)
   assert.notEqual(run().status, 0, 'unreviewed PR40 head must be rejected')
   assert.equal(existsSync(join(runner, 'phase5a-integration')), false)
