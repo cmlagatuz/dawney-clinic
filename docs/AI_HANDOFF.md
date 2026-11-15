@@ -1,5 +1,23 @@
 # Dawney Clinic — Shared AI Handoff
 
+## LATEST owner decision — 2026-11-14 12:15 Riyadh
+
+**The one Dog/Chow Chow patient and its appointment are to be preserved. Do not delete or convert to an inaccurate "nearest breed".** PR #40 already adds the exact `dog-chow-chow` catalog entry and safe ID mapping (not yet applied). Stop repeatedly investigating this; complete existing tests and move to booking #51. **Privacy PR #50 is merged INTO OPEN booking PR #43, NOT master**; new QA/security priorities concern booking compatibility, anonymous actor column grants, staff confirmation and auth return. Nine Phase4 PRs remain open; latest [supervisor brief](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) supersedes historical notes. Astra handles #43/#51 backend/CI and merge-order readiness, Qwen Chat handles read-only customer journey QA, Grok Build handles booking privacy/threat audit. **Claude has no new task while user resumes interrupted work.** No Supabase writes or merges without separate owner/supervisor signoff; no paid tools.
+
+
+## LATEST SUPERVISOR STATUS — 2026-11-14 11:13 Riyadh
+
+**Authoritative now:** [docs/PHASE4_CURRENT_SUPERVISOR_BRIEF.md](PHASE4_CURRENT_SUPERVISOR_BRIEF.md). Do not reuse outdated assignments below. Master has **10 open Phase 4 PRs** (#34, #39 draft, #40, #41, #43, #46, #47, #48, #49, #50), no new feature PR merged. **Claude #48 has built public Home/Services/Location/Book in a stacked PR**, but not production/live. **Astra #46 and stacked #47 Chromium CI are green; original Claude #34 run #43568477414 passed attempt 2**. #40 ChowChow, #43 service booking, #50 privacy, #49 migration preflight remain unmerged. **Worker build #45** still fails independently of successful Cloudflare Pages. Supabase remains 6 applied migrations, 7 RLS tables, 2 confirmed users, 1 pet, 1 appointment and 0 private attachments; phase 4 schema not applied. **New [booking compatibility #51](https://github.com/cmlagatuz/dawney-clinic/issues/51):** old appointment form fails for new requests once booking policy approved; verification new-tab loses login booking intent; robots.txt Disallow / blocks public indexing. **Claude is out of Free messages until owner-stated 2:50 PM: no new Claude task, owner will resume existing work.** Astra next review #50 into #43, #40/#49 migration gates, #46/47 CI merge recommendation and #51 compatibility tests. Qwen Chat read-only QA #48/#41/#43/#50/#51; Grok Build security review of #43/#50/#48 and remaining audit #39. No live writes or ownerless merges. Owner must approve verified backup/recovery and real Cavite clinic contacts/hours/services/species/resources before any production clinic activation.
+
+
+
+## NEWEST checkpoint — Nov 14 2026, 10:03 Asia/Riyadh
+
+**Read [current supervisor brief](PHASE4_CURRENT_SUPERVISOR_BRIEF.md) first; it supersedes historical action items below.** [Astra #40](https://github.com/cmlagatuz/dawney-clinic/pull/40) taxonomy P0 and [#43](https://github.com/cmlagatuz/dawney-clinic/pull/43) public booking backend **OPEN**, isolated CI passing, not merged/live. [Claude #34](https://github.com/cmlagatuz/dawney-clinic/pull/34) branding shell and stacked [#41](https://github.com/cmlagatuz/dawney-clinic/pull/41) species/breed + patient attachment UI **OPEN**, catalog feature OFF by default; not merged/live. [Grok draft #39](https://github.com/cmlagatuz/dawney-clinic/pull/39) open, Qwen Chat QA read-only (no verified executable test/PR). Live Supabase remains 6 migrations, 7 RLS app tables, 2 verified Auth users, 1 pet and 1 appointment, 0 attachments.
+
+**New independently verified blockers:** [Chromium CI #44](https://github.com/cmlagatuz/dawney-clinic/issues/44): latest #34 anonymous browser runner failed before assertions with `Chrome/Chromium is required for browser acceptance` in `scripts/browser/cdp.mjs`; root cause of executable probe not yet proven, Astra/CI to fix and rerun. [Redundant Worker Git builds #45](https://github.com/cmlagatuz/dawney-clinic/issues/45): distinct `Workers Builds` FAILS while `Cloudflare Pages` preview SUCCEEDS. Owner must inspect Worker logs/routes and disconnect **only** redundant Worker Git build if unused, leaving Pages intact. New work: Claude new independent public `/`, `/services`, `/location`, `/book` frontend per [#42](https://github.com/cmlagatuz/dawney-clinic/issues/42) **after** existing PR gates, Astra CI/browser and booking contracts, Qwen public/customer QA, Grok independent booking RLS/threat review. No production schema rollout or claims of clinic availability without owner consent and verified hours/services.
+
+
 
 ## Latest supervisor decision — 2026-11-14 ~08:32 Asia/Riyadh
 
