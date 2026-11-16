@@ -117,6 +117,7 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: combined-synthetic-only
       PGDATABASE: phase4_combined_ci
+      EXPECTED_PR52_HEAD: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v4
         with:

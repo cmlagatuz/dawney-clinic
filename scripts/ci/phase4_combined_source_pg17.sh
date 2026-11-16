@@ -11,6 +11,17 @@ done
 work=$(mktemp -d "${RUNNER_TEMP:?}/phase4-combined.XXXXXXXX")
 trap 'rm -rf -- "$work"' EXIT
 fail(){ echo "COMBINED SOURCE GATE BLOCKED: $*" >&2; exit 1; }
+# For PR events, GitHub checks out a synthetic merge ref. Verify the remote PR
+# head still matches the exact commit that triggered this CI run; otherwise
+# stale green results must not authorize a newer, untested source head.
+if [[ "${GITHUB_EVENT_NAME:-}" == pull_request ]]; then
+ [[ -n "${EXPECTED_PR52_HEAD:-}" ]] ||
+  fail 'GitHub event did not supply expected PR52 source head'
+ git fetch --no-tags --depth=1 origin \
+  'refs/pull/52/head:refs/remotes/origin/combined-pr52'
+ [[ "$(git rev-parse refs/remotes/origin/combined-pr52)" == "$EXPECTED_PR52_HEAD" ]] ||
+  fail 'PR52 changed while the source integration run was executing'
+fi
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 
 # Check current remote source heads. Merely fetching an old commit is not sufficient.
