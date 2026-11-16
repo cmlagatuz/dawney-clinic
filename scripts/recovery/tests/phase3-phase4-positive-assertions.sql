@@ -359,9 +359,14 @@ begin
  begin perform count(*) from storage.objects;
  exception when insufficient_privilege then blocked:=true; end;
  if not blocked then raise exception 'SQL anon gained private Storage SELECT';end if;
- if has_table_privilege('anon','storage.objects','INSERT') then
-  raise exception 'SQL anon gained Storage INSERT';
- end if;
+ blocked:=false;
+ begin
+  insert into storage.objects(bucket_id,name,metadata) values
+    ('clinical-attachments',
+     'pets/33333333-3333-4333-8333-333333333333/owners/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-3333-4333-8333-aaaaaaaaaaaa.png',
+     '{"synthetic":true}');
+ exception when insufficient_privilege then blocked:=true; end;
+ if not blocked then raise exception 'SQL anon gained private Storage INSERT';end if;
 end $anon_db_storage$;
 
 -- Activate a pre-existing synthetic veterinarian in a rollback-only
