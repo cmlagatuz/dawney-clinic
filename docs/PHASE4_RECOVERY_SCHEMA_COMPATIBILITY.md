@@ -1,6 +1,6 @@
 # Phase 4 recovery-to-migration schema compatibility — synthetic evidence
 
-**Status: BLOCKED / NOT VERIFIED for migration compatibility.** This document describes a negative compatibility test, **not** a successful Phase 4 restore upgrade or a hosted Supabase recovery rehearsal.
+**Status: original minimal fixture intentionally BLOCKED; a separate Phase3-equivalent signed restore now exercises the additive Storage correction and four Phase4 migrations in disposable PostgreSQL 17 (CI evidence required). Hosted Supabase remains NOT VERIFIED.** The original negative compatibility test remains intact.
 
 ## Scope and fixed source inputs
 
@@ -82,3 +82,9 @@ Because `public.pets` has its own `name` column, the **unqualified** `name` reso
 **GO/NO-GO:** Database restore and the ordered migration DDL **are compatible on this versioned Phase3-equivalent synthetic fixture**, but the **full positive, policy-correct recovery qualification is NO-GO / NEEDS FIX** until a separately reviewed *additive* security fix qualifies the outer object path (for both affected source policies) and the complete signed-restore-to-Phase4 regression passes. **Do not weaken, disable or bypass RLS or change pet names in the fixture** to manufacture green tests. The positive job intentionally fails closed; its other existing recovery jobs remain independent and green. This is not a hosted Supabase restore certification.
 
 **Remaining owner gates:** actual managed Supabase Auth/session data, JWT/PostgREST behavior, private Storage API/data reconciliation, real backup confidentiality and full rollback verification. No live Auth/Storage writes, production migrations or patient exports occurred.
+
+## Additive Phase3 Storage policy correction — PR #62 pinned rehearsal
+
+The positive job now pins the additive Storage RLS source at PR #62 commit `76009db7dcd3274382444c2f553d75fd7ee85a74` (exact Git blob `4d78cb2aef1104379d6fd29797705a6188c4c6dc`). Both original negative and positive migration-source jobs fail closed if PR #62, #40, #43 or #52 heads drift. The correction `20261116002500_phase3_storage_outer_object_path_rls_fix.sql` is applied **only to the restored, disposable Phase3-equivalent positive database**, after the six unmodified Phase2/3 migrations are restored and before the four reviewed Phase4 migrations in order. The original minimal baseline/negative fixture, recovery ciphertext corruption checks and historical migrations are unchanged.
+
+The additive policy fixes the inner-`pets.name` binding by qualifying `storage.objects.name`. SQL assertions run under simulated transaction-local roles and prove valid owner Storage SELECT/INSERT, receptionist read, temporary veterinarian clinic SELECT/INSERT, cross-owner and spoofed-path denial, revoked staff denial, anonymous Auth user denial, PostgreSQL `anon` denial, malformed-path exclusion and no UPDATE/DELETE broadening. Those synthetic writes and staff activation are rolled back. A combined unchanged Auth/patient/appointment/Storage metadata fingerprint and original two binary-object SHA-256 comparisons remain mandatory. **These tests do not verify hosted signed JWTs, managed Auth sessions, Storage API bytes, live restoration, or production cutover**. Merging/applying PR #62 remains gated by independent security signoff and owner authorization.

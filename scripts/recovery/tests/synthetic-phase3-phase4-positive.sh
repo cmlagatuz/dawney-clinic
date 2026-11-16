@@ -50,7 +50,10 @@ done <<'PHASE4'
 20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql 028cbdcfb96e15d297a9458322e1108c46a8b035
 20261114090000_phase4_public_booking_contract.sql 929f327141d9e5bb2be220d5685c6ce3f28c253c
 PHASE4
-echo 'PASS: all six Phase2/3 and four reviewed Phase4 exact SQL blobs present.'
+[[ -s "$reviewed/20261116002500_phase3_storage_outer_object_path_rls_fix.sql" &&
+   "$(git hash-object "$reviewed/20261116002500_phase3_storage_outer_object_path_rls_fix.sql")" == "4d78cb2aef1104379d6fd29797705a6188c4c6dc" ]] ||
+ fail 'Unreviewed/missing PR62 additive Phase3 Storage correction'
+echo 'PASS: six original Phase2/3, exact PR62 additive Storage policy and four reviewed Phase4 SQL blobs verified.'
 
 pgclient psql -X -v ON_ERROR_STOP=1 -d phase3_source_ci \
  < scripts/recovery/tests/phase3-provider-bootstrap.sql >/dev/null
@@ -217,6 +220,14 @@ for sha in "$photo_sha" "$card_sha"; do
 done
 echo 'PASS: both private Storage binary objects exactly match physical bytes and their persisted checksums.'
 
+# Correct only the restored disposable Storage RLS, AFTER all six original
+# migrations and BEFORE the four ordered Phase4 migrations. Original SQL stays immutable.
+pgclient psql -X -v ON_ERROR_STOP=1 -d phase3_restored_ci \
+ < "$reviewed/20261116002500_phase3_storage_outer_object_path_rls_fix.sql" >/dev/null
+[[ "$(snapshot phase3_restored_ci)" == "$original" ]] ||
+ fail 'Additive Storage correction changed preserved Auth/patients/appointments/metadata'
+echo 'PASS: exact PR62 additive Storage RLS applied without changing preserved recovery fingerprint.'
+
 # Exact reviewed four migration order: taxonomy, seed, PR40 guard, PR43 RPC.
 for migration in \
  20261113211600_phase4_taxonomy_attachments.sql \
@@ -232,5 +243,5 @@ pgclient psql -X -v ON_ERROR_STOP=1 -d phase3_restored_ci \
  < scripts/recovery/tests/phase3-phase4-positive-assertions.sql
 [[ "$(snapshot phase3_restored_ci)" == "$original" ]] ||
  fail 'Authorization tests altered preserved records'
-echo 'PASS POSITIVE: exact four Phase4 migrations applied to signed encrypted Phase3-equivalent recovery with unchanged historical data fingerprint.'
+echo 'PASS POSITIVE: five signed/encrypted components, fixed Storage RLS, four exact Phase4 migrations, owner/staff allow and denial matrix, historical fingerprint unchanged.'
 echo 'NOT VERIFIED: hosted Supabase Auth/JWT/sessions, Storage API, managed provider restore, production rollback or real patient backups.'
