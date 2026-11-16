@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/phase4-four-migration-chain.yml'
       - 'supabase/tests/phase4_four_migration_*.sql'
+      - 'supabase/tests/phase4_combined_*.sql'
+      - 'scripts/ci/phase4_combined_source_pg17.sh'
       - 'supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql'
       - 'supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql'
       - 'supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql'
@@ -90,3 +92,39 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/phase4/guard.sql"
           psql -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/phase4/booking.sql"
           psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_four_migration_regression.sql
+
+  combined-phase4-storage-staff-booking-pg17:
+    # Additional integration gate. Existing PR52 regression job remains unmodified.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: combined-synthetic-only
+          POSTGRES_DB: phase4_combined_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d phase4_combined_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: combined-synthetic-only
+      PGDATABASE: phase4_combined_ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL client
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+      - name: Source-pin and run actual Phase3 + Phase4 + PR62 + PR59 PostgreSQL17 regressions
+        shell: bash
+        run: |
+          bash -n scripts/ci/phase4_combined_source_pg17.sh
+          bash scripts/ci/phase4_combined_source_pg17.sh
