@@ -359,3 +359,6 @@ Branch `ai/claude/phase5a-ops-ui` (stacked on #48 `58f15c0`), flag `VITE_PHASE5A
 - All 4 reproduced against `4276604` (Chromium, stubbed) and fixed: (1) `reload()` ignores results after an account change (`accountRef`; `saving` cleared only for the starting account); (2) `retryMode()` finalises a retained private `objectPath` whatever the status (no second upload); (3) Save/Close/Cancel/Add/Edit disabled while any upload or save is in flight, with a status line; (4) successful uploads refresh private metadata, then the saved pending file is replaced by it so Download appears without reopening (unsaved/pending files and not-yet-synced metadata are never downloadable).
 - Behaviour change: after a successful retry the field shows the stored record (name/version + Download) instead of "Saved securely"; the page notice still says "File uploaded securely."
 - Tests: `catalog-guards`, extended `attachment-load` / `patient-form-logic` unit tests; Chromium `find41` 22 checks (old build fails the finding checks). Hosted RLS/Storage still unverified.
+
+## Claude — frontend integration candidate (2026-11-16)
+`ai/claude/phase5-frontend-integration` = #64 `1a661b0` + #41 `59f8cb1`; 3 conflicts (App.tsx routes/flags, styles, handoff). Flags stay OFF; staff port null. See `docs/phase5-integration/README.md`. Source-only; not live verified.
