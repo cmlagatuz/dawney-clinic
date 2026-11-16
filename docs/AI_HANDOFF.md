@@ -341,3 +341,6 @@ No API credentials, medical records, password hashes, patient contact details or
 
 ## Claude — integration rehearsal #34+#41+#48 (2026-11-15)
 - Disposable merge: only 3 conflicts (`App.tsx` Root()/flag, `styles.css` + handoff appends). CI-only job `.github/workflows/phase4-integration-rehearsal.yml` (pinned #41 `4276604`, #43 `2749f81`; fail-closed resolver `scripts/integration-rehearsal/`) reproduces it, then runs assertions, Node, strict tsc + Vite, Chromium. Details/procedure: `docs/phase4-ui/integration-rehearsal/README.md`. Remove after the real merge.
+
+## Claude — Phase 5A staff Operations UI (2026-11-16)
+Branch `ai/claude/phase5a-ops-ui` (stacked on #48 `58f15c0`), flag `VITE_PHASE5A_OPS_UI` OFF. Typed read port, stubbed until #59 integrates; see `docs/phase5a-ui/INTEGRATION.md`. Source-only, not live verified. Next: Astra wires `web/src/ops/port.ts` after #59; names/vet read contract needed.

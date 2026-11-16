@@ -2,7 +2,7 @@ import { useState, type ReactNode, type SVGProps } from 'react'
 
 /* Presentation-only building blocks. No data access, no auth logic. */
 
-type IconName = 'home' | 'user' | 'paw' | 'calendar' | 'menu' | 'close' | 'sun' | 'moon' | 'shield' | 'plus' | 'logout'
+type IconName = 'home' | 'user' | 'paw' | 'calendar' | 'menu' | 'close' | 'sun' | 'moon' | 'shield' | 'plus' | 'logout' | 'pulse'
 const paths: Record<IconName, ReactNode> = {
   home: <path d="M3 11.5 12 4l9 7.5M5.5 10v9.5h13V10" />,
   user: <><circle cx="12" cy="8" r="3.6" /><path d="M5 20c.8-3.6 3.7-5.4 7-5.4s6.2 1.8 7 5.4" /></>,
@@ -14,6 +14,7 @@ const paths: Record<IconName, ReactNode> = {
   moon: <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z" />,
   shield: <path d="M12 3.2 4.8 6v5.6c0 4.4 3 7.6 7.2 9.2 4.2-1.6 7.2-4.8 7.2-9.2V6L12 3.2Zm-3 8.6 2.2 2.2 3.8-4" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  pulse: <path d="M3 12h4l2.5-6 4 12 2.5-6H21" />,
   logout: <path d="M10 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2H10M15 8l4 4-4 4M19 12H9.5" />,
 }
 export function Icon({ name, ...rest }: { name: IconName } & SVGProps<SVGSVGElement>) {

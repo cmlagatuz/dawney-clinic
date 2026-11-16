@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../hooks/AuthProvider'
 import { supabase } from '../lib/supabase'
 import { Icon, ThemeToggle, initials } from './ui'
+import { OPS_UI_ENABLED } from '../ops/flag'
 
 /**
  * Owner-supplied Dawney Animal Clinic logo (original artwork, unmodified, 1:1 with built-in margin).
@@ -37,7 +38,9 @@ const nav = [
   { to: '/app/appointments', label: 'Appointments', icon: 'calendar' },
   { to: '/app/profile', label: 'My profile', icon: 'user' },
 ] as const
-const titles: Record<string, string> = Object.fromEntries(nav.map(n => [n.to, n.label]))
+/** Feature-OFF staff preview link: only present when VITE_PHASE5A_OPS_UI=true at build time. */
+const staffNav = OPS_UI_ENABLED ? [{ to: '/app/ops', label: 'Clinic operations', icon: 'pulse' }] as const : []
+const titles: Record<string, string> = Object.fromEntries([...nav, ...staffNav].map(n => [n.to, n.label]))
 
 export function AppLayout() {
   const { user } = useAuth()
@@ -92,6 +95,10 @@ export function AppLayout() {
         <p className="nav-label">Pet owner portal</p>
         {nav.map(n => <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>)}
       </nav>
+      {staffNav.length > 0 && <nav className="main-nav" aria-label="Clinic staff preview">
+        <p className="nav-label">Clinic staff (preview)</p>
+        {staffNav.map(n => <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>)}
+      </nav>}
       <div className="sidebar-bottom"><small>Signed in as</small><span className="truncate">{email}</span>
         <button type="button" className="button button-secondary" disabled={leaving} onClick={() => void signOut()}>{leaving ? 'Signing out…' : 'Sign out'}</button>
         {error && <p role="alert" className="error-text">{error}</p>}
