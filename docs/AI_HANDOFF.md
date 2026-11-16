@@ -344,3 +344,21 @@ No API credentials, medical records, password hashes, patient contact details or
 
 ## Claude — Phase 5A staff Operations UI (2026-11-16)
 Branch `ai/claude/phase5a-ops-ui` (stacked on #48 `58f15c0`), flag `VITE_PHASE5A_OPS_UI` OFF. Typed read port, stubbed until #59 integrates; see `docs/phase5a-ui/INTEGRATION.md`. Source-only, not live verified. Next: Astra wires `web/src/ops/port.ts` after #59; names/vet read contract needed.
+
+### Claude — Phase 4 patient-form PR (branch `ai/claude/phase4-patient-form`, stacked on #34)
+- Adds `PetsPageCatalog` (grouped searchable Species combobox, Breed locked until species, reset on species change, 3 optional private attachment slots with preview/status/retry/download, legacy-pet review) consuming Astra's `lib/taxonomy.ts` and `lib/pet-attachments.ts` unmodified. **Off by default**: enabled only by build-time `VITE_PHASE4_PATIENT_FORM=true` after the supervisor activates the corrected migrations. Do not set it on Cloudflare before then.
+- Not done / needs others: booking block for `clinic_supported=false` species (Appointments still uses the legacy pet list); Chow Chow/cattle breeds come from Astra's catalog (#35); previews use `data:` URLs because CSP `img-src` has no `blob:` (no `_headers` change made); staff attachment scope not exposed.
+
+## Claude — #41 private attachment read/race fix (2026-11-15)
+- `PetsPageCatalog.loadExisting()` is gone: it turned any failed/denied read into `existing=[]`. Now `hooks/usePatientAttachments.ts` + pure `attachment-load.mjs` give explicit idle/loading/error/ready (true empty = ready+[]), derived against the current account id + patient id, so older responses (previous patient/account, cancelled form, unmount) never show. Error → safe alert + Try again; "saved documents could not be checked" instead of "No file selected"; document fields are locked and download hidden until the read succeeds.
+- Form `session` token ignores late upload/save/download results after close, patient switch or account change; `AttachmentField` is keyed per patient. Download only for settled rows of the selected patient. PatientPhoto and the patient load key on account id (token refresh no longer refetches/blanks).
+- Unchanged: private Storage calls, immutable versions, upload retry, legacy Chow Chow record, flag OFF.
+- Tests: `tests/attachment-load.test.mjs` (10); Chromium (stubbed harness, NOT live Supabase) 49 checks; screenshots `docs/phase4-ui/attachments/`. Hosted RLS/Storage denied-read behaviour not verified.
+
+## Claude — #41 CodeRabbit findings (2026-11-15)
+- All 4 reproduced against `4276604` (Chromium, stubbed) and fixed: (1) `reload()` ignores results after an account change (`accountRef`; `saving` cleared only for the starting account); (2) `retryMode()` finalises a retained private `objectPath` whatever the status (no second upload); (3) Save/Close/Cancel/Add/Edit disabled while any upload or save is in flight, with a status line; (4) successful uploads refresh private metadata, then the saved pending file is replaced by it so Download appears without reopening (unsaved/pending files and not-yet-synced metadata are never downloadable).
+- Behaviour change: after a successful retry the field shows the stored record (name/version + Download) instead of "Saved securely"; the page notice still says "File uploaded securely."
+- Tests: `catalog-guards`, extended `attachment-load` / `patient-form-logic` unit tests; Chromium `find41` 22 checks (old build fails the finding checks). Hosted RLS/Storage still unverified.
+
+## Claude — frontend integration candidate (2026-11-16)
+`ai/claude/phase5-frontend-integration` = #64 `1a661b0` + #41 `59f8cb1`; 3 conflicts (App.tsx routes/flags, styles, handoff). Flags stay OFF; staff port null. See `docs/phase5-integration/README.md`. Source-only; not live verified.
