@@ -13,6 +13,8 @@ import { ProfilePage } from './pages/ProfilePage'
 import { PetsPage } from './pages/PetsPage'
 import { AppointmentsPage } from './pages/AppointmentsPage'
 import { configured } from './lib/supabase'
+import { OPS_UI_ENABLED } from './ops/flag'
+import { OpsPage } from './pages/staff/OpsPage'
 
 function Guard() {
   const { checking, user, error, refresh } = useAuth()
@@ -33,6 +35,7 @@ export function App() {
       <Route path="/auth/recovery" element={<RecoveryPage/>}/><Route path="/auth/callback" element={<CallbackPage/>}/></Route>
     <Route element={<Guard/>}><Route element={<AppLayout/>}><Route path="/app/overview" element={<OverviewPage/>}/><Route path="/app/profile" element={<ProfilePage/>}/>
       <Route path="/app/pets" element={<PetsPage/>}/>
-      <Route path="/app/appointments" element={<AppointmentsPage/>}/></Route></Route>
+      <Route path="/app/appointments" element={<AppointmentsPage/>}/>
+      {OPS_UI_ENABLED && <Route path="/app/ops" element={<OpsPage/>}/>}</Route></Route>
 </Routes></AuthProvider></BrowserRouter>
 }
