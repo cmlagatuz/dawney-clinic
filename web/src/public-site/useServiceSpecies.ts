@@ -10,6 +10,7 @@ import { serviceSpeciesView, type ServiceSpeciesEntry, type ServiceSpeciesView }
 export function useServiceSpecies(user: User | null, serviceId: string): ServiceSpeciesView & { reload: () => void } {
   const [entry, setEntry] = useState<ServiceSpeciesEntry | null>(null)
   const [n, setN] = useState(0)
+  const uid = user?.id ?? null // see usePatientEligibility: key on the account, not the object
   useEffect(() => {
     setEntry(null)
     if (!user || !serviceId) return
@@ -18,7 +19,7 @@ export function useServiceSpecies(user: User | null, serviceId: string): Service
       .then(ids => { if (live) setEntry({ serviceId, status: 'ready', ids }) })
       .catch(err => { if (live) setEntry({ serviceId, status: 'error', message: err instanceof Error ? err.message : '' }) })
     return () => { live = false }
-  }, [user, serviceId, n])
+  }, [uid, serviceId, n])
   const reload = useCallback(() => setN(v => v + 1), [])
   const signedIn = Boolean(user)
   return useMemo(() => ({ ...serviceSpeciesView(signedIn ? serviceId : '', entry), reload }), [signedIn, serviceId, entry, reload])

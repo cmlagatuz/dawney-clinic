@@ -26,3 +26,33 @@ export function classifyBookingMode({ policyError, schedule, servicesError, serv
 export const SAFE_BOOKING_MESSAGE = /^(Complete owner profile|Select a registered patient|Verified customer login|A valid patient|Explicit UTC|Invalid booking|Choose|Enter|Select|Create an owner|Clinic scheduling now requires|Clinic service booking remains|Cannot verify clinic booking policy)/
 /** Adapter says the policy flipped under an open form → reload the mode instead of retrying. */
 export const POLICY_CHANGED = /^(Clinic scheduling now requires|Clinic service booking remains)/
+
+/** PostgreSQL trigger text raised by validate_service_appointment() when a service-less insert reaches an APPROVED policy (stale form / race). */
+export const DB_REQUIRES_SERVICE = /Select an approved service to request/i
+export const POLICY_FLIPPED_MESSAGE = 'The clinic now takes appointment requests by service. Nothing was booked. Please use the updated request form.'
+
+/** Message of an Error OR a plain PostgREST error object (supabase-js errors are not always Error instances). */
+export function failureText(e) {
+  if (e instanceof Error) return e.message
+  if (e && typeof e === 'object' && typeof e.message === 'string') return e.message
+  return ''
+}
+/** True when a failed legacy attempt means "the policy is now approved": reload the mode, never retry the legacy insert. */
+export function isPolicyFlip(e) {
+  const t = failureText(e)
+  return POLICY_CHANGED.test(t) || DB_REQUIRES_SERVICE.test(t)
+}
+
+/**
+ * Single decision for what the owner Appointments card renders. The service-less (legacy) form is returned ONLY for the
+ * explicit 'legacy' mode (policy unapproved or schema not installed) with a loaded, settled mode check. Every approved,
+ * unknown, loading, or inconsistent state resolves to something else, so there is no fall-through to the old form.
+ */
+export function ownerFormView({ loading, mode, hasPets, hasSchedule, hasUser, resourceCount }) {
+  if (!hasPets) return 'no-pets'
+  if (loading) return 'checking'
+  if (mode === 'service') return hasSchedule && hasUser ? 'service' : 'unknown'
+  if (mode === 'no-services' || mode === 'incomplete') return 'paused'
+  if (mode === 'legacy') return resourceCount > 0 ? 'legacy' : 'no-calendar'
+  return 'unknown'
+}
