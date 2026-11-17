@@ -76,8 +76,11 @@ jobs:
       - name: Check scheduling Node contracts and forbid privileged browser credentials
         run: |
           node --test packages/clinic-scheduling/tests/*.test.mjs
-          if grep -RE '(service_role|sb_secret_|SUPABASE_SERVICE_ROLE_KEY)' web/dist; then
-            echo 'FAIL: privileged credential marker in browser bundle'; exit 1
+          # Match actual high-entropy credential VALUES, not the literal
+          # 'service_role' string in a protective client-side key guard.
+          # Never dump minified bundle text on a failure.
+          if grep -REq '(sb_secret_[A-Za-z0-9_-]{20,}|postgres(ql)?://[^[:space:]]+:[^[:space:]]+@|eyJ[A-Za-z0-9_-]{80,}\.[A-Za-z0-9_-]{40,}\.[A-Za-z0-9_-]{40,})' web/dist; then
+            echo 'FAIL: apparent secret credential value in browser bundle'; exit 1
           fi
           test -s web/dist/index.html
 

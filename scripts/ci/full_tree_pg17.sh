@@ -47,7 +47,19 @@ BLOBS
 echo 'PASS: exact PR67 ancestry/head; six Phase2/3 + four Phase4 + additive Storage correction verified at original Git blob SHAs.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
- pg supabase/tests/phase5a_staff_pg17_bootstrap.sql
+ if [[ "$PGDATABASE" == full_tree_history_ci ]]; then
+  # PostgreSQL roles are CLUSTER-scoped; the original provider bootstrap
+  # creates both roles in DB A. Keep its SQL unchanged, exclude just those
+  # two CREATE ROLE statements when initializing disposable DB B.
+  [[ "$(psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from pg_roles where rolname in ('anon','authenticated')")" == 2 ]] ||
+   fail 'original Auth roles missing before second database'
+  sed -e '/^create role anon nologin;$/d' \
+      -e '/^create role authenticated nologin;$/d' \
+      supabase/tests/phase5a_staff_pg17_bootstrap.sql |
+      psql -X -v ON_ERROR_STOP=1 -q
+ else
+  pg supabase/tests/phase5a_staff_pg17_bootstrap.sql
+ fi
  pg supabase/tests/phase4_combined_provider_upgrade.sql
 }
 six(){
