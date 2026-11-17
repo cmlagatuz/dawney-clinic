@@ -1,0 +1,124 @@
+name: Full-tree PR67 PostgreSQL17 security and browser gate
+
+# Incremental candidate PR only; no manual hosted invocation.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/full-tree-pg17-security.yml'
+      - 'scripts/ci/full_tree_pg17.sh'
+      - 'supabase/tests/full_tree_approved_booking_gate.sql'
+
+permissions:
+  contents: read
+
+jobs:
+  full-tree-postgres17-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: full-tree-disposable-only
+          POSTGRES_DB: full_tree_ci
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d full_tree_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: full-tree-disposable-only
+      PGDATABASE: full_tree_ci
+      EXPECTED_BASE_SHA: 5b8f7a03292123ed0314b5b7c6304d410b2fc94e
+      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      EXPECTED_PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require disposable PostgreSQL client and exact-source CI script syntax
+        run: |
+          command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+          bash -n scripts/ci/full_tree_pg17.sh
+      - name: Run actual full-tree six + four + Storage correction, RLS and mandatory policy rejection
+        run: bash scripts/ci/full_tree_pg17.sh
+
+  full-tree-node-typescript-vite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VITE_SUPABASE_URL: https://lgimhirgvresvbsdugac.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_offline_full_tree_dummy
+      VITE_PHASE4_PATIENT_FORM: 'false'
+      VITE_PHASE5A_OPS_UI: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Run integrated React/booking/queue contract Node tests and TypeScript/Vite build
+        working-directory: web
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
+          npm run build
+          node --check tests/integration/smoke.mjs
+      - name: Check scheduling Node contracts and forbid privileged browser credentials
+        run: |
+          node --test packages/clinic-scheduling/tests/*.test.mjs
+          # Match actual high-entropy credential VALUES, not the literal
+          # 'service_role' string in a protective client-side key guard.
+          # Never dump minified bundle text on a failure.
+          if grep -REq '(sb_secret_[A-Za-z0-9_-]{20,}|postgres(ql)?://[^[:space:]]+:[^[:space:]]+@|eyJ[A-Za-z0-9_-]{80,}\.[A-Za-z0-9_-]{40,}\.[A-Za-z0-9_-]{40,})' web/dist; then
+            echo 'FAIL: apparent secret credential value in browser bundle'; exit 1
+          fi
+          test -s web/dist/index.html
+
+  full-tree-real-chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      VITE_SUPABASE_URL: https://lgimhirgvresvbsdugac.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_offline_full_tree_dummy
+      VITE_PHASE4_PATIENT_FORM: 'false'
+      VITE_PHASE5A_OPS_UI: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Locked Vite build from full frontend/backend integration tree
+        working-directory: web
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+      - name: Verify Chromium harness and run real browser against LOCAL Vite only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test scripts/browser/tests/*.test.mjs
+          node --check scripts/browser/anonymous.mjs
+          (cd web && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort) \
+            > "$RUNNER_TEMP/full-tree-preview.log" 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:4173/ >/dev/null
+          node scripts/browser/anonymous.mjs http://127.0.0.1:4173
