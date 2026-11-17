@@ -3,8 +3,9 @@
  * A future transport must be separately reviewed and owner-authorized.
  */
 import {createHash, createPublicKey, verify as verifySignature} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 
-export const REVIEWED_SOURCE_SHA='2bbcbde08f3a73aa222bec2c8f3332f23b09eba2';
+export const BACKEND_SOURCE_SHA='2bbcbde08f3a73aa222bec2c8f3332f23b09eba2';
 export const PROTECTED_PROJECT_REF='lgimhirgvresvbsdugac';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid=value=>typeof value==='string'&&uuid.test(value);
@@ -16,6 +17,14 @@ const decodeBase64Url=s=>{
 const object=(v)=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const parse=(s,code)=>{try{const v=JSON.parse(s);ensure(object(v),code);return v;}catch{throw new Error('HOSTED_ACCEPTANCE_BLOCKED:'+code);}};
 export const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');
+
+/** Attest the bytes actually imported by Node, rather than caller-supplied hashes. */
+export function harnessHashes(){
+ try{
+  return Object.fromEntries(['guards.mjs','acceptance.mjs'].map(file=>
+   [file,sha256(readFileSync(new URL('./'+file,import.meta.url)))]));
+ }catch{throw new Error('HOSTED_ACCEPTANCE_BLOCKED:harness_unreadable');}
+}
 
 /** A separately pinned SHA-256 public-key fingerprint, not a key from the approval itself. */
 export function verifyOwnerGate({approval,trust,staging,now=Date.now()}={}){
@@ -34,7 +43,11 @@ export function verifyOwnerGate({approval,trust,staging,now=Date.now()}={}){
  ensure(claims.kind==='dawney-hosted-security-acceptance-v1'&&claims.ownerApproved===true&&
    claims.allowSyntheticWrites===true&&claims.environment==='disposable-staging' &&
    claims.verifiedSeparateProject===true,'owner_approval_scope');
- ensure(claims.sourceSha===REVIEWED_SOURCE_SHA,'source_sha_not_approved');
+ ensure(claims.backendSourceSha===BACKEND_SOURCE_SHA,'backend_source_not_approved');
+ const actual=harnessHashes();
+ ensure(object(claims.harnessFiles)&&Object.keys(claims.harnessFiles).length===2&&
+   Object.entries(actual).every(([file,hash])=>claims.harnessFiles[file]===hash),
+   'harness_content_not_approved');
  ensure(typeof claims.runId==='string'&&/^[A-Z0-9_-]{8,32}$/.test(claims.runId),'run_marker_invalid');
  ensure(Number.isSafeInteger(claims.notBefore)&&Number.isSafeInteger(claims.expiresAt)&&
    claims.expiresAt-claims.notBefore>0&&claims.expiresAt-claims.notBefore<=3600000&&
@@ -55,10 +68,15 @@ export function verifySignedJwt(token,jwks,{origin,expectedSub,now=Date.now(),an
  const header=parse(decodeBase64Url(parts[0]).toString('utf8'),'jwt_header');
  const claims=parse(decodeBase64Url(parts[1]).toString('utf8'),'jwt_claims');
  ensure(header.alg==='RS256'&&typeof header.kid==='string'&&header.kid.length>0,'jwt_algorithm');
- ensure(object(jwks)&&Array.isArray(jwks.keys),'jwks_missing');
+ ensure(object(jwks)&&Array.isArray(jwks.keys)&&jwks.keys.length>0&&
+   jwks.keys.length<=64&&jwks.keys.every(k=>object(k)&&typeof k.kid==='string'&&k.kid.length>0),
+   'jwks_missing');
  const keys=jwks.keys.filter(k=>k.kid===header.kid);
- ensure(keys.length===1&&keys[0].kty==='RSA'&&keys[0].alg!=='HS256'&&
-   keys[0].use!=='enc'&&!('d' in keys[0]),'jwks_key_invalid');
+ ensure(keys.length===1&&keys[0].kty==='RSA'&&
+   (keys[0].alg===undefined||keys[0].alg==='RS256')&&
+   (keys[0].use===undefined||keys[0].use==='sig')&&
+   !['d','p','q','dp','dq','qi','oth','k'].some(field=>field in keys[0]),
+   'jwks_key_invalid');
  let valid=false;
  try{
   const key=createPublicKey({key:keys[0],format:'jwk'});
@@ -67,7 +85,8 @@ export function verifySignedJwt(token,jwks,{origin,expectedSub,now=Date.now(),an
  ensure(valid,'jwt_signature_invalid');
  const seconds=Math.floor(now/1000);
  ensure(claims.iss===origin+'/auth/v1'&&
-   (claims.aud==='authenticated'||Array.isArray(claims.aud)&&claims.aud.includes('authenticated'))&&
+   (claims.aud==='authenticated'||Array.isArray(claims.aud)&&
+     claims.aud.length===1&&claims.aud[0]==='authenticated')&&
    claims.role==='authenticated'&&isUuid(claims.sub)&&claims.sub===expectedSub,'jwt_identity_invalid');
  ensure(Number.isInteger(claims.exp)&&claims.exp>seconds&&claims.exp<=seconds+86400&&
   Number.isInteger(claims.iat)&&claims.iat<=seconds+60&&
