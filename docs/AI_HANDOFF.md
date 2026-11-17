@@ -386,8 +386,3 @@ Branch `ai/claude/phase5a-ops-ui` (stacked on #48 `58f15c0`), flag `VITE_PHASE5A
 - Fixed: DB trigger 23514 ("Select an approved service…") arrives as a plain PostgREST object and was shown as a scheduling conflict; now `isPolicyFlip()` → "Nothing was booked", `bm.reload()`, form swaps to service-aware. No retry, no service fallback.
 - Fixed: token refresh (new `user` object, same id) no longer wipes forms/refetches (effects keyed on `user.id`); `ServiceBookingForm` keyed per account so typed text never carries to another account.
 - Tests: `tests/owner-booking-view.test.mjs` (5; Node 119/119); Chromium (stubbed, NOT live) 30 checks incl. flip/race/unreadable-policy/refresh/account switch/360-768-1440 light+dark/keyboard. No `supabase/`, `web/src/lib/*` or contract files touched. Flags OFF; policy NOT approved by this PR.
-
-## Claude — staff Operations read adapter (2026-11-17)
-- `ops/port.ts` now returns a real read-only port: `verifiedStaffSession`, `listClinicQueueWindow` (never the array form), `getClinicDashboardCounts` from Astra's `lib/staff-clinic` (untouched). Pure core `ops/port-adapter.mjs`: null without a user id; `verify()` must return the same id, `isActive`, known role; errors pass through (no empty/zero/sample fallback).
-- Hook: new port/account/retry resets all data and invalidates in-flight reads; a denial on ANY later read (revocation) fails the whole page closed and hides loaded rows. `OpsPage` port keyed by `user.id` (token refresh no reset).
-- Tests: `tests/ops-port.test.mjs` (12; Node 130 total); Chromium STUBBED (not live) 122 + 11 new (token refresh, account switch, late response, sign-out, revoke day/week, id mismatch). Flags OFF; staff data still unverified on hosted Supabase; no role creation/writes.
