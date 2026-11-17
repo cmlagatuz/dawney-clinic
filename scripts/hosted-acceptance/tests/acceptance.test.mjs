@@ -2,8 +2,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {generateKeyPairSync,createHash,sign as signBytes,sign as cryptoSign,randomUUID} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
+import {mkdtempSync,copyFileSync,readFileSync,writeFileSync,rmSync} from 'node:fs';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {pathToFileURL} from 'node:url';
 import {runHostedAcceptance} from '../acceptance.mjs';
-import {REVIEWED_SOURCE_SHA,PROTECTED_PROJECT_REF,verifySignedJwt,storageKey} from '../guards.mjs';
+import {BACKEND_SOURCE_SHA,PROTECTED_PROJECT_REF,harnessHashes,verifyOwnerGate,verifySignedJwt,storageKey} from '../guards.mjs';
 
 const now=Date.parse('2026-11-17T12:00:00.000Z');
 const stagingRef='zzzzzzzzzzzzzzzzzzzz';
@@ -47,20 +51,23 @@ const actors=Object.fromEntries(Object.keys(uid).map(name=>[name,jwt(name)]));
 const claims={
  kind:'dawney-hosted-security-acceptance-v1',ownerApproved:true,allowSyntheticWrites:true,
  environment:'disposable-staging',verifiedSeparateProject:true,
- sourceSha:REVIEWED_SOURCE_SHA,runId:'TEST_20261117',projectRef:stagingRef,origin:staging.origin,
+ backendSourceSha:BACKEND_SOURCE_SHA,harnessFiles:harnessHashes(),
+ runId:'TEST_20261117',projectRef:stagingRef,origin:staging.origin,
  notBefore:now-60_000,expiresAt:now+600_000
 };
 const signedApproval=(c=claims)=>({claims:c,signature:signBytes('RSA-SHA256',
  Buffer.from(JSON.stringify(c)),privateKey).toString('base64url')});
 const base=()=>({
  transport:{async request(){throw Error('should never be called');}},
- approval:signedApproval(),trust,staging,actors,fixtures,
+ approval:signedApproval({...claims,runId:'TEST_'+randomUUID().replace(/-/g,'').slice(0,20).toUpperCase()}),
+ trust,staging,actors,fixtures,journalDir:mkdtempSync(join(tmpdir(),'dawney-journal-')),
  publishableKey:'sb_publishable_synthetic_dummy',now
 });
 
 function fakeTransport({
  leakOwner=false,corruptDownload=false,allowOverlap=false,throwSecrets=false,
- jwksStatus=200,authStatus=200,ownFileStatus=200
+ jwksStatus=200,authStatus=200,ownFileStatus=200,
+ acceptExe=false,staffDownloadStatus=200,throwAfterStorageWrite=false,throwAfterBookingWrite=false
 }={}){
  const state={calls:[],appointments:[],objects:new Map(),nonce:new Map()};
  const ownerOf={ownerA:fixtures.ownerA,ownerB:fixtures.ownerB};
@@ -117,6 +124,7 @@ function fakeTransport({
     service_id:b.p_service_id,starts_at:b.p_starts_at,status:'requested',
     request_nonce:b.p_request_nonce});
    state.nonce.set(key,{id,params:JSON.stringify(b)});
+   if(throwAfterBookingWrite)throw Error('synthetic secret in server error');
    return {status:200,json:id};
   }
   if(method==='PATCH'&&path.startsWith('/rest/v1/appointments'))return {status:403,json:{code:'42501'}};
@@ -130,17 +138,18 @@ function fakeTransport({
     (ownerOf[actor]&&which==='owners'&&pet===ownerOf[actor].petId&&
       key.includes('/owners/'+ownerOf[actor].userId+'/'));
    const readable=actor==='staff'||writable;
-   if(!key.endsWith('.pdf'))return {status:403};
+   if(!key.endsWith('.pdf'))return {status:acceptExe?200:403};
    if(method==='POST'){
     if(!writable)return {status:403};
     state.objects.set(key,Buffer.from(req.body));
+    if(throwAfterStorageWrite)throw Error('synthetic secret in server error');
     return {status:200,json:{Key:key}};
    }
    if(!readable)return {status:403};
    if(!state.objects.has(key))return {status:404};
    const bytes=Buffer.from(state.objects.get(key));
    if(corruptDownload&&actor==='ownerA')bytes[bytes.length-1]^=1;
-   return {status:ownFileStatus,bytes};
+   return {status:actor==='staff'?staffDownloadStatus:ownFileStatus,bytes};
   }
   throw Error('Unexpected mocked method');
  }};
@@ -191,6 +200,10 @@ test('positive full offline mock proves signed JWT/Auth, RLS, booking, staff and
   assert.equal(result.checks.length,4);
   assert.equal(result.cleanup.appointmentIds.length,2);
   assert.equal(result.cleanup.objectKeys.length,3);
+  assert.equal(result.cleanup.status,'passed');
+  assert.equal(result.cleanup.bookingAttempts.length,7);
+  assert.equal(result.cleanup.uploadAttempts.length,7);
+  assert.equal(JSON.parse(readFileSync(result.cleanup.journalFile,'utf8')).status,'passed');
   assert.equal(state.appointments.length,2);
   assert.equal(state.objects.size,3);
   assert.ok(state.calls.length>20);
@@ -251,4 +264,120 @@ test('HTTP 500 JWKS/Auth or non-200 private file cannot masquerade as successful
 });
 test('path validation rejects PII or malformed object identifiers',()=>{
  assert.throws(()=>storageKey('not-a-pet',uid.ownerA,randomUUID()),/storage_path_uuid/);
+});
+
+test('partial failure after .exe acceptance preserves complete private cleanup manifest',async()=>{
+ const {transport,state}=fakeTransport({acceptExe:true});
+ let failure;
+ try{await runHostedAcceptance({...base(),transport});}catch(e){failure=e;}
+ assert.match(failure?.message??'',/malformed_storage_extension_allowed/);
+ const m=failure.cleanup;
+ assert.equal(m.status,'failed');
+ assert.equal(m.failureCode,'malformed_storage_extension_allowed');
+ assert.equal(m.appointmentIds.length,2);
+ assert.equal(m.objectKeys.length,3);
+ assert.equal(m.uploadAttempts.at(-1).cleanupEligible,false);
+ assert.equal(m.uploadAttempts.at(-1).state,'accepted');
+ assert.equal(m.bookingAttempts.length,7);
+ assert.equal(state.appointments.length,2);
+ assert.equal(state.objects.size,3);
+ assert.deepEqual(JSON.parse(readFileSync(m.journalFile,'utf8')),m);
+ assert.ok(!JSON.stringify(m).includes(actors.ownerA));
+});
+test('checksum mismatch preserves partial object key and booking cleanup evidence',async()=>{
+ const {transport}=fakeTransport({corruptDownload:true});
+ let failure;
+ try{await runHostedAcceptance({...base(),transport});}catch(e){failure=e;}
+ assert.match(failure?.message??'',/storage_roundtrip_checksum_mismatch/);
+ assert.equal(failure.cleanup.appointmentIds.length,2);
+ assert.equal(failure.cleanup.objectKeys.length,1);
+ assert.equal(failure.cleanup.uploadAttempts[0].state,'accepted');
+ assert.equal(JSON.parse(readFileSync(failure.cleanup.journalFile,'utf8')).status,'failed');
+});
+test('later staff re-read denial retains full cleanup manifest',async()=>{
+ const {transport}=fakeTransport({staffDownloadStatus:403});
+ let failure;
+ try{await runHostedAcceptance({...base(),transport});}catch(e){failure=e;}
+ assert.match(failure?.message??'',/staff_storage_read_failed/);
+ assert.equal(failure.cleanup.objectKeys.length,3);
+ assert.equal(failure.cleanup.appointmentIds.length,2);
+});
+test('lost booking reply and lost upload reply leave pre-write intent for manual reconciliation',async()=>{
+ for(const [options,kind] of [[{throwAfterBookingWrite:true},'booking'],[{throwAfterStorageWrite:true},'upload']]){
+  const {transport,state}=fakeTransport(options);
+  let failure;
+  try{await runHostedAcceptance({...base(),transport});}catch(e){failure=e;}
+  assert.equal(failure?.message,'HOSTED_ACCEPTANCE_BLOCKED:transport_error_redacted');
+  assert.equal(failure.cleanup.status,'failed');
+  if(kind==='booking'){
+   assert.equal(state.appointments.length,1);
+   assert.equal(failure.cleanup.appointmentIds.length,0);
+   assert.equal(failure.cleanup.bookingAttempts[0].state,'outcome_unknown');
+   assert.match(failure.cleanup.bookingAttempts[0].nonce,/^[a-f0-9-]{36}$/i);
+  }else{
+   assert.equal(state.objects.size,1);
+   assert.equal(failure.cleanup.objectKeys.length,1);
+   assert.equal(failure.cleanup.uploadAttempts[0].state,'outcome_unknown');
+  }
+  assert.equal(JSON.parse(readFileSync(failure.cleanup.journalFile,'utf8')).status,'failed');
+ }
+});
+test('owner approval is bound to both actual source file digests',async()=>{
+ const {transport,state}=fakeTransport();
+ const input={...base(),transport};
+ const fake=signedApproval({...input.approval.claims,
+  harnessFiles:{...harnessHashes(),'acceptance.mjs':'0'.repeat(64)}});
+ await assert.rejects(runHostedAcceptance({...input,approval:fake}),/harness_content_not_approved/);
+ assert.equal(state.calls.length,0);
+ const dir=mkdtempSync(join(tmpdir(),'dawney-hash-regression-'));
+ try{
+  const guardFile=join(dir,'guards.mjs'),runnerFile=join(dir,'acceptance.mjs');
+  copyFileSync('scripts/hosted-acceptance/guards.mjs',guardFile);
+  copyFileSync('scripts/hosted-acceptance/acceptance.mjs',runnerFile);
+  const candidate=await import(pathToFileURL(guardFile).href);
+  assert.deepEqual(candidate.verifyOwnerGate({approval:input.approval,trust,staging,now}),
+   {runId:input.approval.claims.runId,origin:staging.origin});
+  writeFileSync(runnerFile,readFileSync(runnerFile,'utf8')+'\n// drift after signature\n');
+  assert.throws(()=>candidate.verifyOwnerGate({approval:input.approval,trust,staging,now}),
+   /harness_content_not_approved/);
+  copyFileSync('scripts/hosted-acceptance/acceptance.mjs',runnerFile);
+  writeFileSync(guardFile,readFileSync(guardFile,'utf8')+'\n// altered guard bytes\n');
+  assert.throws(()=>candidate.verifyOwnerGate({approval:input.approval,trust,staging,now}),
+   /harness_content_not_approved/);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('private ledger rejects signed approval replay before all transport calls',async()=>{
+ const {transport,state}=fakeTransport();
+ const input={...base(),transport};
+ const first=await runHostedAcceptance(input);
+ assert.equal(first.cleanup.status,'passed');
+ const count=state.calls.length;
+ await assert.rejects(runHostedAcceptance(input),/approval_replay/);
+ assert.equal(state.calls.length,count);
+});
+test('service_role JWT is rejected prior to owner RLS queries',async()=>{
+ const {transport,state}=fakeTransport();
+ await assert.rejects(runHostedAcceptance({...base(),transport,
+  actors:{...actors,ownerA:jwt('ownerA',{role:'service_role'})}}),/jwt_identity_invalid/);
+ assert.ok(state.calls.every(call=>call.path.startsWith('/auth/v1/')));
+});
+test('duplicate, malformed, and broadened JWT audience claims fail closed',()=>{
+ const input={origin:staging.origin,expectedSub:uid.ownerA,now};
+ for(const aud of [['authenticated','authenticated'],['authenticated','service_role'],[],
+  ['service_role'],[null],{},null,1337]){
+  assert.throws(()=>verifySignedJwt(jwt('ownerA',{aud}),jwks,input),/jwt_identity_invalid/);
+ }
+ assert.equal(verifySignedJwt(jwt('ownerA',{aud:['authenticated']}),jwks,input).sub,uid.ownerA);
+});
+test('malformed JWKS, duplicate kid and private key fields fail closed',()=>{
+ const input={origin:staging.origin,expectedSub:uid.ownerA,now};
+ for(const invalid of [{keys:null},{keys:[null]}, {keys:[]},
+   {keys:[jwks.keys[0],jwks.keys[0]]},
+   {keys:[{...jwks.keys[0],d:'secret'}]},
+   {keys:[{...jwks.keys[0],alg:'HS256'}]},
+   {keys:[{...jwks.keys[0],use:'enc'}]},
+   {keys:[{...jwks.keys[0],kty:'oct'}]}]){
+  assert.throws(()=>verifySignedJwt(actors.ownerA,invalid,input),
+   /HOSTED_ACCEPTANCE_BLOCKED/);
+ }
 });
