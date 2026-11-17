@@ -179,7 +179,7 @@ test('default and legacy protected project never make a request',async()=>{
 test('invalid or forged approval, source drift, expiry and trust anchor fail before transport',async()=>{
  const {transport,state}=fakeTransport();
  const cases=[
-  {...base(),transport,approval:signedApproval({...claims,sourceSha:'0'.repeat(40)})},
+  {...base(),transport,approval:signedApproval({...claims,backendSourceSha:'0'.repeat(40)})},
   {...base(),transport,approval:signedApproval({...claims,allowSyntheticWrites:false})},
   {...base(),transport,approval:signedApproval({...claims,expiresAt:now-1})},
   {...base(),transport,approval:{...signedApproval(),signature:'forged'}},
