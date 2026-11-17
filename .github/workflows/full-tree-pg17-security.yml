@@ -14,6 +14,14 @@ on:
       - 'web/src/public-site/usePatientEligibility.ts'
       - 'web/src/public-site/useServiceSpecies.ts'
       - 'web/tests/owner-booking-view.test.mjs'
+      - 'docs/phase5a-ui/INTEGRATION.md'
+      - 'web/src/ops/port-adapter.d.mts'
+      - 'web/src/ops/port-adapter.mjs'
+      - 'web/src/ops/port.ts'
+      - 'web/src/ops/useOpsData.ts'
+      - 'web/src/pages/staff/OpsPage.tsx'
+      - 'web/tests/ops-model.test.mjs'
+      - 'web/tests/ops-port.test.mjs'
       - '.github/workflows/hosted-security-acceptance-source.yml'
       - 'scripts/hosted-acceptance/**'
       - 'docs/HOSTED_SECURITY_ACCEPTANCE.md'
@@ -47,11 +55,13 @@ jobs:
       EXPECTED_BASE_SHA: 63a2b68ee93463f426cafc6bdf468376343001cf
       EXPECTED_FRONTEND_SHA: 2a42489a4b85c46979f9c971474fc74579f673de
       EXPECTED_SECURITY_SHA: 9bc84ef3cde86d6c052c4d40012ffbee9c2391f0
+      EXPECTED_STAFF_SHA: 1dfd25f2ffcf5470ed7e0b4a33fcf5013a53a373
       EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       EXPECTED_PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Require disposable PostgreSQL client and exact-source CI script syntax
@@ -72,6 +82,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -125,6 +136,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
