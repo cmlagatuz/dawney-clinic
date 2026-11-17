@@ -1,4 +1,4 @@
-import {useMemo, useState} from 'react'
+import {useMemo, useRef, useState} from 'react'
 import {Link} from 'react-router'
 import {useAuth} from '../../hooks/AuthProvider'
 import {EmptyState, LoadingCard, PageHeading} from '../../components/ui'
@@ -11,7 +11,11 @@ const ROLE_LABEL = {administrator: 'Administrator', veterinarian: 'Veterinarian'
 
 export function OpsPage() {
   const {user} = useAuth()
-  const port = useMemo(() => (user ? createOpsReadPort(user) : null), [user])
+  // Keyed by account id: a token refresh (new user object, same id) must not reset the page,
+  // while a different account always gets a fresh port and fresh data.
+  const uid = user?.id ?? null
+  const userRef = useRef(user); userRef.current = user
+  const port = useMemo(() => (uid && userRef.current ? createOpsReadPort(userRef.current) : null), [uid])
   const [date, setDate] = useState(() => todayInZone(Date.now()))
   const [view, setView] = useState<'board' | 'schedule'>('board')
   const [mode, setMode] = useState<'day' | 'week'>('day')
