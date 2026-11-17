@@ -60,9 +60,9 @@ export async function runHostedAcceptance({
   const req={
    origin:gate.origin,actor,method,path,
    headers:{
+    ...headers,
     apikey:publishableKey,
-    ...(token?{Authorization:'Bearer '+token}:{}),
-    ...headers
+    ...(token?{Authorization:'Bearer '+token}:{})
    },
    ...(body===undefined?{}:{body})
   };
@@ -74,7 +74,9 @@ export async function runHostedAcceptance({
   return response;
  }
  // Public JWKS must be fetched from the approved staging project, never user-supplied.
- const jwks=(await request('anonymous','GET','/auth/v1/.well-known/jwks.json')).json;
+ const jwksReply=await request('anonymous','GET','/auth/v1/.well-known/jwks.json');
+ ensure(jwksReply.status===200,'jwks_http_status');
+ const jwks=jwksReply.json;
  ensure(jwks&&Array.isArray(jwks.keys),'staging_jwks_missing');
  const subjects=new Map([
   ['ownerA',fixtures.ownerA.userId],['ownerB',fixtures.ownerB.userId],
@@ -84,7 +86,9 @@ export async function runHostedAcceptance({
  for(const [actor,sub] of subjects){
   verifySignedJwt(actors[actor],jwks,{origin:gate.origin,expectedSub:sub,
    anonymous:actor==='anonymousAuth',now});
-  const user=(await request(actor,'GET','/auth/v1/user')).json;
+  const authReply=await request(actor,'GET','/auth/v1/user');
+  ensure(authReply.status===200,'auth_user_http_status');
+  const user=authReply.json;
   ensure(user?.id===sub&&
    (actor==='anonymousAuth'
     ?user.is_anonymous===true
@@ -134,7 +138,8 @@ export async function runHostedAcceptance({
  const bookingA=makeBooking(owners,fixtures.slotA,requestNonceA);
  const resultA=await book('ownerA',bookingA);
  ensure(resultA.status===200&&isUuid(resultA.json),'owner_booking_a_failed');
- ensure((await book('ownerA',bookingA)).json===resultA.json,'nonce_not_idempotent');
+ const exactRetry=await book('ownerA',bookingA);
+ ensure(exactRetry.status===200&&exactRetry.json===resultA.json,'nonce_not_idempotent');
  const altered=await book('ownerA',{...bookingA,p_concern:marker+'_CHANGED'});
  ensure(altered.status===409,'tampered_nonce_not_rejected');
  const wrongPet=await book('ownerB',makeBooking({...other,petId:owners.petId},
@@ -186,7 +191,9 @@ export async function runHostedAcceptance({
  for(const [actor,key] of [['ownerA',keyA],['ownerB',keyB],['staff',keyClinic]]){
   const up=await upload(actor,key);
   ensure([200,201].includes(up.status),'authorized_storage_upload_failed');
-  const bytes=(await download(actor,key)).bytes;
+  const downloaded=await download(actor,key);
+  ensure(downloaded.status===200,'authorized_storage_download_failed');
+  const bytes=downloaded.bytes;
   ensure(Buffer.isBuffer(bytes)&&bytes.length===pdf.length&&sha256(bytes)===digest,
     'storage_roundtrip_checksum_mismatch');
  }
@@ -203,7 +210,9 @@ export async function runHostedAcceptance({
  const malformed=storageKey(owners.petId,owners.userId,randomUUID()).replace(/\.pdf$/,'.exe');
  ensure(denied(await upload('ownerA',malformed)),'malformed_storage_extension_allowed');
  for(const key of [keyA,keyB]) {
-  const bytes=(await download('staff',key)).bytes;
+  const downloaded=await download('staff',key);
+  ensure(downloaded.status===200,'staff_storage_read_failed');
+  const bytes=downloaded.bytes;
   ensure(Buffer.isBuffer(bytes)&&sha256(bytes)===digest,'staff_storage_read_mismatch');
  }
  checked.push('private_storage_binary_sha256_and_cross_actor_denials');
