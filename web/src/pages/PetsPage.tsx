@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { useAuth } from '../hooks/AuthProvider'
 import { addPet, editPet, listPets, type Pet } from '../lib/clinical'
 import { readOwner } from '../lib/owners'
+import { EmptyState, Icon, LoadingCard, PageHeading } from '../components/ui'
 
 type Fields = {name:string;species:string;breed:string;sex:'male'|'female'|'unknown';color:string;birth_date:string}
 const empty:Fields={name:'',species:'',breed:'',sex:'unknown',color:'',birth_date:''}
@@ -53,14 +54,13 @@ export function PetsPage() {
     }finally{setSaving(false)}
   }
   return <section className="page" aria-labelledby="pet-heading">
-    <div className="page-heading"><div><span className="eyebrow">Patient care</span><h1 id="pet-heading">My patients</h1>
-      <p className="subtitle">Register your animals and maintain their details. Records are private to your account.</p></div>
-      {ownerReady && <button className="button button-primary" type="button" onClick={()=>{reset();setFormOpen(true);setNotice(null)}}>Add patient</button>}
-    </div>
+    <PageHeading id="pet-heading" eyebrow="Patient care" title="My patients"
+      actions={ownerReady&&<button className="button button-primary" type="button" onClick={()=>{reset();setFormOpen(true);setNotice(null)}}><Icon name="plus" width={18} height={18}/>Add patient</button>}>
+      Register your animals and maintain their details. Records are private to your account.</PageHeading>
     {error&&<p role="alert" className="alert alert-error">{error}</p>}
     {notice&&<p role="status" className="alert alert-success">{notice}</p>}
-    {loading?<div className="card" role="status">Loading your patients…</div>:
-      !ownerReady?<div className="card empty"><h2>Complete your owner profile first</h2><p>Your profile is needed to securely connect an animal to your account.</p><Link className="button button-primary" to="/app/profile">Set up owner profile</Link></div>:
+    {loading?<LoadingCard label="Loading your patients…" />:
+      !ownerReady?<EmptyState icon="user" title="Complete your owner profile first" action={<Link className="button button-primary" to="/app/profile">Set up owner profile</Link>}>Your profile is needed to securely connect an animal to your account.</EmptyState>:
       <>
         {formOpen&&<div className="card form-card"><div className="section-heading"><h2>{editing?'Edit patient':'Register a patient'}</h2><button type="button" className="button-quiet" onClick={reset}>Cancel</button></div>
           <form className="form-stack" onSubmit={e=>void save(e)}>
@@ -70,13 +70,13 @@ export function PetsPage() {
             <label>Sex<select value={fields.sex} onChange={e=>setFields({...fields,sex:e.target.value as Fields['sex']})}><option value="unknown">Unknown</option><option value="female">Female</option><option value="male">Male</option></select></label></div>
             <div className="form-row"><label>Color (optional)<input maxLength={100} value={fields.color} onChange={e=>setFields({...fields,color:e.target.value})}/></label>
               <label>Birth date (optional)<input type="date" max={new Date().toISOString().slice(0,10)} value={fields.birth_date} onChange={e=>setFields({...fields,birth_date:e.target.value})}/></label></div>
-            <div><button disabled={saving} className="button button-primary">{saving?'Saving…':editing?'Save patient changes':'Save patient'}</button></div>
+            <div className="form-actions"><button disabled={saving} className="button button-primary">{saving?'Saving…':editing?'Save patient changes':'Save patient'}</button><button type="button" className="button button-secondary" onClick={reset}>Cancel</button></div>
           </form></div>}
-        {pets.length===0?<div className="card empty"><h2>No patients registered yet</h2><p>Start by adding a patient. Their record will persist in Supabase.</p></div>:
+        {pets.length===0?<EmptyState title="No patients registered yet" action={<button type="button" className="button button-primary" onClick={()=>{reset();setFormOpen(true)}}>Register your first patient</button>}>Add an animal to book visits. Their record is saved to your account.</EmptyState>:
         <div className="patient-grid">{pets.map(pet=><article className="card patient-card" key={pet.id}>
-          <div className="patient-avatar" aria-hidden="true">✚</div><div><h2>{pet.name}</h2><p className="subtitle">{pet.species}{pet.breed?' · '+pet.breed:''}</p>
-          <p className="patient-detail">Sex: {pet.sex}{pet.birth_date?' · Born '+pet.birth_date:''}</p></div>
-          <button type="button" className="button button-secondary" onClick={()=>openEdit(pet)}>Edit details</button>
+          <div className="patient-top"><div className="patient-avatar" aria-hidden="true"><Icon name="paw"/></div><div><h2>{pet.name}</h2><p className="subtitle">{pet.species}{pet.breed?' · '+pet.breed:''}</p></div></div>
+          <div className="chip-row"><span className="tag">{pet.sex==='unknown'?'Sex not recorded':pet.sex==='female'?'Female':'Male'}</span>{pet.birth_date&&<span className="tag">Born {pet.birth_date}</span>}{pet.color&&<span className="tag">{pet.color}</span>}</div>
+          <button type="button" className="button button-secondary button-small" aria-label={`Edit details for ${pet.name}`} onClick={()=>openEdit(pet)}>Edit details</button>
         </article>)}</div>}
       </>}
   </section>
