@@ -4,9 +4,10 @@
  * All I/O must be injected by a SEPARATELY REVIEWED future staging adapter.
  */
 import {randomUUID} from 'node:crypto';
+import {openSync,closeSync,writeFileSync,fsyncSync,renameSync,lstatSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
-import {resolve} from 'node:path';
-import {assertFixtures,ensure,isUuid,sha256,storageKey,verifyOwnerGate,verifySignedJwt} from './guards.mjs';
+import {resolve,join} from 'node:path';
+import {assertFixtures,ensure,isUuid,sha256,storageKey,verifyOwnerGate,verifySignedJwt,PROTECTED_PROJECT_REF} from './guards.mjs';
 
 const roles=['ownerA','ownerB','staff','revoked','anonymousAuth'];
 const allowed=(method,path)=>{
@@ -40,8 +41,54 @@ function payloadPdf(runId){
 const storagePath=(key,publicAccess=false)=>'/storage/v1/object/'+
  (publicAccess?'public/':'authenticated/')+'clinical-attachments/'+key;
 
+/**
+ * Private, local, crash-resilient single-use approval ledger and cleanup journal.
+ * No network adapter, Supabase client, or automatic cleanup exists here.
+ */
+function openRunJournal(directory,gate){
+ ensure(typeof directory==='string'&&directory.length>0,'private_journal_dir_required');
+ let stat;
+ try{stat=lstatSync(directory);}catch{
+  throw new Error('HOSTED_ACCEPTANCE_BLOCKED:private_journal_dir_required');
+ }
+ ensure(stat.isDirectory()&&!stat.isSymbolicLink()&&(stat.mode&0o077)===0,
+  'private_journal_dir_permissions');
+ const file=join(directory,sha256(Buffer.from(gate.origin+'|'+gate.runId))+'.json');
+ const manifest={
+  kind:'dawney-synthetic-cleanup-v1',runId:gate.runId,marker:'DAWNEY_STAGE_'+gate.runId,
+  stagingRef:gate.origin.slice(8,28),origin:gate.origin,
+  protectedProjectRef:PROTECTED_PROJECT_REF,
+  status:'running',failureCode:null,journalFile:file,
+  appointmentIds:[],objectKeys:[],bookingAttempts:[],uploadAttempts:[]
+ };
+ let fd;
+ try{
+  fd=openSync(file,'wx',0o600);
+  writeFileSync(fd,JSON.stringify(manifest)+'\n');
+  fsyncSync(fd);
+ }catch(error){
+  if(error?.code==='EEXIST')throw new Error('HOSTED_ACCEPTANCE_BLOCKED:approval_replay');
+  throw new Error('HOSTED_ACCEPTANCE_BLOCKED:journal_create_failed');
+ }finally{if(fd!==undefined)closeSync(fd);}
+ function save(){
+  const tmp=file+'.'+randomUUID()+'.tmp';
+  let tmpFd;
+  try{
+   tmpFd=openSync(tmp,'wx',0o600);
+   writeFileSync(tmpFd,JSON.stringify(manifest)+'\n');
+   fsyncSync(tmpFd);
+   closeSync(tmpFd);tmpFd=undefined;
+   renameSync(tmp,file);
+  }catch{
+   if(tmpFd!==undefined)try{closeSync(tmpFd);}catch{}
+   throw new Error('HOSTED_ACCEPTANCE_BLOCKED:journal_write_failed');
+  }
+ }
+ return {manifest,save};
+}
+
 export async function runHostedAcceptance({
- transport,approval,trust,staging,actors,fixtures,publishableKey,now=Date.now()
+ transport,approval,trust,staging,actors,fixtures,publishableKey,journalDir,now=Date.now()
 }={}){
  // No invocation of an injected transport may occur until every safety gate succeeds.
  ensure(transport&&typeof transport.request==='function','no_transport_injected');
@@ -53,6 +100,9 @@ export async function runHostedAcceptance({
    'signed_test_jwts_required');
  ensure(Date.parse(fixtures.slotA)>now+60000&&Date.parse(fixtures.slotB)>now+60000,
    'expired_staging_slots');
+ // Exclusive runId claim happens before ANY injected HTTP call, even JWKS.
+ const journal=openRunJournal(journalDir,gate);
+ try{
 
  async function request(actor,method,path,{body,headers={}}={}){
   ensure(allowed(method,path),'unapproved_http_operation');
@@ -66,9 +116,40 @@ export async function runHostedAcceptance({
    },
    ...(body===undefined?{}:{body})
   };
+  // Persist mutation intent BEFORE sending any booking or object write.
+  // Unknown outcomes retain nonce/key for an authorized manual reconciliation.
+  let attempt=null;
+  if(method==='POST'&&path==='/rest/v1/rpc/request_service_appointment'){
+   const own=actor==='ownerA'?fixtures.ownerA:actor==='ownerB'?fixtures.ownerB:null;
+   attempt={actor,nonce:body?.p_request_nonce??null,petId:body?.p_pet_id??null,
+    slot:body?.p_starts_at??null,cleanupEligible:Boolean(own&&own.petId===body?.p_pet_id),
+    state:'in_flight'};
+   journal.manifest.bookingAttempts.push(attempt);
+  }else if(method==='POST'&&path.startsWith('/storage/v1/object/clinical-attachments/')){
+   const key=path.slice('/storage/v1/object/clinical-attachments/'.length);
+   const own=actor==='ownerA'?fixtures.ownerA:actor==='ownerB'?fixtures.ownerB:null;
+   const eligible=(own&&key.startsWith('pets/'+own.petId+'/owners/'+own.userId+'/')&&
+    key.endsWith('.pdf'))||(actor==='staff'&&
+    key.startsWith('pets/'+fixtures.ownerA.petId+'/clinic/')&&key.endsWith('.pdf'));
+   attempt={actor,key,cleanupEligible:Boolean(eligible),state:'in_flight'};
+   journal.manifest.uploadAttempts.push(attempt);
+   if(eligible&&!journal.manifest.objectKeys.includes(key))journal.manifest.objectKeys.push(key);
+  }
+  if(attempt)journal.save();
   let response;
   try{response=await transport.request(req);}
-  catch{throw new Error('HOSTED_ACCEPTANCE_BLOCKED:transport_error_redacted');}
+  catch{
+   if(attempt){attempt.state='outcome_unknown';journal.save();}
+   throw new Error('HOSTED_ACCEPTANCE_BLOCKED:transport_error_redacted');
+  }
+  if(attempt){
+   attempt.state=response?.status>=200&&response.status<300?'accepted':'rejected';
+   attempt.httpStatus=Number.isInteger(response?.status)?response.status:null;
+   if(attempt.nonce&&attempt.cleanupEligible&&isUuid(response?.json)&&
+      !journal.manifest.appointmentIds.includes(response.json))
+    journal.manifest.appointmentIds.push(response.json);
+   journal.save();
+  }
   ensure(response&&Number.isInteger(response.status)&&response.status>=100&&response.status<=599,
     'invalid_http_response');
   return response;
@@ -216,12 +297,25 @@ export async function runHostedAcceptance({
   ensure(Buffer.isBuffer(bytes)&&sha256(bytes)===digest,'staff_storage_read_mismatch');
  }
  checked.push('private_storage_binary_sha256_and_cross_actor_denials');
+ journal.manifest.status='passed';
+ journal.save();
  return {
-  status:'MOCK_OR_APPROVED_TRANSPORT_VERIFIED',
-  checks:checked,
-  // Hand to the approved staging operator via a secure, NON-LOGGED channel.
-  cleanup:{marker,appointmentIds:[resultA.json,resultB.json],objectKeys:[keyA,keyB,keyClinic]}
+  status:'MOCK_OR_APPROVED_TRANSPORT_VERIFIED',checks:checked,
+  // Preserve this private staging-only manifest; never auto-cleanup.
+  cleanup:structuredClone(journal.manifest)
  };
+ }catch(error){
+  journal.manifest.status='failed';
+  journal.manifest.failureCode=/^HOSTED_ACCEPTANCE_BLOCKED:[a-z0-9_]+$/.test(error?.message??'')
+   ?error.message.slice('HOSTED_ACCEPTANCE_BLOCKED:'.length):'unexpected_failure_redacted';
+  let persistFailed=false;
+  try{journal.save();}catch{persistFailed=true;}
+  const safe=/^HOSTED_ACCEPTANCE_BLOCKED:[a-z0-9_]+$/.test(error?.message??'')
+   ?error:new Error('HOSTED_ACCEPTANCE_BLOCKED:unexpected_failure_redacted');
+  if(persistFailed)journal.manifest.persistenceWarning='final_journal_write_failed';
+  safe.cleanup=structuredClone(journal.manifest);
+  throw safe;
+ }
 }
 
 // Running the file itself is permanently inert, irrespective of environment vars.
