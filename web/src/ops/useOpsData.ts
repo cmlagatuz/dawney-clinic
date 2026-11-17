@@ -28,12 +28,15 @@ export function useOpsData(port: OpsReadPort | null, date: string, range: string
   // 1. Verified staff session (fail closed; no data requests until it succeeds).
   useEffect(() => {
     let live = true
+    // New port (account switch / sign-out) or retry: drop every earlier result and invalidate in-flight reads.
+    token.current++
     setSession({status: 'verifying'})
+    setDay({status: 'loading'}); setCounts({status: 'loading'}); setWeek({})
     if (!port) { setSession({status: 'failed', kind: 'unavailable'}); return }
     port.verify().then(
       s => { if (live) setSession({status: 'ok', role: s.role}) },
       e => { if (live) setSession({status: 'failed', kind: classifyOpsError(e)}) })
-    return () => { live = false }
+    return () => { live = false; token.current++ }
   }, [port, nonce])
 
   const ok = session.status === 'ok'
@@ -78,5 +81,11 @@ export function useOpsData(port: OpsReadPort | null, date: string, range: string
   }, [ok, port, weekMode, weekKey, nonce])
 
   const reload = useCallback(() => setNonce(n => n + 1), [])
-  return useMemo(() => ({session, day, counts, week, reload}), [session, day, counts, week, reload])
+  // Revocation: every read re-verifies server-side, so a denial on ANY later read means the staff
+  // session is no longer valid. Fail closed for the whole page and hide previously loaded data.
+  const revoked = ok && (day.status === 'failed' && day.kind === 'denied' || counts.status === 'failed' && counts.kind === 'denied' ||
+    Object.values(week).some(w => w.status === 'failed' && w.kind === 'denied'))
+  return useMemo(() => revoked
+    ? {session: {status: 'failed', kind: 'denied'} as SessionRead, day: {status: 'loading'} as Read<OpsWindow>, counts: {status: 'loading'} as Read<OpsCounts>, week: {} as Record<string, Read<OpsWindow>>, reload}
+    : {session, day, counts, week, reload}, [revoked, session, day, counts, week, reload])
 }
