@@ -326,3 +326,57 @@ No API credentials, medical records, password hashes, patient contact details or
 
 - **MERGED:** [PR #16](https://github.com/cmlagatuz/dawney-clinic/pull/16), squash `2d179af907a2b491aef525deaa086f5a0ade3a77`. Adds a **no-network `node --check`** syntax gate for `web/tests/integration/smoke.mjs` to the existing Phase 3 React CI workflow. [React checks](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43432237970) and [legacy PHP checks](https://github.com/cmlagatuz/dawney-clinic/actions/runs/43432238118) both PASS. No live authenticated request or synthetic DB write occurred as a result of this PR.
 - The source is now ready for the owner's controlled Auth `test` and later manual security smoke dispatches. Do not confuse static syntax, mock tests, synthetic isolated restore or green build CI with a verified live browser or clinic recovery.
+
+### Claude — Phase 4 branding/layout PR (branch `ai/claude/phase4-react-modern-ui`)
+- Scope: `web/src/{styles.css,components,pages,App.tsx}`, `web/index.html`, `web/public/{theme-init.js,brand/}`, `web/tests/theme-contrast.test.mjs`. No `supabase/`, `web/src/lib/`, domain or workflow edits.
+- Done: tokenized slate/violet light+dark design system, theme toggle, accessible mobile drawer, owner dashboard (`/app/overview`, real data only), restyled auth/profile/patients/appointments (logic untouched), generic `✚` removed.
+- Logo: owner-supplied artwork (original 768² PNG + optimized 512² WebP) committed unmodified in `web/public/brand/`, shown on sign-in, header and sidebar on a light plate, aspect ratio preserved; no favicon (needs owner-approved crop). QA-01 still needs real hosted-browser confirmation after deploy.
+- **Blocked / not done:** Species/breed selector, attachments UI and staff workspace wait for Astra's typed adapters; no role data is available to the UI yet.
+- Behaviour change to review: post-login/verify redirect and `/` now go to `/app/overview` (was `/app/profile`).
+- Verified locally: contrast/theme tests, harness renders at 360/768/1440 light+dark (fake data), drawer/keyboard checks. Strict `tsc` + `vite build` only via CI.
+
+### Claude — Public website PR (branch `ai/claude/public-website`, stacked on #34) — Issue #42
+- Public `/`, `/services`, `/about` (+`/location`,`/contact`), `/book`; unknown paths → friendly 404; `/app/*` and `/auth/*` unchanged. Root no longer redirects to login.
+- Only facts: General Trias, Cavite, Philippines + owner's Maps link verbatim. **Phone, hours, street address are `null` pending owner confirmation** (`web/src/public-site/clinic-info.mjs`); UI shows "to be confirmed". Services/slots come only from Astra's #43 contract (`lib/public-booking.ts`, `booking-contract.mjs` copied byte-identically from #43 so this branch compiles; drop on merge of #43). No approved catalog/policy → pending states, no slots.
+- Booking: anonymous browse → intent (ids only, sessionStorage 30 min) → `/auth/signin|signup?next=/book` → return; signed-in: patient + reason → `requestAuthenticatedServiceBooking`; shows persisted status (requested ≠ confirmed), clinic-time (Asia/Manila) display, nonce reuse on retry.
+- Release notes: `web/public/robots.txt` still `Disallow: /` (left for supervisor); old `/app/appointments` form stops working for new bookings once the schedule is approved (needs its own PR); Verify/Callback flows still land on `/app/overview`.
+
+## Claude — Issue #51 owner appointment compatibility (PR #48)
+- `AppointmentsPage` now submits only via Astra's `submitOwnerAppointment()` (temp byte-identical copy from #43: `booking-transition.mjs/.d.mts`, `lib/owner-booking-transition.ts`, its test).
+- Mode (`public-site/booking-mode.mjs`, `useBookingMode`): `legacy` only if policy table missing (PGRST205/42P01 naming `clinic_booking_policy`) or policy null; approved+usable+services → `service` form (`ServiceBookingForm`, clinic-time slots from approved policy, RPC); approved w/o services / incomplete → paused message; any other read error → fail closed ("Try again", nothing submitted). Adapter "policy changed" errors trigger a mode reload.
+- Retry keeps nonce; any field edit refreshes it. Status shown is the persisted one. Open: pet species `clinic_supported` pre-check (server still enforces), replacing temp copies after #43 merge. Browser evidence is stubbed harness, not live DB.
+
+## Claude — booking eligibility UX (PR #48)
+- Patient picker (`PatientSelect`, `usePatientEligibility`, `public-site/eligibility.mjs`) in owner `/app/appointments` (service mode) and public `/book`. Eligibility comes only from typed `listCatalogPets` (`species_id`, `taxonomy_review_needed`) + `listAnimalTypes` (`clinic_supported`, `is_active`, `review_status`); never from the free-text species label. Ineligible patients stay listed (disabled, with reason); legacy records untouched; fail closed when the catalog can't be read. Legacy mode unchanged.
+- Missing: per-service species reader (`clinic_service_species`) — see `docs/phase4-ui/appointments/ELIGIBILITY_CONTRACT_REQUEST.md` for Astra. Evidence is a stubbed harness, not live DB.
+
+## Claude — #48 reconciled with #43 secure booking contract (2026-11-15)
+- Replaced #48's temporary copies with the reviewed #43 (`35d2f1c`) bytes: `booking-contract.mjs/.d.mts`, `lib/public-booking.ts`, tests. Added `service-species-reader.mjs/.d.mts` + its test. (`booking-transition*`, `owner-booking-transition.ts` were already byte-identical.) Drop all of these from #48 once #43 merges.
+- New per-service eligibility: `public-site/service-eligibility.mjs` (pure: view/apply/gate), `useServiceSpecies.ts` (authenticated `listServiceSpeciesIds`; anonymous never reads). Wired into BOTH `BookPage` and `ServiceBookingForm`; `PatientSelect` shows "not offered for this service".
+- Valid `[]` mapping disables every patient; lookup/Auth/RLS/malformed errors block submit with retry and never say "unsupported". View is derived against the current service, so a late response for a previous service cannot enable a patient.
+- Tests: `node --test web/tests/*.test.mjs`; Chromium (stubbed harness over the real reader, NOT live DB) at 360/768/1440. Screenshots: `docs/phase4-ui/service-eligibility/`.
+- Open: separate-tab email verification loses tab-scoped intent (user re-selects); hosted Auth/RLS verification needs owner authorization.
+
+## Claude — integration rehearsal #34+#41+#48 (2026-11-15)
+- Disposable merge: only 3 conflicts (`App.tsx` Root()/flag, `styles.css` + handoff appends). CI-only job `.github/workflows/phase4-integration-rehearsal.yml` (pinned #41 `4276604`, #43 `2749f81`; fail-closed resolver `scripts/integration-rehearsal/`) reproduces it, then runs assertions, Node, strict tsc + Vite, Chromium. Details/procedure: `docs/phase4-ui/integration-rehearsal/README.md`. Remove after the real merge.
+
+## Claude — Phase 5A staff Operations UI (2026-11-16)
+Branch `ai/claude/phase5a-ops-ui` (stacked on #48 `58f15c0`), flag `VITE_PHASE5A_OPS_UI` OFF. Typed read port, stubbed until #59 integrates; see `docs/phase5a-ui/INTEGRATION.md`. Source-only, not live verified. Next: Astra wires `web/src/ops/port.ts` after #59; names/vet read contract needed.
+
+### Claude — Phase 4 patient-form PR (branch `ai/claude/phase4-patient-form`, stacked on #34)
+- Adds `PetsPageCatalog` (grouped searchable Species combobox, Breed locked until species, reset on species change, 3 optional private attachment slots with preview/status/retry/download, legacy-pet review) consuming Astra's `lib/taxonomy.ts` and `lib/pet-attachments.ts` unmodified. **Off by default**: enabled only by build-time `VITE_PHASE4_PATIENT_FORM=true` after the supervisor activates the corrected migrations. Do not set it on Cloudflare before then.
+- Not done / needs others: booking block for `clinic_supported=false` species (Appointments still uses the legacy pet list); Chow Chow/cattle breeds come from Astra's catalog (#35); previews use `data:` URLs because CSP `img-src` has no `blob:` (no `_headers` change made); staff attachment scope not exposed.
+
+## Claude — #41 private attachment read/race fix (2026-11-15)
+- `PetsPageCatalog.loadExisting()` is gone: it turned any failed/denied read into `existing=[]`. Now `hooks/usePatientAttachments.ts` + pure `attachment-load.mjs` give explicit idle/loading/error/ready (true empty = ready+[]), derived against the current account id + patient id, so older responses (previous patient/account, cancelled form, unmount) never show. Error → safe alert + Try again; "saved documents could not be checked" instead of "No file selected"; document fields are locked and download hidden until the read succeeds.
+- Form `session` token ignores late upload/save/download results after close, patient switch or account change; `AttachmentField` is keyed per patient. Download only for settled rows of the selected patient. PatientPhoto and the patient load key on account id (token refresh no longer refetches/blanks).
+- Unchanged: private Storage calls, immutable versions, upload retry, legacy Chow Chow record, flag OFF.
+- Tests: `tests/attachment-load.test.mjs` (10); Chromium (stubbed harness, NOT live Supabase) 49 checks; screenshots `docs/phase4-ui/attachments/`. Hosted RLS/Storage denied-read behaviour not verified.
+
+## Claude — #41 CodeRabbit findings (2026-11-15)
+- All 4 reproduced against `4276604` (Chromium, stubbed) and fixed: (1) `reload()` ignores results after an account change (`accountRef`; `saving` cleared only for the starting account); (2) `retryMode()` finalises a retained private `objectPath` whatever the status (no second upload); (3) Save/Close/Cancel/Add/Edit disabled while any upload or save is in flight, with a status line; (4) successful uploads refresh private metadata, then the saved pending file is replaced by it so Download appears without reopening (unsaved/pending files and not-yet-synced metadata are never downloadable).
+- Behaviour change: after a successful retry the field shows the stored record (name/version + Download) instead of "Saved securely"; the page notice still says "File uploaded securely."
+- Tests: `catalog-guards`, extended `attachment-load` / `patient-form-logic` unit tests; Chromium `find41` 22 checks (old build fails the finding checks). Hosted RLS/Storage still unverified.
+
+## Claude — frontend integration candidate (2026-11-16)
+`ai/claude/phase5-frontend-integration` = #64 `1a661b0` + #41 `59f8cb1`; 3 conflicts (App.tsx routes/flags, styles, handoff). Flags stay OFF; staff port null. See `docs/phase5-integration/README.md`. Source-only; not live verified.
