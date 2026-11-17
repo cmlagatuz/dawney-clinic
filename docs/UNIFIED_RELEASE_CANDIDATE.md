@@ -1,6 +1,6 @@
 # Dawney — Unified Non-Production Release Candidate (PR #69 + PR #70)
 
-**Gate status: AWAITING SECURITY REVIEW — NOT RELEASE READY.** No production or staging SQL, hosted Auth/Storage requests, synthetic hosted writes, staff bootstrap, patient exports, provider publication, master merge, force push or paid resource.
+**Gate status: GROK SOURCE SECURITY ACCEPTED FOR INTEGRATION — COMBINED CI REQUIRED; NOT RELEASE/LIVE READY.** No production or staging SQL, hosted Auth/Storage requests, synthetic hosted writes, staff bootstrap, patient exports, provider publication, master merge, force push or paid resource.
 
 ## Pinned source ancestry
 
@@ -10,9 +10,23 @@
 | PR [#67](https://github.com/cmlagatuz/dawney-clinic/pull/67) | `5b8f7a03292123ed0314b5b7c6304d410b2fc94e` | Already merged frontend/backend source ancestry |
 | PR [#69](https://github.com/cmlagatuz/dawney-clinic/pull/69) | `63a2b68ee93463f426cafc6bdf468376343001cf` | Candidate base, full-tree PG17 test assets (first merge parent) |
 | PR [#70](https://github.com/cmlagatuz/dawney-clinic/pull/70) | `2a42489a4b85c46979f9c971474fc74579f673de` | Claude booking compatibility (second merge parent) |
-| PR [#68](https://github.com/cmlagatuz/dawney-clinic/pull/68) | `9bc84ef3cde86d6c052c4d40012ffbee9c2391f0` | **NOT IMPORTED**. Await independent Grok fixed-head source security acceptance before inclusion |
+| PR [#68](https://github.com/cmlagatuz/dawney-clinic/pull/68) | `9bc84ef3cde86d6c052c4d40012ffbee9c2391f0` | **SOURCE IMPORTED after [Grok approval #6948651938](https://github.com/cmlagatuz/dawney-clinic/pull/68#issuecomment-6948651938)**. Hosted execution still NOT authorized |
 
-**Actual normal, non-force merge commit:** `da1d26b90bdaf515a4be37bd4b692d0569edaff9` with parents PR69 then PR70. PR69's three CI test files and all backend files remain unchanged at that merge. Git's common PR67 ancestor was verified: each of PR70's seven modified/added paths was unmodified on PR69 relative to PR67; no conflict or frontend manual edit.
+**First normal, non-force merge commit:** `da1d26b90bdaf515a4be37bd4b692d0569edaff9` with parents PR69 then PR70. **Second two-parent merge:** `106aa9f76d4d894578e01599456c7b536773149c` with parents previous candidate and Grok-accepted PR68. PR69's three CI test files and all backend files remain unchanged at that merge. Git's common PR67 ancestor was verified: each of PR70's seven modified/added paths was unmodified on PR69 relative to PR67; no conflict or frontend manual edit.
+
+### Grok-accepted PR68 source blobs imported (no security harness edits)
+
+Five exact source entries were imported from PR68; its concurrent handoff change **was not allowed to overwrite Claude's PR70 handoff**. The overlapping `docs/AI_HANDOFF.md` keeps the byte-exact PR70 blob shown below; this manifest captures PR68 provenance instead.
+
+| Imported PR68 path | Git blob SHA |
+| --- | --- |
+| `.github/workflows/hosted-security-acceptance-source.yml` | `c49126062eecd97ffd415b99637b42809e1a0c91` |
+| `docs/HOSTED_SECURITY_ACCEPTANCE.md` | `c63486294c9ec1f9d7334d55808bc51281f1def2` |
+| `scripts/hosted-acceptance/acceptance.mjs` | `ab77c3cb5cad7e3d52f39e418e4c01fb595c9afe` |
+| `scripts/hosted-acceptance/guards.mjs` | `c6361ee848c1c78370fc5e771d8765090c367708` |
+| `scripts/hosted-acceptance/tests/acceptance.test.mjs` | `c5d2dd61e4fecd0f65b8f57fd30cfc240f0131ea` |
+
+The source harness remains **inert by direct CLI (exit 3)** and has **no default network adapter**. Grok accepted source inclusion only; actual staging/production JWT/RLS/Storage tests, cross-host approval replay prevention and manual cleanup remain unverified/owner-gated.
 
 ### Exactly preserved PR70 blob contents (no Claude edits)
 
@@ -40,13 +54,13 @@ Four strictly ordered Phase4:
 
 Separate additive policy correction:
 `20261116002500_phase3_storage_outer_object_path_rls_fix.sql`.
-The existing full-tree PG17 script validates immutable Git blob SHAs for all eleven SQL files and crucial booking/staff/Storage tests; the repaired script adds exact PR69/PR70 ancestry and all seven source-blob assertions. The offline provider-shim history database creates the test Dog/Chow Chow and appointment **before** Phase4 migration and checks exact historical field preservation afterward. Nothing touches hosted Supabase.
+The existing full-tree PG17 script validates immutable Git blob SHAs for all eleven SQL files and crucial booking/staff/Storage tests; the repaired script adds exact PR69/PR70/PR68 ancestry, all seven Claude source-blob assertions and five Grok-reviewed harness source-blob assertions. The offline provider-shim history database creates the test Dog/Chow Chow and appointment **before** Phase4 migration and checks exact historical field preservation afterward. Nothing touches hosted Supabase.
 
 ## CI gate and stop conditions
 
 - Pull-request-only `.github/workflows/full-tree-pg17-security.yml`: disposable **PostgreSQL 17**, original six + four + Storage correction, RLS/Storage/booking/staff negative cases, nonce replay, source and historic record preservation.
-- Node 22: `web/npm ci`, `npm test`, strict TypeScript/`npm run build`, scheduling tests and bundled-key safety.
+- Node 22: `web/npm ci`, `npm test`, strict TypeScript/`npm run build`, scheduling tests, bundled-key safety and the **Grok-accepted hosted harness offline mock contracts** with inert-CLI (exit 3) assertion.
 - Chromium: `scripts/browser/tests/*.test.mjs`, local Vite preview (127.0.0.1), and `scripts/browser/anonymous.mjs`. **Chromium here is local-source browser QA, not hosted Auth/RLS proof.**
 - Legacy PHP and repository safety workflows run as PR checks. Record all final-head run URLs only after observing completed jobs.
-- **STOP** if source head drift, unapproved file modification, CI failure, migration/hash mismatch, new frontend conflict or missing Grok independent acceptance of PR68. Do not integrate PR68 until Grok explicitly approves that repaired exact head; then do a separate reviewed merge into this SAME candidate and rerun relevant gates. A local cleanup journal's cross-host replay limitation remains documented in PR68.
+- **STOP** if source head drift, unapproved file modification, CI failure, migration/hash mismatch or new frontend conflict. Grok accepted PR68 **for source inclusion only**; this does not authorize an external adapter, staging SQL, hosted requests, patient data or a clinical release. A local cleanup journal's cross-host replay limitation remains documented in PR68.
 - No claim of source-release readiness, staging or clinic-live readiness on green mock CI alone.
