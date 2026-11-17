@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CI-only, real local PG17, unified PR69 + reviewed PR70 source candidate.
+# CI-only, real local PG17: reviewed PR69+PR70+PR71 staff+PR68 security source.
 set -Eeuo pipefail
 fail(){ echo "FULL_TREE_GATE_BLOCKED: $*" >&2; exit 1; }
 [[ "$GITHUB_ACTIONS" == true && "$GITHUB_EVENT_NAME" == pull_request &&
@@ -9,9 +9,11 @@ fail(){ echo "FULL_TREE_GATE_BLOCKED: $*" >&2; exit 1; }
    "$EXPECTED_BASE_SHA" == 63a2b68ee93463f426cafc6bdf468376343001cf &&
    "$EXPECTED_FRONTEND_SHA" == 2a42489a4b85c46979f9c971474fc74579f673de &&
    "$EXPECTED_SECURITY_SHA" == 9bc84ef3cde86d6c052c4d40012ffbee9c2391f0 &&
+   "$EXPECTED_STAFF_SHA" == 1dfd25f2ffcf5470ed7e0b4a33fcf5013a53a373 &&
    "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ &&
    "$EXPECTED_PR_NUMBER" =~ ^[0-9]+$ ]] || fail 'not pinned release-candidate/CI/disposable PG17 environment'
 for bin in git psql; do command -v "$bin" >/dev/null || fail "missing $bin";done
+[[ "$(git rev-parse HEAD)" == "$EXPECTED_HEAD_SHA" ]] || fail "checkout does not match exact PR head"
 git fetch --no-tags origin \
  "refs/pull/$EXPECTED_PR_NUMBER/head:refs/remotes/origin/full-tree-self"
 [[ "$(git rev-parse refs/remotes/origin/full-tree-self)" == "$EXPECTED_HEAD_SHA" ]] ||
@@ -19,19 +21,24 @@ git fetch --no-tags origin \
 git fetch --no-tags origin \
  'refs/pull/69/head:refs/remotes/origin/release-base' \
  'refs/pull/70/head:refs/remotes/origin/reviewed-frontend' \
- 'refs/pull/68/head:refs/remotes/origin/reviewed-security'
+ 'refs/pull/68/head:refs/remotes/origin/reviewed-security' \
+ 'refs/pull/71/head:refs/remotes/origin/reviewed-staff'
 [[ "$(git rev-parse refs/remotes/origin/release-base)" == "$EXPECTED_BASE_SHA" ]] ||
  fail 'PR69 source moved; do not test stale tree'
 [[ "$(git rev-parse refs/remotes/origin/reviewed-frontend)" == "$EXPECTED_FRONTEND_SHA" ]] ||
  fail 'PR70 source moved; do not test stale tree'
 [[ "$(git rev-parse refs/remotes/origin/reviewed-security)" == "$EXPECTED_SECURITY_SHA" ]] ||
  fail 'PR68 source moved; do not test stale tree'
+[[ "$(git rev-parse refs/remotes/origin/reviewed-staff)" == "$EXPECTED_STAFF_SHA" ]] ||
+ fail 'PR71 source moved; do not test stale tree'
 git merge-base --is-ancestor "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA" ||
  fail 'tested commit is missing PR69 ancestry'
 git merge-base --is-ancestor "$EXPECTED_FRONTEND_SHA" "$EXPECTED_HEAD_SHA" ||
  fail 'tested commit is missing reviewed PR70 ancestry'
 git merge-base --is-ancestor "$EXPECTED_SECURITY_SHA" "$EXPECTED_HEAD_SHA" ||
  fail 'tested commit is missing Grok-accepted PR68 ancestry'
+git merge-base --is-ancestor "$EXPECTED_STAFF_SHA" "$EXPECTED_HEAD_SHA" ||
+ fail 'tested commit is missing PR71 staff UI ancestry'
 # The seven PR70 files must be byte-for-byte identical to Claude's reviewed head.
 while IFS= read -r path; do
  [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$EXPECTED_FRONTEND_SHA:$path")" ]] ||
@@ -56,6 +63,23 @@ scripts/hosted-acceptance/acceptance.mjs
 scripts/hosted-acceptance/guards.mjs
 scripts/hosted-acceptance/tests/acceptance.test.mjs
 GROK
+# Reviewed #71 staff UI files must match the immutable source commit and
+# the checked-out bytes; allowlist below remains restrictive for other files.
+while read -r path sha; do
+ [[ "$(git rev-parse "$EXPECTED_STAFF_SHA:$path")" == "$sha" &&
+    "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+  fail "reviewed PR71 staff UI source drift: $path"
+done <<'STAFF_BLOBS'
+docs/phase5a-ui/INTEGRATION.md 849736b92d23cfeae9f1c41d9354c98559063df6
+web/src/ops/port-adapter.d.mts be658d899e66551062b88fbf7062ff8444092efd
+web/src/ops/port-adapter.mjs cc219d05c37408ea2833ee71bdd1b1dc6c486b59
+web/src/ops/port.ts 49c86914c496b37c73ccf2193bcbaf65757088fb
+web/src/ops/useOpsData.ts 65ba82cee4aca9fbb26d9539d04942fd1ace93b7
+web/src/pages/staff/OpsPage.tsx 441f4e201fc0dd45568d8de9a75eb2e6be7b3ccf
+web/tests/ops-model.test.mjs b142ba5b8aca13cf95231d39d01396f12ced2b81
+web/tests/ops-port.test.mjs af738c1fef40a537c1ae6dc77e467c4adabd5339
+STAFF_BLOBS
 while IFS= read -r path; do
  case "$path" in
  docs/AI_HANDOFF.md|docs/UNIFIED_RELEASE_CANDIDATE.md|\
@@ -65,7 +89,11 @@ while IFS= read -r path; do
  scripts/hosted-acceptance/tests/acceptance.test.mjs|\
  web/src/pages/AppointmentsPage.tsx|web/src/public-site/booking-mode.d.mts|\
  web/src/public-site/booking-mode.mjs|web/src/public-site/usePatientEligibility.ts|\
- web/src/public-site/useServiceSpecies.ts|web/tests/owner-booking-view.test.mjs) ;;
+ web/src/public-site/useServiceSpecies.ts|web/tests/owner-booking-view.test.mjs|\
+ docs/phase5a-ui/INTEGRATION.md|web/src/ops/port-adapter.d.mts|\
+ web/src/ops/port-adapter.mjs|web/src/ops/port.ts|web/src/ops/useOpsData.ts|\
+ web/src/pages/staff/OpsPage.tsx|web/tests/ops-model.test.mjs|\
+ web/tests/ops-port.test.mjs) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
@@ -88,7 +116,7 @@ supabase/tests/phase5a_staff_booking_rpc_queue.sql 9fd4a627f471391b192968af57f81
 supabase/tests/phase5a_staff_pg17_regression.sql a1b9781325724885188099075d8c36e9ed223b1b
 supabase/tests/phase3_storage_outer_path_after_fix.sql 293abc90a168f6157aa0b0055d2e78fea8f59a8f
 BLOBS
-echo 'PASS: exact PR69+PR70+Grok-accepted PR68 ancestry/head and unchanged reviewed frontend/harness blobs; original six Phase2/3 + four Phase4 + additive Storage correction pinned.'
+echo 'PASS: exact PR69+PR70+PR71+Grok-accepted PR68 ancestry/head; reviewed booking/staff/security blobs; original six Phase2/3 + four Phase4 + additive Storage correction pinned.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
  if [[ "$PGDATABASE" == full_tree_history_ci ]]; then
