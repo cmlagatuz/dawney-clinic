@@ -26,12 +26,14 @@ jobs:
         run: |
           node --check scripts/hosted-acceptance/guards.mjs
           node --check scripts/hosted-acceptance/acceptance.mjs
+          node --check scripts/hosted-acceptance/staging-request-plan.mjs
+          node --check scripts/hosted-acceptance/tests/staging-request-plan.test.mjs
           node --check scripts/hosted-acceptance/tests/acceptance.test.mjs
       - name: Run isolated injection tests and preexisting Auth safety guards (no secrets)
         env:
           DAWNEY_HOSTED_ACCEPTANCE_MODE: source-only
         run: |
-          node --test scripts/hosted-acceptance/tests/acceptance.test.mjs packages/clinic-auth/tests/smoke-guards.test.mjs
+          node --test scripts/hosted-acceptance/tests/*.test.mjs packages/clinic-auth/tests/smoke-guards.test.mjs
       - name: Assert harness CLI is inert, even if approval-like flags are set
         shell: bash
         env:
@@ -44,3 +46,9 @@ jobs:
           set -e
           test "$exit_code" -eq 3
           grep -Fx 'HOSTED_ACCEPTANCE_BLOCKED:source_only_no_network_adapter' "$RUNNER_TEMP/acceptance-cli.log"
+          set +e
+          node scripts/hosted-acceptance/staging-request-plan.mjs > "$RUNNER_TEMP/staging-plan-cli.log" 2>&1
+          plan_exit=$?
+          set -e
+          test "$plan_exit" -eq 3
+          grep -Fx 'HOSTED_ACCEPTANCE_BLOCKED:staging_plan_no_network_sender' "$RUNNER_TEMP/staging-plan-cli.log"
