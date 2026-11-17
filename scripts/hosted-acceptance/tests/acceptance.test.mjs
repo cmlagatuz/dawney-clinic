@@ -58,7 +58,10 @@ const base=()=>({
  publishableKey:'sb_publishable_synthetic_dummy',now
 });
 
-function fakeTransport({leakOwner=false,corruptDownload=false,allowOverlap=false,throwSecrets=false}={}){
+function fakeTransport({
+ leakOwner=false,corruptDownload=false,allowOverlap=false,throwSecrets=false,
+ jwksStatus=200,authStatus=200,ownFileStatus=200
+}={}){
  const state={calls:[],appointments:[],objects:new Map(),nonce:new Map()};
  const ownerOf={ownerA:fixtures.ownerA,ownerB:fixtures.ownerB};
  function getRows(actor,table,query){
@@ -86,8 +89,8 @@ function fakeTransport({leakOwner=false,corruptDownload=false,allowOverlap=false
   state.calls.push({actor:req.actor,method:req.method,path:req.path});
   if(throwSecrets)throw Error('Bearer '+actors.ownerA);
   const {path,method,actor}=req;
-  if(path==='/auth/v1/.well-known/jwks.json')return {status:200,json:jwks};
-  if(path==='/auth/v1/user')return {status:200,json:{
+  if(path==='/auth/v1/.well-known/jwks.json')return {status:jwksStatus,json:jwks};
+  if(path==='/auth/v1/user')return {status:authStatus,json:{
    id:uid[actor],email_confirmed_at:actor==='anonymousAuth'?null:'2026-11-01T00:00:00Z',
    is_anonymous:actor==='anonymousAuth'}};
   if(path.startsWith('/rest/v1/')&&method==='GET'){
@@ -137,7 +140,7 @@ function fakeTransport({leakOwner=false,corruptDownload=false,allowOverlap=false
    if(!state.objects.has(key))return {status:404};
    const bytes=Buffer.from(state.objects.get(key));
    if(corruptDownload&&actor==='ownerA')bytes[bytes.length-1]^=1;
-   return {status:200,bytes};
+   return {status:ownFileStatus,bytes};
   }
   throw Error('Unexpected mocked method');
  }};
@@ -234,6 +237,17 @@ test('injected transport errors are redacted and cannot expose bearer values',as
  assert.ok(failure);
  assert.equal(failure.message,'HOSTED_ACCEPTANCE_BLOCKED:transport_error_redacted');
  assert.ok(!failure.message.includes(actors.ownerA));
+});
+test('HTTP 500 JWKS/Auth or non-200 private file cannot masquerade as successful verification',async()=>{
+ const cases=[
+  [{jwksStatus:500},/jwks_http_status/],
+  [{authStatus:500},/auth_user_http_status/],
+  [{ownFileStatus:206},/authorized_storage_download_failed/]
+ ];
+ for(const [options,pattern] of cases){
+  const {transport}=fakeTransport(options);
+  await assert.rejects(runHostedAcceptance({...base(),transport}),pattern);
+ }
 });
 test('path validation rejects PII or malformed object identifiers',()=>{
  assert.throws(()=>storageKey('not-a-pet',uid.ownerA,randomUUID()),/storage_path_uuid/);
