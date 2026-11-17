@@ -35,10 +35,10 @@ for spec in \
  [[ "$(git rev-parse "refs/remotes/origin/storage-fix-pr$pr")" == "$expected" ]] ||
   { echo "Reviewed PR #$pr head drift: STOP until re-reviewed" >&2;exit 1; }
 done
-cp 'supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql' > "$work/20261113211600_phase4_taxonomy_attachments.sql"
-cp 'supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql' > "$work/20261113211700_phase4_animal_catalog_seed.sql"
-cp 'supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql' > "$work/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql"
-cp 'supabase/migrations/20261114090000_phase4_public_booking_contract.sql' > "$work/20261114090000_phase4_public_booking_contract.sql"
+cp 'supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql' "$work/20261113211600_phase4_taxonomy_attachments.sql"
+cp 'supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql' "$work/20261113211700_phase4_animal_catalog_seed.sql"
+cp 'supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql' "$work/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql"
+cp 'supabase/migrations/20261114090000_phase4_public_booking_contract.sql' "$work/20261114090000_phase4_public_booking_contract.sql"
 while read -r path sha; do
  [[ "$(git hash-object "$work/$path")" == "$sha" ]] ||
   { echo "Unreviewed Phase4 SQL blob: $path" >&2; exit 1; }
