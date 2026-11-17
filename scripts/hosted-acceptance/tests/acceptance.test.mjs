@@ -149,7 +149,8 @@ function fakeTransport({
    if(!state.objects.has(key))return {status:404};
    const bytes=Buffer.from(state.objects.get(key));
    if(corruptDownload&&actor==='ownerA')bytes[bytes.length-1]^=1;
-   return {status:actor==='staff'?staffDownloadStatus:ownFileStatus,bytes};
+   if(actor==='staff')state.staffDownloads=(state.staffDownloads??0)+1;
+   return {status:actor==='staff'&&state.staffDownloads>1?staffDownloadStatus:ownFileStatus,bytes};
   }
   throw Error('Unexpected mocked method');
  }};
