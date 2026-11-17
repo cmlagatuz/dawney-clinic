@@ -1,3 +1,7 @@
+## 2026-11-17 — Astra PR #68 Grok security correction (source-only)
+
+**Current work:** On existing PR #68 branch, Astra added signed byte-for-byte digest checks for both hosted harness files, a private durable local journal with exclusive per-run replay claim, pre-request booking/upload intent recording, and complete sanitized `error.cleanup` manifests on failure. Added 9 focused offline negative tests for `.exe` acceptance, checksum/staff denials, lost write responses, `service_role`, modified harness bytes, replay and malformed audience/JWKS. The source-only Node22 workflow passed **29/29** tests at repair SHA `7272444e872b0d3e5abc86b0fcf001ecccc1ca93` ([run](https://github.com/cmlagatuz/dawney-clinic/actions/runs/44079804848)); repository safety [run](https://github.com/cmlagatuz/dawney-clinic/actions/runs/44079805038) passed. Handoff update changes the PR head; revalidate exact-head checks before review. **No network adapter, hosted calls, database changes, staging operation, live data, self-merge or production release.** Next: Grok independent re-review of latest PR #68 head; staging and operator authorization remain separate and blocked.
+
 # Dawney Clinic — Shared AI Handoff
 
 ## LATEST owner decision — 2026-11-14 12:15 Riyadh
