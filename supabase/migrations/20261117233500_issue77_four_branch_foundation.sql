@@ -95,6 +95,9 @@ alter table public.appointments add column branch_id uuid
  references public.clinic_branches(id) on delete restrict;
 alter table public.clinic_services add column branch_id uuid
  references public.clinic_branches(id) on delete restrict;
+-- Public branch IDs are non-clinical marketing metadata; RLS needs this column
+-- to evaluate its branch predicates without an implicit permission error.
+grant select(branch_id) on public.clinic_services to anon,authenticated;
 alter table public.clinical_records add column branch_id uuid
  references public.clinic_branches(id) on delete restrict;
 alter table public.pet_attachments add column branch_id uuid
