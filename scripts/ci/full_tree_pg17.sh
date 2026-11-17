@@ -97,7 +97,11 @@ while IFS= read -r path; do
   docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md|\
   .github/workflows/staging-acceptance-plan-offline.yml|\
   scripts/hosted-acceptance/staging-request-plan.mjs|\
-  scripts/hosted-acceptance/tests/staging-request-plan.test.mjs) ;;
+  scripts/hosted-acceptance/tests/staging-request-plan.test.mjs|\
+  supabase/migrations/20261117233500_issue77_four_branch_foundation.sql|\
+  supabase/tests/issue77_four_branch_pg17_denials.sql|\
+  docs/ISSUE77_FOUR_BRANCH_FOUNDATION.md|\
+  .github/workflows/issue77-four-branch-pg17.yml) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
@@ -113,6 +117,18 @@ scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 6287fd01a8b51b2540
 docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 5c61c7182d98cd48e519f8091859a69d59f0ab9c
 .github/workflows/staging-acceptance-plan-offline.yml 2c04fb85121b4d714b7dc319c39da4e82727566f
 STAGING_PREP_BLOBS
+# Source-only issue77 additive candidate: exact immutable schema/test/workflow/docs.
+# Original eleven applied migrations and Grok/booking/staff blobs remain separately pinned.
+while read -r path sha; do
+ [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+   fail "unreviewed multi-branch source drift: $path"
+done <<'ISSUE77_BLOBS'
+supabase/migrations/20261117233500_issue77_four_branch_foundation.sql df6af9e7320a3e6a01f0895681e2ec5891632f4f
+supabase/tests/issue77_four_branch_pg17_denials.sql 6f63298f6ea18da5ed37dba458005d06033aa11c
+docs/ISSUE77_FOUR_BRANCH_FOUNDATION.md f5cce3f6b1c330d32f59c269b973a1e92aace3b0
+.github/workflows/issue77-four-branch-pg17.yml 131d7da33df4f6be56484046c87a95fd398a79b2
+ISSUE77_BLOBS
 while read -r path sha; do
  [[ -s "$path" && "$(git hash-object "$path")" == "$sha" ]] ||
   fail "source drift: $path"

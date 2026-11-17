@@ -26,6 +26,10 @@ on:
       - 'scripts/hosted-acceptance/**'
       - 'docs/HOSTED_SECURITY_ACCEPTANCE.md'
       - 'docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md'
+      - '.github/workflows/issue77-four-branch-pg17.yml'
+      - 'supabase/migrations/20261117233500_issue77_four_branch_foundation.sql'
+      - 'supabase/tests/issue77_four_branch_pg17_denials.sql'
+      - 'docs/ISSUE77_FOUR_BRANCH_FOUNDATION.md'
 
 permissions:
   contents: read
