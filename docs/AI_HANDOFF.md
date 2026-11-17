@@ -386,3 +386,8 @@ Branch `ai/claude/phase5a-ops-ui` (stacked on #48 `58f15c0`), flag `VITE_PHASE5A
 - Fixed: DB trigger 23514 ("Select an approved service…") arrives as a plain PostgREST object and was shown as a scheduling conflict; now `isPolicyFlip()` → "Nothing was booked", `bm.reload()`, form swaps to service-aware. No retry, no service fallback.
 - Fixed: token refresh (new `user` object, same id) no longer wipes forms/refetches (effects keyed on `user.id`); `ServiceBookingForm` keyed per account so typed text never carries to another account.
 - Tests: `tests/owner-booking-view.test.mjs` (5; Node 119/119); Chromium (stubbed, NOT live) 30 checks incl. flip/race/unreadable-policy/refresh/account switch/360-768-1440 light+dark/keyboard. No `supabase/`, `web/src/lib/*` or contract files touched. Flags OFF; policy NOT approved by this PR.
+
+## Claude — Naga-first public site (Issue #76, 2026-11-17)
+- `clinic-info.mjs/.d.mts`: frozen `BRANCHES` (naga primary, cavite secondary) with owner-approved addresses, Maps/Facebook URLs, Mon–Sat 8–5 (Asia/Manila) display hours, Sunday NOT asserted; `NAGA_SERVICE_CATEGORIES` (8 informational labels). Home/About/Services/Book/footer/SEO now Naga-first; Cavite is info + Facebook/Maps only.
+- No phone, prices, durations, slots, chat integration or booking CTA on categories; `clinic_booking_policy` stays unapproved; both feature flags OFF; no SQL/Astra/CI edits. Branch-scoped booking needs Astra (Issue #77).
+- Tests: `tests/naga-site.test.mjs` (9; Node 139) + Chromium (stubbed harness) 44 checks incl. 360/768/1440 light+dark, keyboard.

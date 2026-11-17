@@ -8,7 +8,7 @@ import { clearBookingIntent, readBookingIntent, saveBookingIntent, signinForBook
 import { formatClinicDate, formatClockTime, generateSlots, isUsablePolicy } from '../../public-site/slots.mjs'
 import { usePageMeta } from '../../public-site/usePageMeta'
 import { usePublicCatalog } from '../../public-site/usePublicCatalog'
-import { ContactDetails, DirectionsButton } from '../../components/SiteLayout'
+import { ContactDetails, DirectionsButton, MessageButton } from '../../components/SiteLayout'
 import { PatientSelect } from '../../components/PatientSelect'
 import { usePatientEligibility } from '../../public-site/usePatientEligibility'
 import { firstEligibleId } from '../../public-site/eligibility.mjs'
@@ -25,7 +25,7 @@ function safeIntent(): PublicBookingIntent | null {
 
 /** Public booking: browsing and intent need no login; a persisted request needs a verified account, profile and registered patient. */
 export function BookPage() {
-  usePageMeta('Book an appointment — Dawney Animal Clinic', 'Request an appointment at Dawney Animal Clinic in General Trias, Cavite. Requests are confirmed by the clinic.')
+  usePageMeta('Book an appointment — Dawney Animal Clinic', 'Booking status for Dawney Animal Clinic, Naga Branch. Online booking is not open yet; message the Naga Facebook page to ask about care.')
   const catalog = usePublicCatalog()
   const { user, checking } = useAuth()
   const navigate = useNavigate()
@@ -112,13 +112,13 @@ export function BookPage() {
   }
   function startOver() { setResult(null); setServiceId(''); setConcern(''); setDetails(''); setPetId(''); setError(null) }
 
-  const header = <PageHeading id="book-heading" eyebrow="Dawney Animal Clinic" title="Book an appointment">Send a request for a service the clinic offers online. The clinic reviews every request, and it is <strong>not confirmed</strong> until the clinic confirms it.</PageHeading>
-  const contact = <div className="cta-row"><DirectionsButton /><Link className="button button-secondary" to="/about#contact">Contact the clinic</Link></div>
+  const header = <PageHeading id="book-heading" eyebrow="Dawney Animal Clinic — Naga Branch" title="Book an appointment">Send a request for a service the clinic offers online. The clinic reviews every request, and it is <strong>not confirmed</strong> until the clinic confirms it.</PageHeading>
+  const contact = <div className="cta-row"><MessageButton /><DirectionsButton secondary /><Link className="button button-secondary" to="/about#contact">All branches</Link></div>
 
   if (catalog.status === 'loading') return <div className="page">{header}<LoadingCard label="Loading booking options…" rows={4} /></div>
   if (catalog.status === 'error') return <div className="page">{header}<div role="alert" className="alert alert-error">Booking options could not be loaded. <button type="button" className="button-quiet" onClick={catalog.reload}>Try again</button></div>{contact}</div>
   if (catalog.services.length === 0) return <div className="page">{header}
-    <EmptyState icon="calendar" title="Online booking is not open yet" action={contact}>The clinic has not published services for online requests yet, so there is nothing to book here. Please contact the clinic directly.</EmptyState></div>
+    <EmptyState icon="calendar" title="Online booking is not open yet" action={contact}>The clinic has not published services for online requests yet, so there is nothing to book here. Please message our Naga Facebook page.</EmptyState></div>
 
   if (result) {
     const slot = utcToClinicSlot(new Date(result.starts_at).toISOString().replace(/\.\d{3}Z$/, 'Z'), policy?.timezone ?? 'Asia/Manila')
