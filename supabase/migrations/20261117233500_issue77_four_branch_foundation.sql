@@ -106,21 +106,21 @@ create index records_by_branch_pet_date on public.clinical_records(branch_id,pet
 create index attachments_by_branch_pet on public.pet_attachments(branch_id,pet_id);
 
 create function clinic_private.has_branch_pet_care(p_pet uuid,p_roles text[])
-returns boolean language sql stable security definer set search_path='' as $
+returns boolean language sql stable security definer set search_path='' as $$
  select exists(
   select 1 from public.appointments a
   where a.pet_id=p_pet and a.branch_id is not null
     and clinic_private.has_branch_role(a.branch_id,p_roles)
  );
-$;
+$$;
 create function clinic_private.has_branch_owner_care(p_owner uuid,p_roles text[])
-returns boolean language sql stable security definer set search_path='' as $
+returns boolean language sql stable security definer set search_path='' as $$
  select exists(
   select 1 from public.appointments a
   where a.owner_id=p_owner and a.branch_id is not null
     and clinic_private.has_branch_role(a.branch_id,p_roles)
  );
-$;
+$$;
 revoke all on function clinic_private.has_branch_pet_care(uuid,text[]),
  clinic_private.has_branch_owner_care(uuid,text[]) from public,anon,authenticated;
 grant execute on function clinic_private.has_branch_pet_care(uuid,text[]),
