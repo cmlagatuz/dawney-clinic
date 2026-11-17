@@ -10,11 +10,11 @@ fail(){ echo "FULL_TREE_GATE_BLOCKED: $*" >&2; exit 1; }
    "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ &&
    "$EXPECTED_PR_NUMBER" =~ ^[0-9]+$ ]] || fail 'not exact PR67/CI/disposable PG17 environment'
 for bin in git psql; do command -v "$bin" >/dev/null || fail "missing $bin";done
-git fetch --no-tags --depth=2 origin \
+git fetch --no-tags origin \
  "refs/pull/$EXPECTED_PR_NUMBER/head:refs/remotes/origin/full-tree-self"
 [[ "$(git rev-parse refs/remotes/origin/full-tree-self)" == "$EXPECTED_HEAD_SHA" ]] ||
  fail 'integration gate head changed during run'
-git fetch --no-tags --depth=1 origin 'refs/pull/67/head:refs/remotes/origin/full-tree-base'
+git fetch --no-tags origin 'refs/pull/67/head:refs/remotes/origin/full-tree-base'
 [[ "$(git rev-parse refs/remotes/origin/full-tree-base)" == "$EXPECTED_BASE_SHA" ]] ||
  fail 'PR67 source moved; do not test stale tree'
 git merge-base --is-ancestor "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA" ||
