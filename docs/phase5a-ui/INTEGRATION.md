@@ -8,7 +8,9 @@
 ## What the UI depends on
 `web/src/ops/read-port.ts` defines `OpsReadPort` (`verify`, `window`, `counts`) mirroring #59. `web/src/ops/port.ts` currently returns `null`, so the page shows **"Staff read contract not integrated"** and requests nothing. It never falls back to the legacy truncated queue or to sample rows.
 
-## One-file wiring after #59 is merged into the stack
+> **Update 2026-11-17:** wired. `ops/port.ts` now connects the three #59 reads via the pure `ops/port-adapter.mjs` (verify id/role check, window form only). The UI remains behind `VITE_PHASE5A_OPS_UI` (OFF). Hosted staff reads are NOT verified.
+
+## One-file wiring after #59 is merged into the stack (historical)
 Replace the body of `web/src/ops/port.ts` (keep it the only file that imports `lib/`):
 
 ```ts
