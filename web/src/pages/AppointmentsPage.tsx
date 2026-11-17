@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../hooks/AuthProvider'
 import { cancelAppointment, listAppointments, listPets, listResources,
@@ -8,7 +8,7 @@ import { friendlyBookingError } from '../clinical.mjs'
 import { submitOwnerAppointment } from '../lib/owner-booking-transition'
 import type { RequestedBooking } from '../lib/public-booking'
 import { useBookingMode } from '../public-site/useBookingMode'
-import { POLICY_CHANGED, SAFE_BOOKING_MESSAGE } from '../public-site/booking-mode.mjs'
+import { POLICY_FLIPPED_MESSAGE, SAFE_BOOKING_MESSAGE, isPolicyFlip, failureText, ownerFormView } from '../public-site/booking-mode.mjs'
 import { ServiceBookingForm } from '../components/ServiceBookingForm'
 import { EmptyState, LoadingCard, PageHeading, StatusBadge } from '../components/ui'
 
@@ -20,6 +20,10 @@ const activeStatuses=new Set(['requested','confirmed'])
 
 export function AppointmentsPage() {
   const {user}=useAuth()
+  // Key data loads on the account id, not the object: Supabase re-issues a new user object on every token refresh/tab focus,
+  // which would otherwise reload the page and wipe a half-filled booking form. A different account still reloads everything.
+  const uid=user?.id??null
+  const userRef=useRef(user);userRef.current=user
   const bm=useBookingMode()
   const [loading,setLoading]=useState(true)
   const [saving,setSaving]=useState(false)
@@ -35,6 +39,7 @@ export function AppointmentsPage() {
   const [concern,setConcern]=useState('')
   const [details,setDetails]=useState('')
   const [cancelBusy,setCancelBusy]=useState<string|null>(null)
+  const view=ownerFormView({loading:bm.loading,mode:bm.mode,hasPets:pets.length>0,hasSchedule:Boolean(bm.schedule),hasUser:Boolean(user),resourceCount:resources.length})
   async function reload() {
     if(!user)return
     const [owner,petsData,resourcesData,appointmentsData]=await Promise.all([
@@ -44,17 +49,18 @@ export function AppointmentsPage() {
     setSelectedResource(current=>current||resourcesData[0]?.id||'')
   }
   useEffect(()=>{
-    if(!user)return
+    const u=userRef.current
+    if(!u||!uid)return
     let active=true
     setLoading(true)
-    void Promise.all([readOwner(user),listPets(user),listResources(),listAppointments(user)]).then(([owner,petsData,resourcesData,appointmentsData])=>{
+    void Promise.all([readOwner(u),listPets(u),listResources(),listAppointments(u)]).then(([owner,petsData,resourcesData,appointmentsData])=>{
       if(!active)return
       setOwnerReady(Boolean(owner));setPets(petsData);setResources(resourcesData);setAppointments(appointmentsData)
       setSelectedPet(petsData[0]?.id||'');setSelectedResource(resourcesData[0]?.id||'')
     }).catch(()=>{if(active)setError('Could not retrieve your appointments. Please retry.')})
       .finally(()=>{if(active)setLoading(false)})
     return ()=>{active=false}
-  },[user])
+  },[uid])
   async function book(e:FormEvent) {
     e.preventDefault();if(!user)return
     setSaving(true);setError(null);setNotice(null)
@@ -64,11 +70,10 @@ export function AppointmentsPage() {
       await reload()
       setNotice('Appointment requested. Your booking is saved in Supabase; confirmation is pending clinic review.')
     } catch(e){
+      if(isPolicyFlip(e)){bm.reload();setError(POLICY_FLIPPED_MESSAGE);return}
       const code=(e&&typeof e==='object'&&'code' in e)?String(e.code):undefined
-      const text=e instanceof Error?e.message:''
-      if(POLICY_CHANGED.test(text))bm.reload()
-      const message=SAFE_BOOKING_MESSAGE.test(text)?text:friendlyBookingError(code)
-      setError(message)
+      const text=failureText(e)
+      setError(SAFE_BOOKING_MESSAGE.test(text)?text:friendlyBookingError(code))
     } finally {setSaving(false)}
   }
   function booked(b:RequestedBooking){
@@ -92,13 +97,13 @@ export function AppointmentsPage() {
     {loading?<LoadingCard label="Loading appointments…" rows={4} />:
       !ownerReady?<EmptyState icon="user" title="Set up your owner profile" action={<Link className="button button-primary" to="/app/profile">Owner profile</Link>}>You need a verified profile before requesting an appointment.</EmptyState>:
       <div className="info-grid"><div className="card"><h2>Request an appointment</h2>
-        {pets.length===0?<p>No patients yet. <Link to="/app/pets">Register a patient</Link> before booking.</p>:
-        bm.loading?<p role="status">Checking clinic booking options…</p>:
-        bm.mode==='unknown'?<p role="alert" className="alert alert-error">We could not check the clinic’s booking options, so nothing was submitted. <button type="button" className="button-quiet" onClick={bm.reload}>Try again</button></p>:
-        bm.mode==='no-services'||bm.mode==='incomplete'?<p role="status" className="alert alert-info">Online requests are paused while the clinic finishes setting up its services and hours. Please contact the clinic to arrange a visit.</p>:
-        bm.mode==='service'&&bm.schedule&&user?<ServiceBookingForm user={user} services={bm.services} policy={bm.schedule} onBooked={booked} onPolicyChanged={bm.reload}/>:
-        resources.length===0?<p role="status">No active booking calendar is currently available.</p>:
-        <form className="form-stack" onSubmit={e=>void book(e)}>
+        {view==='no-pets'?<p>No patients yet. <Link to="/app/pets">Register a patient</Link> before booking.</p>:
+        view==='checking'?<p role="status">Checking clinic booking options…</p>:
+        view==='unknown'?<p role="alert" className="alert alert-error">We could not check the clinic’s booking options, so nothing was submitted. <button type="button" className="button-quiet" onClick={bm.reload}>Try again</button></p>:
+        view==='paused'?<p role="status" className="alert alert-info">Online requests are paused while the clinic finishes setting up its services and hours. Please contact the clinic to arrange a visit.</p>:
+        view==='service'&&bm.schedule&&user?<ServiceBookingForm key={user.id} user={user} services={bm.services} policy={bm.schedule} onBooked={booked} onPolicyChanged={bm.reload}/>:
+        view==='no-calendar'?<p role="status">No active booking calendar is currently available.</p>:
+        view==='legacy'?<form className="form-stack" onSubmit={e=>void book(e)}>
           <label>Patient<select required value={selectedPet} onChange={e=>setSelectedPet(e.target.value)}>
             {pets.map(p=><option key={p.id} value={p.id}>{p.name} · {p.species}</option>)}</select></label>
           <label>Clinic resource<select required value={selectedResource} onChange={e=>setSelectedResource(e.target.value)}>
@@ -108,7 +113,7 @@ export function AppointmentsPage() {
           <label>Details (optional)<textarea rows={3} maxLength={2000} value={details} onChange={e=>setDetails(e.target.value)}/></label>
           <p className="small-help">Requests are accepted only for available slots; a booking does not imply veterinarian confirmation. Times currently follow your device, not an approved clinic time zone (temporary until the clinic approves its schedule).</p>
           <button className="button button-primary" disabled={saving}>{saving?'Checking slot…':'Request appointment'}</button>
-        </form>}
+        </form>:null}
       </div><div className="card"><h2>My bookings</h2>
         {appointments.length===0?<p className="subtitle">No appointments yet. Requests you submit appear here with their confirmation status.</p>:
         <div className="booking-list">{appointments.map(a=><article className="booking-item" key={a.id}>

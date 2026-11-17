@@ -380,3 +380,9 @@ Branch `ai/claude/phase5a-ops-ui` (stacked on #48 `58f15c0`), flag `VITE_PHASE5A
 
 ## Claude — frontend integration candidate (2026-11-16)
 `ai/claude/phase5-frontend-integration` = #64 `1a661b0` + #41 `59f8cb1`; 3 conflicts (App.tsx routes/flags, styles, handoff). Flags stay OFF; staff port null. See `docs/phase5-integration/README.md`. Source-only; not live verified.
+
+## Claude — P0 approved-policy booking compatibility (2026-11-17)
+- Owner appointment card now renders from pure `ownerFormView()`: the service-less form is reachable ONLY when mode is `legacy` (policy unapproved/not installed), settled, with pets and a resource. Approved → `ServiceBookingForm` (RPC adapter); unknown/paused/checking → no form. The single `kind:'legacy'` call lives inside that form.
+- Fixed: DB trigger 23514 ("Select an approved service…") arrives as a plain PostgREST object and was shown as a scheduling conflict; now `isPolicyFlip()` → "Nothing was booked", `bm.reload()`, form swaps to service-aware. No retry, no service fallback.
+- Fixed: token refresh (new `user` object, same id) no longer wipes forms/refetches (effects keyed on `user.id`); `ServiceBookingForm` keyed per account so typed text never carries to another account.
+- Tests: `tests/owner-booking-view.test.mjs` (5; Node 119/119); Chromium (stubbed, NOT live) 30 checks incl. flip/race/unreadable-policy/refresh/account switch/360-768-1440 light+dark/keyboard. No `supabase/`, `web/src/lib/*` or contract files touched. Flags OFF; policy NOT approved by this PR.

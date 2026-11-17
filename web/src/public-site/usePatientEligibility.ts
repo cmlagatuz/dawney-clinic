@@ -10,6 +10,7 @@ export type PatientEligibility = { status: 'loading' | 'ready' | 'error'; pets: 
 export function usePatientEligibility(user: User | null): PatientEligibility {
   const [s, setS] = useState<{ status: 'loading' | 'ready' | 'error'; pets: EligiblePet[] }>({ status: 'loading', pets: [] })
   const [n, setN] = useState(0)
+  const uid = user?.id ?? null // new user object on every token refresh must not refetch; a new account id must
   useEffect(() => {
     if (!user) { setS({ status: 'loading', pets: [] }); return }
     let live = true
@@ -18,7 +19,7 @@ export function usePatientEligibility(user: User | null): PatientEligibility {
       .then(([pets, species]) => { if (live) setS({ status: 'ready', pets: annotatePets(pets, species) as EligiblePet[] }) })
       .catch(() => { if (live) setS({ status: 'error', pets: [] }) })
     return () => { live = false }
-  }, [user, n])
+  }, [uid, n])
   const reload = useCallback(() => setN(v => v + 1), [])
   return { ...s, reload }
 }
