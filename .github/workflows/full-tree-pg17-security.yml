@@ -1,4 +1,4 @@
-name: Full-tree PR67 PostgreSQL17 security and browser gate
+name: Unified non-production release candidate PostgreSQL17 and browser gate
 
 # Incremental candidate PR only; no manual hosted invocation.
 on:
@@ -7,6 +7,16 @@ on:
       - '.github/workflows/full-tree-pg17-security.yml'
       - 'scripts/ci/full_tree_pg17.sh'
       - 'supabase/tests/full_tree_approved_booking_gate.sql'
+      - 'docs/UNIFIED_RELEASE_CANDIDATE.md'
+      - 'docs/AI_HANDOFF.md'
+      - 'web/src/pages/AppointmentsPage.tsx'
+      - 'web/src/public-site/booking-mode.*'
+      - 'web/src/public-site/usePatientEligibility.ts'
+      - 'web/src/public-site/useServiceSpecies.ts'
+      - 'web/tests/owner-booking-view.test.mjs'
+      - '.github/workflows/hosted-security-acceptance-source.yml'
+      - 'scripts/hosted-acceptance/**'
+      - 'docs/HOSTED_SECURITY_ACCEPTANCE.md'
 
 permissions:
   contents: read
@@ -34,7 +44,9 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: full-tree-disposable-only
       PGDATABASE: full_tree_ci
-      EXPECTED_BASE_SHA: 5b8f7a03292123ed0314b5b7c6304d410b2fc94e
+      EXPECTED_BASE_SHA: 63a2b68ee93463f426cafc6bdf468376343001cf
+      EXPECTED_FRONTEND_SHA: 2a42489a4b85c46979f9c971474fc74579f673de
+      EXPECTED_SECURITY_SHA: 9bc84ef3cde86d6c052c4d40012ffbee9c2391f0
       EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       EXPECTED_PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
@@ -66,6 +78,11 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: web/package-lock.json
+      - name: Require reviewed booking source before web build
+        run: |
+          test "$(git rev-parse HEAD:web/src/pages/AppointmentsPage.tsx)" = "4fb506194b1fa22ef14d795333e4a9bed0e25598"
+          test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
+          test "$(git rev-parse HEAD:web/tests/owner-booking-view.test.mjs)" = "0782a74fdb33532cd27dba75a395c08e1e2d23bc"
       - name: Run integrated React/booking/queue contract Node tests and TypeScript/Vite build
         working-directory: web
         run: |
@@ -73,6 +90,19 @@ jobs:
           npm test
           npm run build
           node --check tests/integration/smoke.mjs
+      - name: Run Grok-accepted hosted security contract OFFLINE only
+        env:
+          DAWNEY_HOSTED_ACCEPTANCE_MODE: source-only
+        run: |
+          node --check scripts/hosted-acceptance/guards.mjs
+          node --check scripts/hosted-acceptance/acceptance.mjs
+          node --test scripts/hosted-acceptance/tests/acceptance.test.mjs packages/clinic-auth/tests/smoke-guards.test.mjs
+          set +e
+          node scripts/hosted-acceptance/acceptance.mjs > "$RUNNER_TEMP/hosted-cli-inert.log" 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 3
+          grep -Fx 'HOSTED_ACCEPTANCE_BLOCKED:source_only_no_network_adapter' "$RUNNER_TEMP/hosted-cli-inert.log"
       - name: Check scheduling Node contracts and forbid privileged browser credentials
         run: |
           node --test packages/clinic-scheduling/tests/*.test.mjs
@@ -101,6 +131,10 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: web/package-lock.json
+      - name: Require reviewed booking source before Chromium
+        run: |
+          test "$(git rev-parse HEAD:web/src/pages/AppointmentsPage.tsx)" = "4fb506194b1fa22ef14d795333e4a9bed0e25598"
+          test "$(git rev-parse HEAD:web/tests/owner-booking-view.test.mjs)" = "0782a74fdb33532cd27dba75a395c08e1e2d23bc"
       - name: Locked Vite build from full frontend/backend integration tree
         working-directory: web
         run: |
