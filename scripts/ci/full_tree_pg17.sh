@@ -111,7 +111,7 @@ done <<'STAGING_PREP_BLOBS'
 scripts/hosted-acceptance/staging-request-plan.mjs 2654049c6221efea7a1b9c138c7c88442d99961e
 scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 6287fd01a8b51b254083058a33643280d47496db
 docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 5c61c7182d98cd48e519f8091859a69d59f0ab9c
-.github/workflows/staging-acceptance-plan-offline.yml 7c279888dd10940609bdc339fe14e613ad6b6e58
+.github/workflows/staging-acceptance-plan-offline.yml 2c04fb85121b4d714b7dc319c39da4e82727566f
 STAGING_PREP_BLOBS
 while read -r path sha; do
  [[ -s "$path" && "$(git hash-object "$path")" == "$sha" ]] ||
