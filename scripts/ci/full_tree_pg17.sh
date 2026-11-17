@@ -93,10 +93,26 @@ while IFS= read -r path; do
  docs/phase5a-ui/INTEGRATION.md|web/src/ops/port-adapter.d.mts|\
  web/src/ops/port-adapter.mjs|web/src/ops/port.ts|web/src/ops/useOpsData.ts|\
  web/src/pages/staff/OpsPage.tsx|web/tests/ops-model.test.mjs|\
- web/tests/ops-port.test.mjs) ;;
+ web/tests/ops-port.test.mjs|\
+  docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md|\
+  .github/workflows/staging-acceptance-plan-offline.yml|\
+  scripts/hosted-acceptance/staging-request-plan.mjs|\
+  scripts/hosted-acceptance/tests/staging-request-plan.test.mjs) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
+# Offline-only PR75 staging transport plan and mock coverage: strict blob pins.
+# Grok-reviewed PR68 acceptance/guard source remains byte-identical to PR68.
+while read -r path sha; do
+ [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+  fail "unreviewed staging transport-preparation source drift: $path"
+done <<'STAGING_PREP_BLOBS'
+scripts/hosted-acceptance/staging-request-plan.mjs 2654049c6221efea7a1b9c138c7c88442d99961e
+scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 6287fd01a8b51b254083058a33643280d47496db
+docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 5c61c7182d98cd48e519f8091859a69d59f0ab9c
+.github/workflows/staging-acceptance-plan-offline.yml 2c04fb85121b4d714b7dc319c39da4e82727566f
+STAGING_PREP_BLOBS
 while read -r path sha; do
  [[ -s "$path" && "$(git hash-object "$path")" == "$sha" ]] ||
   fail "source drift: $path"

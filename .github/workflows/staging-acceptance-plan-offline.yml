@@ -1,0 +1,49 @@
+name: Synthetic staging request plan OFFLINE source verification
+
+# No hosted adapter, no workflow_dispatch, no Supabase credentials or service access.
+on:
+  pull_request:
+    paths:
+      - 'scripts/hosted-acceptance/staging-request-plan.mjs'
+      - 'scripts/hosted-acceptance/tests/staging-request-plan.test.mjs'
+      - 'docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md'
+      - '.github/workflows/staging-acceptance-plan-offline.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-staging-plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate original reviewed harness and inert staging plan source
+        run: |
+          node --check scripts/hosted-acceptance/guards.mjs
+          node --check scripts/hosted-acceptance/acceptance.mjs
+          node --check scripts/hosted-acceptance/staging-request-plan.mjs
+          node --check scripts/hosted-acceptance/tests/staging-request-plan.test.mjs
+      - name: Execute synthetic staging request-plan negative tests (injected only)
+        env:
+          DAWNEY_HOSTED_ACCEPTANCE_MODE: source-only
+        run: node --test scripts/hosted-acceptance/tests/staging-request-plan.test.mjs
+      - name: Require direct invocation is inert without a network sender
+        shell: bash
+        env:
+          DAWNEY_ALLOW_SYNTHETIC_WRITES: 'YES'
+        run: |
+          set -euo pipefail
+          set +e
+          node scripts/hosted-acceptance/staging-request-plan.mjs > "$RUNNER_TEMP/plan-inert.log" 2>&1
+          result=$?
+          set -e
+          test "$result" -eq 3
+          grep -Fx 'HOSTED_ACCEPTANCE_BLOCKED:staging_plan_no_network_sender' "$RUNNER_TEMP/plan-inert.log"

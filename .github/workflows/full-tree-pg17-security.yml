@@ -25,6 +25,7 @@ on:
       - '.github/workflows/hosted-security-acceptance-source.yml'
       - 'scripts/hosted-acceptance/**'
       - 'docs/HOSTED_SECURITY_ACCEPTANCE.md'
+      - 'docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md'
 
 permissions:
   contents: read
@@ -107,13 +108,20 @@ jobs:
         run: |
           node --check scripts/hosted-acceptance/guards.mjs
           node --check scripts/hosted-acceptance/acceptance.mjs
-          node --test scripts/hosted-acceptance/tests/acceptance.test.mjs packages/clinic-auth/tests/smoke-guards.test.mjs
+          node --check scripts/hosted-acceptance/staging-request-plan.mjs
+          node --test scripts/hosted-acceptance/tests/*.test.mjs packages/clinic-auth/tests/smoke-guards.test.mjs
           set +e
           node scripts/hosted-acceptance/acceptance.mjs > "$RUNNER_TEMP/hosted-cli-inert.log" 2>&1
           code=$?
           set -e
           test "$code" -eq 3
           grep -Fx 'HOSTED_ACCEPTANCE_BLOCKED:source_only_no_network_adapter' "$RUNNER_TEMP/hosted-cli-inert.log"
+          set +e
+          node scripts/hosted-acceptance/staging-request-plan.mjs > "$RUNNER_TEMP/staging-plan-cli-inert.log" 2>&1
+          plan_code=$?
+          set -e
+          test "$plan_code" -eq 3
+          grep -Fx 'HOSTED_ACCEPTANCE_BLOCKED:staging_plan_no_network_sender' "$RUNNER_TEMP/staging-plan-cli-inert.log"
       - name: Check scheduling Node contracts and forbid privileged browser credentials
         run: |
           node --test packages/clinic-scheduling/tests/*.test.mjs
