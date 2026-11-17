@@ -8,6 +8,7 @@ fail(){ echo "FULL_TREE_GATE_BLOCKED: $*" >&2; exit 1; }
    "$PGDATABASE" == full_tree_ci &&
    "$EXPECTED_BASE_SHA" == 63a2b68ee93463f426cafc6bdf468376343001cf &&
    "$EXPECTED_FRONTEND_SHA" == 2a42489a4b85c46979f9c971474fc74579f673de &&
+   "$EXPECTED_SECURITY_SHA" == 9bc84ef3cde86d6c052c4d40012ffbee9c2391f0 &&
    "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ &&
    "$EXPECTED_PR_NUMBER" =~ ^[0-9]+$ ]] || fail 'not pinned release-candidate/CI/disposable PG17 environment'
 for bin in git psql; do command -v "$bin" >/dev/null || fail "missing $bin";done
@@ -17,15 +18,20 @@ git fetch --no-tags origin \
  fail 'integration gate head changed during run'
 git fetch --no-tags origin \
  'refs/pull/69/head:refs/remotes/origin/release-base' \
- 'refs/pull/70/head:refs/remotes/origin/reviewed-frontend'
+ 'refs/pull/70/head:refs/remotes/origin/reviewed-frontend' \
+ 'refs/pull/68/head:refs/remotes/origin/reviewed-security'
 [[ "$(git rev-parse refs/remotes/origin/release-base)" == "$EXPECTED_BASE_SHA" ]] ||
  fail 'PR69 source moved; do not test stale tree'
 [[ "$(git rev-parse refs/remotes/origin/reviewed-frontend)" == "$EXPECTED_FRONTEND_SHA" ]] ||
  fail 'PR70 source moved; do not test stale tree'
+[[ "$(git rev-parse refs/remotes/origin/reviewed-security)" == "$EXPECTED_SECURITY_SHA" ]] ||
+ fail 'PR68 source moved; do not test stale tree'
 git merge-base --is-ancestor "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA" ||
  fail 'tested commit is missing PR69 ancestry'
 git merge-base --is-ancestor "$EXPECTED_FRONTEND_SHA" "$EXPECTED_HEAD_SHA" ||
  fail 'tested commit is missing reviewed PR70 ancestry'
+git merge-base --is-ancestor "$EXPECTED_SECURITY_SHA" "$EXPECTED_HEAD_SHA" ||
+ fail 'tested commit is missing Grok-accepted PR68 ancestry'
 # The seven PR70 files must be byte-for-byte identical to Claude's reviewed head.
 while IFS= read -r path; do
  [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$EXPECTED_FRONTEND_SHA:$path")" ]] ||
@@ -39,10 +45,24 @@ web/src/public-site/usePatientEligibility.ts
 web/src/public-site/useServiceSpecies.ts
 web/tests/owner-booking-view.test.mjs
 CLAUDE
+# Every imported Grok-accepted PR68 source blob must remain unchanged.
+while IFS= read -r path; do
+ [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$EXPECTED_SECURITY_SHA:$path")" ]] ||
+ fail "Grok-accepted hosted harness drift: $path"
+done <<'GROK'
+.github/workflows/hosted-security-acceptance-source.yml
+docs/HOSTED_SECURITY_ACCEPTANCE.md
+scripts/hosted-acceptance/acceptance.mjs
+scripts/hosted-acceptance/guards.mjs
+scripts/hosted-acceptance/tests/acceptance.test.mjs
+GROK
 while IFS= read -r path; do
  case "$path" in
  docs/AI_HANDOFF.md|docs/UNIFIED_RELEASE_CANDIDATE.md|\
  .github/workflows/full-tree-pg17-security.yml|scripts/ci/full_tree_pg17.sh|\
+ .github/workflows/hosted-security-acceptance-source.yml|docs/HOSTED_SECURITY_ACCEPTANCE.md|\
+ scripts/hosted-acceptance/guards.mjs|scripts/hosted-acceptance/acceptance.mjs|\
+ scripts/hosted-acceptance/tests/acceptance.test.mjs|\
  web/src/pages/AppointmentsPage.tsx|web/src/public-site/booking-mode.d.mts|\
  web/src/public-site/booking-mode.mjs|web/src/public-site/usePatientEligibility.ts|\
  web/src/public-site/useServiceSpecies.ts|web/tests/owner-booking-view.test.mjs) ;;
@@ -68,7 +88,7 @@ supabase/tests/phase5a_staff_booking_rpc_queue.sql 9fd4a627f471391b192968af57f81
 supabase/tests/phase5a_staff_pg17_regression.sql a1b9781325724885188099075d8c36e9ed223b1b
 supabase/tests/phase3_storage_outer_path_after_fix.sql 293abc90a168f6157aa0b0055d2e78fea8f59a8f
 BLOBS
-echo 'PASS: exact PR69+PR70 ancestry/head, seven unchanged reviewed frontend blobs; original six Phase2/3 + four Phase4 + additive Storage correction at pinned Git blob SHAs.'
+echo 'PASS: exact PR69+PR70+Grok-accepted PR68 ancestry/head and unchanged reviewed frontend/harness blobs; original six Phase2/3 + four Phase4 + additive Storage correction pinned.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
  if [[ "$PGDATABASE" == full_tree_history_ci ]]; then
