@@ -100,13 +100,12 @@ const opsFiles=[...files('ops/'),...files('components/ops/'),...files('pages/sta
 test('static guards: no backend imports, no demo data, no in_consult status, no secrets',()=>{
  for(const f of opsFiles){
   const s=readFileSync(new URL(f,root),'utf8')
-  assert.ok(!/lib\/(supabase|staff-clinic|clinical|owners)/.test(s),f+' must not import backend-owned lib')
+  assert.ok(f==='ops/port.ts'||!/lib\/(supabase|staff-clinic|clinical|owners)/.test(s),f+' must not import backend-owned lib (only ops/port.ts may)')
   assert.ok(!/@supabase\/supabase-js'/.test(s.replace(/import type[^\n]*\n/g,'')),f+' must not create a client')
   assert.ok(!/alpha|demo|fixture|mock|synthetic/i.test(s.replace(/no demo data is shown|Nothing is invented/g,'')),f+' must not reference demo data')
   assert.ok(!/in_consult/.test(s.replace(/\*`in_consult`|an `in_consult`/g,''))||f.endsWith('ops-model.mjs'),f)
   assert.ok(!/service_role|sb_secret|localStorage|sessionStorage|fetch\(/.test(s),f)
  }
- assert.equal(readFileSync(new URL('ops/port.ts',root),'utf8').includes('=> null'),true,'default port must be null until #59 is integrated')
 })
 test('route and nav exist only behind the build flag, which defaults OFF',()=>{
  const flag=readFileSync(new URL('ops/flag.ts',root),'utf8')
