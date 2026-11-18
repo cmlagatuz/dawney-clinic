@@ -1,14 +1,14 @@
-# Dawney Clinic — Five Active Specialist AIs + GPT-6 Project Manager
+# Dawney Clinic — Five Active Specialist AIs + GPT-6.2 Astra Project Manager
 
-**Effective:** owner decision 2026-11-18. The current five specialist lanes are **ASTRA, Claude, Qwen, Manus and SOL**. The **Project Manager** is a separate governance role, never ASTRA. This document supersedes the historical [four-agent arrangement](FOUR_AI_COLLABORATION.md) for new task dispatch. All `AGENTS.md` safety rules remain binding. Confirm fresh GitHub/CI/provider evidence for every status update; this document is policy, not proof of an active AI chat.
+**Effective:** owner decision 2026-11-18. The current five specialist lanes are **ASTRA, CLOUD, Qwen, Manus and SOL**. The **Project Manager** is a separate governance role, never ASTRA. This document supersedes the historical [four-agent arrangement](FOUR_AI_COLLABORATION.md) for new task dispatch. All `AGENTS.md` safety rules remain binding. Confirm fresh GitHub/CI/provider evidence for every status update; this document is policy, not proof of an active AI chat.
 
 ## Current authority and non-overlapping ownership
 
 | Role | Accountable scope | Required output | Independent validation |
 | --- | --- | --- | --- |
-| **Project Manager (GPT-6)** | Priorities, single-owner delegation, SHA/PR verification, review and release GO/NO-GO recommendations | Copy-ready task prompts, GitHub directives, evidence checks and owner decisions | Human Project Owner approves live/production actions |
+| **Project Manager (GPT-6.2 Astra)** | Priorities, single-owner delegation, SHA/PR verification, review and release GO/NO-GO recommendations | Copy-ready task prompts, GitHub directives, evidence checks and owner decisions | Human Project Owner approves live/production actions |
 | **ASTRA (GPT-6; separate ASTRA project)** | Exclusive backend, Supabase/PostgreSQL Auth/RLS/Storage, booking RPCs, migrations, backend CI/recovery implementation | Isolated source PR, exact-SHA PG17 and denial tests, recovery effects | **SOL** independent security, Qwen functional QA where assigned, Project Manager |
-| **Claude** | Exclusive React/Vite public/owner/staff UI, accessible mobile/dark frontend, browser tests | Frontend-only PR, exact SHA, real Node/Vite/Chromium evidence | Qwen functional QA; SOL audits security-relevant changes |
+| **[CLOUD](../CLOUD.md) (GPT-6.2 Sol)** | Exclusive React/Vite public/owner/staff UI, accessible mobile/dark frontend, browser tests | Frontend-only PR, exact SHA, real Node/Vite/Chromium evidence | Qwen functional QA; SOL audits security-relevant changes |
 | **Qwen** | Independent read-only functional QA, reproducible defects and test suggestions | Code-grounded functional verdict; label any unexecuted tests | Project Manager verifies evidence; implementer fixes defects |
 | **Manus** | GitHub PR/CI and Cloudflare deployment/recovery evidence, release operations, authorized connector actions | Direct GitHub report with exact source/provider evidence and one next owner | Project Manager; human owner approves operations |
 | **SOL (GPT-5.6; separate SOL project)** | **Sole active independent security auditor** of ASTRA and other security-sensitive source; RLS/JWT/Storage, branch/booking threats, exact-SHA re-review | Direct PR security verdict SOURCE SECURITY GO / NEEDS FIX / NOT VERIFIED, confirmed vs hypothetical findings and tests actually run | Project Manager reviews independent evidence; human owner controls release |
@@ -17,11 +17,14 @@
 
 ## Historical tooling (preserve history, stop active assignments)
 
+- **Claude** authored the existing frontend work. CLOUD inherits open frontend follow-ups, including on Claude-named branches. The transfer preserves commit history and reviews. Use the handoff on [Issue #51](https://github.com/cmlagatuz/dawney-clinic/issues/51) for the current assignment.
 - **Grok:** former independent security reviewer. Historical findings, including its owner-relayed pre-fix PR #80 owner/pet write P1, remain attributed to Grok; it is **retired from active project tasks regardless of future free quota**. [Historical GROK.md](../GROK.md).
 - **Kimi:** short-lived provisional security-backup evaluator. An interim PR #82 source review was owner-relayed, but a complete Kimi-authored GitHub verdict was **not verified**. It is **retired from active assignments**.
 - OpenCode/Terra and CodeRabbit remain historical/supplemental tools where evidenced; neither is a security-release substitute. Do not erase old source records or misattribute signoffs.
 
-## Current release critical path (reverify heads, do not assume complete)
+## Release checkpoint recorded when PR #84 opened (historical)
+
+Consult the latest review per exact head. At the frontend handoff, the proposed booking reader is #87, Issue #51 follows it, and #86 has a [SOL NEEDS FIX inventory-date finding](https://github.com/cmlagatuz/dawney-clinic/pull/86#issuecomment-6988122815). The earlier npm result below applies to that earlier commit.
 
 1. **DRAFT PR #82** source-integrates Naga public site #79, staff selector #81 and corrected four-branch RLS #80; exact reviewed source `b0633b2` is **unmerged**. **DRAFT PR #83** separately proposes a 13th branch-booking guard migration after reproducible synthetic legacy direct-insert bypass; exact head `0edeeb1`, **unmerged** and pending SOL independent verdict.
 2. Original **11 migrations installed on separate staging Supabase**, production still **6** at last provider check. Proposed migrations **12 and 13 NOT APPLIED**. Preserve historical Dog/Chow Chow patient and appointment, unapproved policies/services, and feature flags OFF.

@@ -4,15 +4,15 @@
 
 ## Current checkpoint and AI tooling (18 November 2026)
 
-**Current release truth:** `master` remains `5fb7972`. [PR #82](https://github.com/cmlagatuz/dawney-clinic/pull/82) is a DRAFT, unmerged Naga-first public/staff/branch-security source integration at `b0633b2`. [PR #83](https://github.com/cmlagatuz/dawney-clinic/pull/83) is a separate DRAFT, unmerged branch-booking security repair at `0edeeb1`, based on #82. Its synthetic PostgreSQL 17 pre-fix bypass reproduction and post-fix tests passed; independent security acceptance remains pending. Staging Supabase had **11 installed migrations** and production **6** at the last provider check; proposed migrations 12 and 13 have **not** been applied. The npm high-severity advisory gate is failing, and hosted clinical Auth/RLS/Storage/recovery verification is pending. **SOURCE READY is not STAGING VERIFIED or CLINIC LIVE. No production/clinical release GO.**
+CLOUD takes over all frontend work from Claude by owner decision on 18 November. The active handoff is [Issue #51](https://github.com/cmlagatuz/dawney-clinic/issues/51). ASTRA supplied the branch-aware booking reader in [PR #87](https://github.com/cmlagatuz/dawney-clinic/pull/87#issuecomment-6988405679) at `26d5ed9`. Its [full-tree CI](https://github.com/cmlagatuz/dawney-clinic/actions/runs/44374512028) passed. The public and signed-in booking screens still need to consume that reader. Anonymous users can lack visibility of eligible resources, so the UI must keep booking unavailable in that case. The frontend transfer authorizes source work only. Clinical booking and production release still require the owner's GO.
 
 ### Active AI team and services
 
 | Agent / service | Current role | Project or boundary |
 | --- | --- | --- |
-| **Project Manager (GPT-6)** | Governance, task ownership, evidence review, release gates and owner liaison | Main Dawney Project Manager ChatGPT project; not the backend implementer |
+| **Project Manager (GPT-6.2 Astra)** | Governance, task ownership, evidence review, release gates and owner liaison | Separate **Project Manager** project. Delegate implementation to the accountable engineer |
 | **ASTRA (GPT-6)** | Exclusive backend engineer: PostgreSQL/Supabase Auth, RLS, Storage, APIs/RPCs, migrations and security-code repairs | Separate **ASTRA - Dawney Animal Clinic Veterinary System** ChatGPT project |
-| **Claude** | Exclusive React UI, public website, customer/staff frontend, accessibility and browser tests | Frontend branch/PR owner |
+| **CLOUD (GPT-6.2 Sol)** | Exclusive frontend engineer for the public site, owner and staff portals, responsive accessibility, UI state and browser tests | **CLOUD - Dawney Animal Clinic Veterinary System** · [Project instructions](CLOUD.md) |
 | **Qwen** | Independent read-only functional QA and reproducible regression suggestions | Not a security signoff or a substitute for executed CI |
 | **Manus** | GitHub/Cloudflare integrations, source/deployment provenance and operational release evidence | Connector-based operations; GitHub comments do not launch other private AI chats |
 | **SOL (GPT-5.6)** | **Sole active independent security auditor**: RLS/Auth, branch isolation, booking/Storage security, adversarial source reviews and exact-SHA verdicts | Separate **SOL - Dawney Animal Clinic Veterinary System** ChatGPT project; **not ASTRA** |
@@ -23,6 +23,7 @@
 
 | Historical tool / AI | Evidence and historical contribution | Current standing |
 | --- | --- | --- |
+| **Claude** | Delivered the [React shell](https://github.com/cmlagatuz/dawney-clinic/pull/34), [patient form](https://github.com/cmlagatuz/dawney-clinic/pull/41), [synthetic Alpha](https://github.com/cmlagatuz/dawney-clinic/pull/56), [Naga-first site](https://github.com/cmlagatuz/dawney-clinic/pull/79) and [staff branch selector](https://github.com/cmlagatuz/dawney-clinic/pull/81). | Frontend ownership, open follow-ups and future assignments transferred to CLOUD. Existing commits, PR authorship and evidence stay credited to Claude. |
 | **Grok** | Earlier independent security/threat assessments, including a reported PR #80 pre-fix owner/pet cross-branch write P1 later repaired by ASTRA. Older [GROK.md](GROK.md) is preserved as history; prior audit text should not be recast as SOL's work. | **Retired from active Dawney assignments**, regardless of quota recovery; **not a release signoff for current PRs** |
 | **Kimi (Moonshot AI)** | Briefly evaluated as Grok's backup; owner relayed an **interim** source audit of PR #82 with no confirmed findings at that stage. No final Kimi-authored GitHub security verdict was independently verified. | **Retired from active assignments** due availability constraints; no assumed final security signoff |
 | **OpenCode / Terra** | Historical local development/test assistance where evidenced in PRs/handoffs | Not part of the five accountable specialist lanes; use only on new explicit assignment |
