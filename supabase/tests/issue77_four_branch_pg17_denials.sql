@@ -263,11 +263,11 @@ begin
   raise exception 'ISSUE77_P1_FAIL: true owner pet update denied';end if;
  update public.pets set name='Synthetic Chow'
   where id='33333333-3333-4333-8333-333333333333';
- insert into public.pets(id,owner_id,name,species,breed)
-  values('77777777-7777-4777-8777-777777777777',
-   '11111111-1111-4111-8111-111111111111','P1 Owner Test Dog','Dog','Chow Chow')
+ insert into public.pets(owner_id,name,species,breed)
+  values('11111111-1111-4111-8111-111111111111',
+   'P1 Owner Test Dog','Dog','Chow Chow')
   returning id into created;
- if created is distinct from '77777777-7777-4777-8777-777777777777'::uuid then
+ if created is null then
   raise exception 'ISSUE77_P1_FAIL: true owner pet creation denied';end if;
  -- True owner A may not insert under owner B, regardless of staff grants.
  begin
@@ -284,6 +284,40 @@ begin
 end
 $p1_owner_a$;
 reset role;
+-- Cavite-only genuine owner B also retains UPDATE RETURNING for their own
+-- owner and pet, and may not edit Naga/shared owner A.
+set role authenticated;
+set request.jwt.claim.sub='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+do $p1_owner_b$
+declare got text; affected integer;
+begin
+ update public.owners set first_name='OwnerBSelfService'
+  where id='22222222-2222-4222-8222-222222222222'
+  returning first_name into got;
+ get diagnostics affected=row_count;
+ if affected<>1 or got<>'OwnerBSelfService' then
+  raise exception 'ISSUE77_P1_FAIL: Cavite true owner profile update denied';end if;
+ update public.owners set first_name='Synthetic'
+  where id='22222222-2222-4222-8222-222222222222';
+ update public.pets set name='OwnerBSelfServicePet'
+  where id='44444444-4444-4444-8444-444444444444'
+  returning name into got;
+ get diagnostics affected=row_count;
+ if affected<>1 or got<>'OwnerBSelfServicePet' then
+  raise exception 'ISSUE77_P1_FAIL: Cavite true owner pet update denied';end if;
+ update public.pets set name='Synthetic Cat'
+  where id='44444444-4444-4444-8444-444444444444';
+ got:=null;
+ update public.owners set first_name='P1 Owner A Tampered'
+  where id='11111111-1111-4111-8111-111111111111'
+  returning first_name into got;
+ get diagnostics affected=row_count;
+ if affected<>0 or got is not null then
+  raise exception 'ISSUE77_P1_FAIL: Cavite owner updated shared Naga owner';end if;
+end
+$p1_owner_b$;
+reset role;
+
 -- Force a stronger future-grant scenario in this DISPOSABLE PG only: even if a
 -- broad column privilege is accidentally added, WITH CHECK blocks assigning a
 -- pet or owner to someone else's Auth UID. Revoke these CI-only grants afterward.
@@ -318,7 +352,9 @@ revoke update(user_id) on public.owners from authenticated;
 revoke update(owner_id) on public.pets from authenticated;
 -- Restore all fixture snapshots after allowed owner round-trips and ephemeral
 -- pet cleanup. Historic Dog/Chow Chow bytes and branch attribution untouched.
-delete from public.pets where id='77777777-7777-4777-8777-777777777777';
+delete from public.pets
+ where owner_id='11111111-1111-4111-8111-111111111111'
+ and name='P1 Owner Test Dog';
 do $p1_final$
 begin
  if exists(select 1 from clinic_ci.issue77_p1_owner_snapshot x
