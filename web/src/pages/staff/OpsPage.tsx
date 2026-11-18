@@ -1,10 +1,12 @@
-import {useMemo, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {Link} from 'react-router'
 import {useAuth} from '../../hooks/AuthProvider'
 import {EmptyState, LoadingCard, PageHeading} from '../../components/ui'
 import {DayList, FailureCard, FlowBoard, KpiGrid, Notice, WeekGrid} from '../../components/ops/OpsParts'
 import {createOpsReadPort} from '../../ops/port'
 import {useOpsData} from '../../ops/useOpsData'
+import {useBranchScope} from '../../ops/useBranchScope'
+import type {OpsReadPort} from '../../ops/read-port'
 import {OPS_RANGES, OPS_TIME_ZONE, addDays, buildKpis, formatDayLabel, isIsoDate, shortRef, todayInZone, weekDates, windowState} from '../../ops/ops-model.mjs'
 
 const ROLE_LABEL = {administrator: 'Administrator', veterinarian: 'Veterinarian', receptionist: 'Receptionist'} as const
@@ -16,6 +18,36 @@ export function OpsPage() {
   const uid = user?.id ?? null
   const userRef = useRef(user); userRef.current = user
   const port = useMemo(() => (uid && userRef.current ? createOpsReadPort(userRef.current) : null), [uid])
+  const scope = useBranchScope(port)
+  const legacy = scope.state.status === 'off'
+  const heading0 = (extra?: ReactNode) => <PageHeading id="ops-title" eyebrow="Clinic staff · preview" title="Clinic operations">
+    Persisted appointments only. Clinic hours and providers are not published, so none are shown.{extra}</PageHeading>
+  if (!legacy && scope.state.status === 'loading') return <>{heading0()}<LoadingCard label="Verifying your clinic branches…" rows={3} /></>
+  if (!legacy && scope.state.status === 'failed') return <>{heading0()}<FailureCard kind={scope.state.kind} onRetry={scope.refresh} />
+    {scope.state.kind === 'denied' && <p><Link className="button button-secondary" to="/app/overview">Back to my overview</Link></p>}</>
+  const picker = !legacy && scope.state.status === 'ready' ? <BranchPicker branches={scope.branches} selected={scope.selected} onSelect={scope.select} /> : null
+  if (!legacy && !scope.selected && scope.hadDenial) return <>{heading0()}{picker}<FailureCard kind="denied" />
+    <p className="ops-help">The clinic did not authorize that branch for your account. Choose another branch, or ask an administrator.</p></>
+  if (!legacy && !scope.selected) return <>{heading0()}{picker}
+    <EmptyState icon="shield" title="Choose a clinic branch">You are authorized for more than one branch. Choose one to load its appointments. No branch data is shown until you do.</EmptyState></>
+  // key: a different account or branch remounts the view, so no earlier data can show for even one frame.
+  return <>{heading0()}{picker}<OpsView key={`${uid ?? 'none'}:${legacy ? 'all' : scope.selected}`} port={legacy ? port : scope.scoped}
+    branchName={legacy ? null : scope.branches.find(b => b.id === scope.selected)?.name ?? null}
+    onDenied={legacy ? undefined : () => scope.markDenied(scope.selected)} /></>
+}
+
+function BranchPicker({branches, selected, onSelect}: {branches: {id: string; name: string}[]; selected: string | null; onSelect: (id: string | null) => void}) {
+  return <div className="ops-toolbar" role="group" aria-label="Branch selection">
+    {branches.length === 1 && selected
+      ? <p className="ops-role">Branch: <strong>{branches[0]?.name}</strong></p>
+      : <label className="ops-field"><span>Clinic branch</span>
+          <select value={selected ?? ''} onChange={e => onSelect(e.target.value || null)}>
+            <option value="">Choose a branch…</option>{branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>}
+  </div>
+}
+
+function OpsView({port, branchName, onDenied}: {port: OpsReadPort | null; branchName: string | null; onDenied?: (() => void) | undefined}) {
+  const onDeniedRef = useRef(onDenied); onDeniedRef.current = onDenied
   const [date, setDate] = useState(() => todayInZone(Date.now()))
   const [view, setView] = useState<'board' | 'schedule'>('board')
   const [mode, setMode] = useState<'day' | 'week'>('day')
@@ -23,6 +55,9 @@ export function OpsPage() {
   const [resource, setResource] = useState('all')
   const weekMode = view === 'schedule' && mode === 'week'
   const {session, day, counts, week, reload} = useOpsData(port, date, range, weekMode)
+  // Revocation seen on any read: re-derive branches from the server so a revoked branch disappears.
+  const denied = session.status === 'failed' && session.kind === 'denied'
+  useEffect(() => { if (denied) onDeniedRef.current?.() }, [denied])
 
   const win = day.status === 'ok' ? day.data : null
   const filtered = useMemo(() => win && resource !== 'all' ? {...win, items: win.items.filter(i => i.resource_id === resource)} : win, [win, resource])
@@ -30,12 +65,10 @@ export function OpsPage() {
   const kpis = useMemo(() => buildKpis({win, counts: counts.status === 'ok' ? counts.data : null}), [win, counts])
   const setDay = (d: string) => { if (isIsoDate(d)) { setDate(d); setResource('all') } }
 
-  const heading = <PageHeading id="ops-title" eyebrow="Clinic staff · preview" title="Clinic operations"
-    actions={session.status === 'ok' ? <span className="ops-role">Signed in as {ROLE_LABEL[session.role]} · read-only</span> : undefined}>
-    Persisted appointments only. Clinic hours and providers are not published, so none are shown.</PageHeading>
+  const heading = session.status === 'ok' ? <p className="ops-role">Signed in as {ROLE_LABEL[session.role]}{branchName ? ` · ${branchName}` : ''} · read-only</p> : null
 
-  if (session.status === 'verifying') return <>{heading}<LoadingCard label="Verifying clinic staff access…" rows={4} /></>
-  if (session.status === 'failed') return <>{heading}<FailureCard kind={session.kind} onRetry={reload} />
+  if (session.status === 'verifying') return <><LoadingCard label="Verifying clinic staff access…" rows={4} /></>
+  if (session.status === 'failed') return <><FailureCard kind={session.kind} onRetry={reload} />
     {session.kind === 'denied' && <p><Link className="button button-secondary" to="/app/overview">Back to my overview</Link></p>}</>
 
   const state = win ? windowState(win) : null
