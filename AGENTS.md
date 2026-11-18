@@ -1,6 +1,6 @@
 # Dawney Veterinary Clinic — Shared AI Development Contract
 
-> **CURRENT FIVE-AGENT OVERRIDE — 2026-11-14:** [Manus onboarding](MANUS.md) and [Five-Agent Orchestration](docs/FIVE_AGENT_ORCHESTRATION.md) supersede the historical two/four-agent ownership sections below **for new task routing only**. GPT-6 supervises; Astra owns backend, Claude frontend, Qwen independent read-only QA, Grok security (quota-dependent), and Manus connector/Cloudflare operations and release evidence. All still follow the safety/zero-cost rules below. **Do not assume Manus can access other AIs' private chats via ordinary app connectors.** No self-merge, production SQL or billable provider activation without owner approval.
+> **CURRENT FIVE-AGENT OVERRIDE — owner decision 2026-11-18:** [Five-Agent Orchestration](docs/FIVE_AGENT_ORCHESTRATION.md) and [SOL.md](SOL.md) govern **current tasks**. GPT-6 **Project Manager** owns coordination/release gates; **ASTRA** exclusively owns backend (separate GPT-6 project); Claude frontend; Qwen independent functional QA; Manus GitHub/Cloudflare operations; **SOL (GPT-5.6)** is the **sole active independent security auditor** (separate SOL project). **Grok and Kimi are historical only, not standby/active task recipients**; preserve their attributed prior work. Historical two/four-agent sections below remain archival and do not override this roster. GitHub comments do not launch other private AI chats; no self-merge, real patient data, production SQL, live hosting/clinic-policy activation or spending without the specific owner GO.
 
 Last reviewed: 2026-11-13. Repository: https://github.com/cmlagatuz/dawney-clinic. Default branch: `master`.
 
@@ -25,7 +25,7 @@ Use installed `supabase` and `supabase-postgres-best-practices` skills as applic
 
 Keep schema changes in reviewed version-controlled `supabase/migrations/` files (or a clearly documented migration path); synchronize actual schema and history. Enable RLS on exposed tables, verify realistic owner/staff/administrator permissions with deny tests and cross-account tests, and ensure UPDATE permissions include needed SELECT and WITH CHECK rules. Do not rely on user-editable metadata for authorization. Never expose `service_role`, secret keys, database passwords, private health/contact data, or deployment credentials in source, logs, AI handoff, screenshots, frontend bundles, or commits. Use example env files only. Make backups/export procedures. Do not create fake live clinical data.
 
-## Dual-agent collaboration
+## Historical two-agent collaboration (archived — not current task routing)
 **ChatGPT GPT-6 Astra:** lead architect, legacy audit, data models, Supabase security/migrations, integration tests, deployment design and release verification.
 **Claude Sonnet Free:** frontend design, responsive UX, component implementation, accessibility, targeted review and small well-scoped fixes. Claude may suggest architecture changes but coordinate with lead first.
 
@@ -44,8 +44,8 @@ The user can complete initial OAuth, Cloudflare Pages project setup, DNS, Supaba
 A task is complete only if it is implemented, tested (build/lint/unit/integration where applicable), pushed, reviewed or merged as appropriate, deployed if configured, and checked for working end-to-end persistence/security. Report what is verified versus pending. Stay within free quotas. Avoid claiming invisible work, background execution, or nonexistent services.
 
 
-## Four-agent specialist division (updated 2026-11-14)
-Supervisor-approved collaboration is documented in **[docs/FOUR_AI_COLLABORATION.md](docs/FOUR_AI_COLLABORATION.md)**. The two new agents are **Qwen** ([QWEN.md](QWEN.md)) for QA/browser regression/test automation and **Grok** ([GROK.md](GROK.md)) for independent security/system audit and negative test design. They are not additional competing architecture leads.
+## Historical four-agent specialist division (archived 2026-11-14; NOT current task routing)
+Historically approved collaboration is documented in **[docs/FOUR_AI_COLLABORATION.md](docs/FOUR_AI_COLLABORATION.md)**; use the current [five-agent orchestration](docs/FIVE_AGENT_ORCHESTRATION.md) for new tasks. The two new agents are **Qwen** ([QWEN.md](QWEN.md)) for QA/browser regression/test automation and **Grok** ([GROK.md](GROK.md)) for independent security/system audit and negative test design. They are not additional competing architecture leads.
 - All four agents work on isolated `ai/chatgpt/*`, `ai/claude/*`, `ai/qwen/*`, `ai/grok/*` branches and push their own testable PRs if tools genuinely provide GitHub write access; **no direct master pushes by coding agents** and no self-merges. Supervisor/owner reviews.
 - Stable file ownership: Astra `supabase/migrations` + `web/src/lib`, Claude React pages/components/styles/brand, Qwen browser/test harness, Grok security audit docs/isolated security tests. Coordinate any exception before edits.
 - Free AI chat does **not** guarantee free API/CLI or GitHub write access. Do not install paid agents, add billable secrets, enable unrestricted auto-approve or claim completed pushes/deployments without actual tool verification.
