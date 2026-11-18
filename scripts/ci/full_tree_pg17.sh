@@ -245,12 +245,12 @@ while read -r path sha; do
 done <<'ISSUE58_BLOBS'
 supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql c889477348d9505d54f54b1d08532c2f648992a9
 supabase/tests/issue58_staff_branch_queue_fixture.sql 627c704a311cfe92c3c805bb248a2ed90c1987dc
-supabase/tests/issue58_staff_branch_read_pg17.sql 777d66a7fde398e9336c707e0cd3561dfbbfa53c
-.github/workflows/issue58-staff-branch-read-pg17.yml 095ecf43d218670f48a12ffdc6ad4e8e1a516bb4
+supabase/tests/issue58_staff_branch_read_pg17.sql b73006e7a5c45a00037c97511a3014bd2e19299e
+.github/workflows/issue58-staff-branch-read-pg17.yml 7b0de31308a3057ad6c7aa85bf74d1d11dc5968c
 web/src/staff-branch-read-contract.mjs 39c4b19edb70bb14c12ee09d69d160386ac6d175
 web/src/staff-branch-read-contract.d.mts 39ac1f2802283d0a42790cd4647effc6e9494a2f
 web/src/lib/staff-branch.ts 4ef4e033585ba3545cc86da6dd61b98fd70f6b05
-web/tests/staff-branch-read-contract.test.mjs c2f036c3695bee1c5abcd50aa7ddccff89c765a5
+web/tests/staff-branch-read-contract.test.mjs 343b79eeaccd69eae20440b323ecd101ee057c0f
 docs/ISSUE58_STAFF_BRANCH_READ.md 56aa231f45b068d22268d73185dd4f18ce3d6860
 .github/workflows/full-tree-pg17-security.yml 09c9c1978690d815f6779af172a53ce81eed7d6f
 ISSUE58_BLOBS

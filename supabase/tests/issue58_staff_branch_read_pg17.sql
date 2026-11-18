@@ -132,19 +132,24 @@ begin
   raise exception 'ISSUE58_FAIL: revoked receptionist can still read queue';end if;
 end $revoked_branch$;
 reset role;
--- Inactive GLOBAL membership cannot be bypassed with active branch membership.
+-- Inactive GLOBAL membership cannot be bypassed by an active branch row.
+-- Use receptionist C, not admin E: the existing audited database trigger
+-- correctly forbids disabling the LAST active administrator.
+update public.staff_branch_memberships set is_active=true
+ where user_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+ and branch_id='11111111-0000-4000-8000-000000000077';
 update public.staff_memberships set is_active=false
- where user_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+ where user_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 set role authenticated;
-set request.jwt.claim.sub='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+set request.jwt.claim.sub='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 do $revoked_global$
 begin
  begin
   perform public.assert_staff_branch('11111111-0000-4000-8000-000000000077');
-  raise exception 'ISSUE58_FAIL: revoked global administrator asserted';exception when insufficient_privilege then null;end;
+  raise exception 'ISSUE58_FAIL: revoked global receptionist asserted';exception when insufficient_privilege then null;end;
  begin
   perform public.get_branch_dashboard_counts('11111111-0000-4000-8000-000000000077');
-  raise exception 'ISSUE58_FAIL: revoked global administrator counted patients';exception when insufficient_privilege then null;end;
+  raise exception 'ISSUE58_FAIL: revoked global receptionist counted patients';exception when insufficient_privilege then null;end;
 end $revoked_global$;
 reset role;
 -- Account change to real owner B / unconfirmed / anonymous, never inherited.

@@ -10,8 +10,8 @@ const C='22222222-0000-4000-8000-000000000077'
 const A='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const B='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const ID=i=>'eeeeeeee-eeee-4eee-8eee-'+String(i).padStart(12,'0')
-const UTC_FROM='2026-11-17T16:00:00Z'
-const UTC_TO='2026-11-18T16:00:00Z'
+const UTC_FROM='2026-11-17T16:00:00.000Z'
+const UTC_TO='2026-11-18T16:00:00.000Z'
 function row(i=1,branch_id=N){
  return {id:ID(i),owner_id:A,pet_id:ID(2),resource_id:ID(3),
   starts_at:'2026-11-18T08:00:00Z',ends_at:'2026-11-18T08:30:00Z',
@@ -28,10 +28,10 @@ function harness(o={}){
    data:db.globalActive?{user_id:db.uid,role:'receptionist',is_active:true}:
     {user_id:db.uid,role:'receptionist',is_active:false},error:null})})})}
   if(t==='staff_branch_memberships')return {select:()=>({eq:async(col,id)=>({
-   data:o.memberRows??[{user_id:id,branch_id:N,role:'receptionist',is_active:true}],error:o.membershipError??null
+   data:Object.hasOwn(o,'memberRows')?o.memberRows:[{user_id:id,branch_id:N,role:'receptionist',is_active:true}],error:o.membershipError??null
   })})}
   if(t==='clinic_branches')return {select:()=>({order:async()=>({
-   data:o.catalog??[{id:N,slug:'naga',display_name:'Naga clinic'},{id:C,slug:'cavite',display_name:'Cavite clinic'}],
+   data:Object.hasOwn(o,'catalog')?o.catalog:[{id:N,slug:'naga',display_name:'Naga clinic'},{id:C,slug:'cavite',display_name:'Cavite clinic'}],
    error:o.catalogError??null})})}
   if(t!=='appointments')throw Error('Unexpected query table '+t)
   let branch='',from='',to='',firstOrder='',secondOrder=''
@@ -42,7 +42,7 @@ function harness(o={}){
    order(key){if(!firstOrder)firstOrder=key;else secondOrder=key;return chain},
    async limit(num){
     db.calls.push(['limit',num,branch,from,to,firstOrder,secondOrder])
-    const data=o.rows??[]
+    const data=Object.hasOwn(o,'rows')?o.rows:[]
     if(o.queryError)return {data:null,error:o.queryError}
     if(o.revokeAfterRead)db.branchActive=false
     if(o.switchAfterRead)db.uid=B
@@ -112,7 +112,7 @@ test('Manila UTC day and week bounds are half-open and per-day <=24h',()=>{
   assert.equal(new Date(w.toUtc)-new Date(w.fromUtc),86400000)
   if(i)assert.equal(dayWindow(days[i-1]).toUtc,w.fromUtc)
  }
- assert.equal(rangeWindow('2026-11-18','morning').toUtc,'2026-11-18T04:00:00Z')
+ assert.equal(rangeWindow('2026-11-18','morning').toUtc,'2026-11-18T04:00:00.000Z')
 })
 test('invalid UTC windows, corrupt rows and backend errors fail closed (not empty)',async()=>{
  for(const [f,t] of [

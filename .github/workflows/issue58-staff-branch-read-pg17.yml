@@ -105,7 +105,7 @@ jobs:
           test "$(git hash-object supabase/migrations/20261118203500_issue51_branch_booking_security.sql)" = "f58ca0e0bcb36d3a320060db7bf9bbeffe7f35f3"
           test "$(git hash-object supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql)" = "c889477348d9505d54f54b1d08532c2f648992a9"
           test "$(git hash-object supabase/tests/issue58_staff_branch_queue_fixture.sql)" = "627c704a311cfe92c3c805bb248a2ed90c1987dc"
-          test "$(git hash-object supabase/tests/issue58_staff_branch_read_pg17.sql)" = "777d66a7fde398e9336c707e0cd3561dfbbfa53c"
+          test "$(git hash-object supabase/tests/issue58_staff_branch_read_pg17.sql)" = "b73006e7a5c45a00037c97511a3014bd2e19299e"
           psql -X -v ON_ERROR_STOP=1 -q -f supabase/tests/issue77_four_branch_pg17_denials.sql
           psql -X -v ON_ERROR_STOP=1 -q -f supabase/tests/issue58_staff_branch_queue_fixture.sql
           psql -X -v ON_ERROR_STOP=1 -q -f supabase/migrations/20261118203500_issue51_branch_booking_security.sql
