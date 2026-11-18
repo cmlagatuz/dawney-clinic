@@ -250,7 +250,7 @@ supabase/tests/issue58_staff_branch_read_pg17.sql b73006e7a5c45a00037c97511a3014
 web/src/staff-branch-read-contract.mjs 39c4b19edb70bb14c12ee09d69d160386ac6d175
 web/src/staff-branch-read-contract.d.mts 39ac1f2802283d0a42790cd4647effc6e9494a2f
 web/src/lib/staff-branch.ts 4ef4e033585ba3545cc86da6dd61b98fd70f6b05
-web/tests/staff-branch-read-contract.test.mjs 343b79eeaccd69eae20440b323ecd101ee057c0f
+web/tests/staff-branch-read-contract.test.mjs ab8588bdec70ef4a498c4acc1625a688b00b4ecf
 docs/ISSUE58_STAFF_BRANCH_READ.md 56aa231f45b068d22268d73185dd4f18ce3d6860
 .github/workflows/full-tree-pg17-security.yml 09c9c1978690d815f6779af172a53ce81eed7d6f
 ISSUE58_BLOBS

@@ -46,8 +46,8 @@ function harness(o={}){
     if(o.queryError)return {data:null,error:o.queryError}
     if(o.revokeAfterRead)db.branchActive=false
     if(o.switchAfterRead)db.uid=B
-    return {data:!Array.isArray(data)?data:o.ignoreLimit?data:data.filter(r=>r.branch_id===branch)
-      .slice(0,num),error:null}
+    return {data:!Array.isArray(data)?data:o.ignoreLimit?data:
+      (o.ignoreFilter?data:data.filter(r=>r.branch_id===branch)).slice(0,num),error:null}
    }
   }
   return {select:cols=>{assert.match(cols,/branch_id/);return chain}}
@@ -125,7 +125,7 @@ test('invalid UTC windows, corrupt rows and backend errors fail closed (not empt
  for(const bad of [null,[{}],[{...row(),status:'in_consult'}],
   [{...row(),branch_id:C}],[{...row(),concern:''}],
   [{...row(),starts_at:'wrong'}]]){
-  const db=harness({rows:bad})
+  const db=harness({rows:bad,ignoreFilter:!(Array.isArray(bad)&&bad.length===1&&bad[0]?.branch_id===C)})
   // branch_id mismatch is removed by a conforming server-side predicate;
   // assert a foreign row cannot be returned to the consumer.
   if(Array.isArray(bad)&&bad.length===1&&bad[0]?.branch_id===C){
