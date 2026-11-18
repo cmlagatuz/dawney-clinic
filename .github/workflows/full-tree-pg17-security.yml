@@ -56,6 +56,13 @@ on:
       - 'supabase/tests/issue58_staff_branch_read_pg17.sql'
       - '.github/workflows/issue58-staff-branch-read-pg17.yml'
       - 'docs/ISSUE58_STAFF_BRANCH_READ.md'
+      # Issue78 additive medicine inventory read-only backend candidate.
+      - 'supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql'
+      - 'supabase/tests/issue78_inventory_synthetic_fixture.sql'
+      - 'supabase/tests/issue78_inventory_pg17_denials.sql'
+      - 'scripts/ci/issue78_concurrent_denials.sh'
+      - '.github/workflows/issue78-inventory-pg17.yml'
+      - 'docs/ISSUE78_MEDICINE_INVENTORY_READ_ONLY.md'
 
 permissions:
   contents: read
