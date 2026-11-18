@@ -11,7 +11,7 @@ When a Phase4 PR is opened or its head changes:
 2. Verify dependencies: **#46 CI -> #34 UI -> #40 taxonomy -> #43 booking (with #50 privacy) -> #49 recovery; #52 regression after #40/#43; #41/#48 stacked on #34 and require reviewed retarget**. #47 is CI validation-only; #39 is an unfinished security draft. Re-evaluate when actual branches change.
 3. Distinguish statuses: **source-scope** mergeability (true/false), **CI** success/failed/skipped, **Pages** deploy (real commit), **Workers** unrelated/unknown, and **clinical live** (always owner gated).
 4. If failing check, inspect **actual log** (minimum fragment) and determine whether it is application failure vs separate #45 Worker integration. Never mark an unstable PR as totally green.
-5. Check ownership paths: backend SQL/lib Astra; React components/pages Claude; QA Qwen; security audit Grok; deploy issue/logs Manus. Flag overlaps and copied temporary contracts.
+5. Check ownership paths: use the current roster in `docs/FIVE_AGENT_ORCHESTRATION.md`. ASTRA owns backend SQL/lib, CLOUD owns React components/pages, Qwen owns functional QA, SOL owns independent security review and Manus owns provider evidence. Flag overlaps and copied temporary contracts.
 6. Output:
    - `HEAD: <SHA>`; `BASE:`; `CHANGES:` <=3 meaningful files/categories
    - `CHECKS:` key Github URLs with pass/fail, including Workers separated
