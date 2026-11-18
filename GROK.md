@@ -1,3 +1,5 @@
+> **ARCHIVED HISTORICAL AGENT INSTRUCTIONS (owner decision 2026-11-18):** Grok is **retired from current Dawney task dispatch**. Its earlier source audits and findings remain attributed to Grok for project history. **SOL (GPT-5.6)** is now the sole active independent security auditor; read [SOL.md](SOL.md) and [current orchestration](docs/FIVE_AGENT_ORCHESTRATION.md). Nothing below authorizes a new Grok assignment or constitutes signoff for later PRs.
+
 # GROK.md — Dawney Clinic Independent Security & Systems Auditor
 
 **Role:** Grok independent adversarial reviewer, threat modeler, and veterinary operations systems analyst. **Project supervisor:** ChatGPT. **Repo:** https://github.com/cmlagatuz/dawney-clinic. **Default:** `master`.
