@@ -319,7 +319,7 @@ done <<'ISSUE51_PUBLIC_READER_BLOBS'
 web/src/lib/branch-public-booking-reader.mjs a06cfd1cc77ce911dc52a1febab1ad74ff1253ef
 web/src/lib/branch-public-booking-reader.d.mts d48907f2c56ba5ff2bfd6d129633fa345f128228
 web/src/lib/branch-public-booking.ts b972ac6d3fe739da24d9e961e3242dfe10e7fa83
-web/tests/branch-public-booking-reader.test.mjs 1afa8b9c150d488770b3f45278b2f47dde64535e
+web/tests/branch-public-booking-reader.test.mjs fc18a9d20ffd3bce24fd0bc410ac4924d038d61d
 ISSUE51_PUBLIC_READER_BLOBS
 # Source-only issue77 additive candidate: exact immutable schema/test/workflow/docs.
 # Original eleven applied migrations and Grok/booking/staff blobs remain separately pinned.

@@ -34,7 +34,7 @@ function mock(settings={}){
    if(settings.omitData===table)return {error:null}
    let rows=data[table]
    if(Array.isArray(rows)){
-    for(const [op,key,val] of q.filters)rows=rows.filter(x=>op==='eq'?x[key]===val:val.includes(x[key]))
+    if(!settings.ignoreFilter)for(const [op,key,val] of q.filters)rows=rows.filter(x=>op==='eq'?x[key]===val:val.includes(x[key]))
     return {data:rows,error:null}
    }
    return {data:rows??null,error:null}
@@ -133,14 +133,14 @@ test('unpublished, foreign-branch or malformed returned services fail closed',as
  for(const change of [{branch_id:C},{published_at:null},{duration_minutes:0},
   {slug:'INVALID'},{id:'not-a-uuid'}]){
   assert.deepEqual(await readBranchPublicBooking(mock({
-   clinic_services:[{...s,...change}]}),N),{kind:'backend_error'})
+   clinic_services:[{...s,...change}],ignoreFilter:true}),N),{kind:'backend_error'})
  }
 })
 test('foreign service, invalid resource ID and capacity bypass rejected',async()=>{
  const r=defaults().clinic_service_resources[0]
  for(const change of [{capacity:2},{service_id:S2},{resource_id:'../cavite'}]){
   assert.deepEqual(await readBranchPublicBooking(mock({
-   clinic_service_resources:[{...r,...change}]}),N),{kind:'backend_error'})
+   clinic_service_resources:[{...r,...change}],ignoreFilter:true}),N),{kind:'backend_error'})
  }
 })
 test('cross-branch/inactive room cannot make a service eligible',async()=>{
