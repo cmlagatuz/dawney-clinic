@@ -125,8 +125,7 @@ done
 while IFS= read -r path; do
  case "$path" in
   web/src/pages/AppointmentsPage.tsx|web/tests/owner-booking-view.test.mjs)
-   [[ "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" ==
-      "$(git rev-parse "$EXPECTED_FRONTEND_SHA:$path")" ]] ||
+   [[ "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" == "$(git rev-parse "$EXPECTED_FRONTEND_SHA:$path")" ]] ||
     fail "original PR70 frontend source drift: $path"
    # The exact changed CLOUD blob is checked by pr88_frontend_pins.sh.
    ;;

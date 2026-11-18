@@ -241,7 +241,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         run: |
           set -euo pipefail
-          bash ../scripts/ci/pr88_frontend_pins.sh
+          (cd .. && bash scripts/ci/pr88_frontend_pins.sh)
           node --check tests/branch-booking.browser.mjs
           # Rebuild ONLY the local preview against inert synthetic fixture origin.
           npm run build
