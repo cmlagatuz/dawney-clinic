@@ -46,6 +46,16 @@ on:
       - 'web/src/ops/read-port.ts'
       - 'web/src/ops/useBranchScope.ts'
       - 'web/tests/ops-branch.test.mjs'
+      # Issue58 server-only branch read adapters, typed contract, tests and PG17.
+      - 'web/src/lib/staff-branch.ts'
+      - 'web/src/staff-branch-read-contract.mjs'
+      - 'web/src/staff-branch-read-contract.d.mts'
+      - 'web/tests/staff-branch-read-contract.test.mjs'
+      - 'supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql'
+      - 'supabase/tests/issue58_staff_branch_queue_fixture.sql'
+      - 'supabase/tests/issue58_staff_branch_read_pg17.sql'
+      - '.github/workflows/issue58-staff-branch-read-pg17.yml'
+      - 'docs/ISSUE58_STAFF_BRANCH_READ.md'
 
 permissions:
   contents: read
