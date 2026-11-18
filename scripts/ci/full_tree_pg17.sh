@@ -49,6 +49,12 @@ git fetch --no-tags origin 'refs/pull/82/head:refs/remotes/origin/frozen-pr82'
  fail 'PR82 frozen source moved; do not test against an unreviewed tree'
 git merge-base --is-ancestor b0633b2e8d073e9328462d29f4bfca280c70eaa7 "$EXPECTED_HEAD_SHA" ||
  fail 'issue51 repair is not descendant of frozen PR82'
+# PR83 is independently reviewed by SOL: the direct parent stays fixed.
+git fetch --no-tags origin 'refs/pull/83/head:refs/remotes/origin/frozen-pr83'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr83)" == 0edeeb152d306fe5c652d289ec5f4e69f00c2f11 ]] ||
+ fail 'PR83 source-review head moved during Issue58 integration'
+git merge-base --is-ancestor 0edeeb152d306fe5c652d289ec5f4e69f00c2f11 "$EXPECTED_HEAD_SHA" ||
+ fail 'Issue58 branch-read candidate must descend from reviewed PR83'
 # The combined commit is based on the exact P1-repaired backend and imports
 # EXACT, independently reviewable PR79 Naga + PR81 branch-selector commits.
 # Reject any source-head drift rather than re-pinning an unreviewed commit.
@@ -155,7 +161,16 @@ while IFS= read -r path; do
   supabase/tests/issue51_branch_booking_pre_repair_pg17.sql|\
   supabase/tests/issue51_branch_booking_after_repair_pg17.sql|\
   supabase/migrations/20261118203500_issue51_branch_booking_security.sql|\
-  docs/ISSUE51_BRANCH_BOOKING_REPAIR.md) ;;
+  docs/ISSUE51_BRANCH_BOOKING_REPAIR.md|\
+  supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql|\
+  supabase/tests/issue58_staff_branch_queue_fixture.sql|\
+  supabase/tests/issue58_staff_branch_read_pg17.sql|\
+  .github/workflows/issue58-staff-branch-read-pg17.yml|\
+  web/src/staff-branch-read-contract.mjs|\
+  web/src/staff-branch-read-contract.d.mts|\
+  web/src/lib/staff-branch.ts|\
+  web/tests/staff-branch-read-contract.test.mjs|\
+  docs/ISSUE58_STAFF_BRANCH_READ.md) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
@@ -221,6 +236,24 @@ supabase/tests/issue51_branch_booking_after_repair_pg17.sql c7a447e5583855d70dcb
 .github/workflows/issue51-branch-booking-pg17.yml d47cef68217e85d5883fb0062bd6c51b6dbe486b
 docs/ISSUE51_BRANCH_BOOKING_REPAIR.md 5fe6cd5ad2248368330dc99cc19ba408e7f8cb96
 ISSUE51_REPAIR_BLOBS
+# New issue58 source-only additions are fixed Git blob hashes, no wildcard.
+# Previous source PRs and eleven installed migrations retain the old hash pins.
+while read -r path sha; do
+ [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+  fail "Issue58 unreviewed branch read source drift: $path"
+done <<'ISSUE58_BLOBS'
+supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql c889477348d9505d54f54b1d08532c2f648992a9
+supabase/tests/issue58_staff_branch_queue_fixture.sql 627c704a311cfe92c3c805bb248a2ed90c1987dc
+supabase/tests/issue58_staff_branch_read_pg17.sql 777d66a7fde398e9336c707e0cd3561dfbbfa53c
+.github/workflows/issue58-staff-branch-read-pg17.yml 095ecf43d218670f48a12ffdc6ad4e8e1a516bb4
+web/src/staff-branch-read-contract.mjs 39c4b19edb70bb14c12ee09d69d160386ac6d175
+web/src/staff-branch-read-contract.d.mts 39ac1f2802283d0a42790cd4647effc6e9494a2f
+web/src/lib/staff-branch.ts 4ef4e033585ba3545cc86da6dd61b98fd70f6b05
+web/tests/staff-branch-read-contract.test.mjs c2f036c3695bee1c5abcd50aa7ddccff89c765a5
+docs/ISSUE58_STAFF_BRANCH_READ.md 56aa231f45b068d22268d73185dd4f18ce3d6860
+.github/workflows/full-tree-pg17-security.yml 09c9c1978690d815f6779af172a53ce81eed7d6f
+ISSUE58_BLOBS
 # Source-only issue77 additive candidate: exact immutable schema/test/workflow/docs.
 # Original eleven applied migrations and Grok/booking/staff blobs remain separately pinned.
 while read -r path sha; do
@@ -252,7 +285,7 @@ supabase/tests/phase5a_staff_booking_rpc_queue.sql 9fd4a627f471391b192968af57f81
 supabase/tests/phase5a_staff_pg17_regression.sql a1b9781325724885188099075d8c36e9ed223b1b
 supabase/tests/phase3_storage_outer_path_after_fix.sql 293abc90a168f6157aa0b0055d2e78fea8f59a8f
 BLOBS
-echo 'PASS: frozen PR82 + immutable 11 migrations, original 12th and reviewed frontend; exact Issue51 add-on validator/tests/repro/workflow/doc pinned.'
+echo 'PASS: frozen PR82/83 and eleven immutable migration blobs; exact Issue58 staff branch read PG17, client adapter, tests and CI sources pinned.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
  if [[ "$PGDATABASE" == full_tree_history_ci ]]; then
