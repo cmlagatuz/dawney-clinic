@@ -64,17 +64,16 @@ test('approved policy can never fall back to the legacy insert through the real 
  assert.deepEqual(calls,[])
 })
 
-test('static guard: the only legacy write path is the explicit legacy view and goes through the adapter',()=>{
- const src=name=>readFileSync(new URL('../src/'+name,import.meta.url),'utf8')
- const page=src('pages/AppointmentsPage.tsx')
- assert.equal((page.match(/kind:'legacy'/g)||[]).length,1)
- assert.ok(!/\bbookAppointment\b/.test(page),'page must not import the raw legacy insert')
- const iForm=page.indexOf("view==='legacy'?<form"),iCall=page.indexOf("kind:'legacy'")
- assert.ok(iForm>0&&iCall>0)
- assert.ok(/view==='service'&&bm\.schedule&&user\?<ServiceBookingForm/.test(page))
- assert.ok(!/pets\.length===0\?[\s\S]{0,40}bm\.mode==='service'/.test(page),'old fall-through chain removed')
- for(const f of ['pages/AppointmentsPage.tsx','components/ServiceBookingForm.tsx','pages/public/BookPage.tsx'])
-  assert.ok(!/from\('appointments'\)\.insert|\.insert\(/.test(src(f)),f+' must not insert directly')
- assert.ok(!/kind:\s*'legacy'/.test(src('components/ServiceBookingForm.tsx'))&&!/kind:\s*'legacy'/.test(src('pages/public/BookPage.tsx')))
- assert.ok(/kind:\s*'service'/.test(src('components/ServiceBookingForm.tsx')))
+test('both branch booking routes gate the forms on the approved reader and have no legacy submit path', () => {
+  const src = name => readFileSync(new URL('../src/' + name, import.meta.url), 'utf8')
+  const pages = ['pages/AppointmentsPage.tsx', 'pages/public/BookPage.tsx']
+  for (const page of pages) {
+    assert.match(src(page), /useBranchBooking\(\)/)
+    assert.match(src(page), /options\.kind [!=]== 'ready'/)
+  }
+  for (const path of [...pages, 'components/ServiceBookingForm.tsx', 'public-site/useBookingRequest.ts', 'public-site/useBranchBooking.ts']) {
+    assert.doesNotMatch(src(path), /bookAppointment|submitOwnerAppointment|listPublishedServiceResources|readApprovedPublicSchedule|\.insert\(/, path)
+  }
+  assert.match(src('public-site/useBookingRequest.ts'), /await requestAuthenticatedServiceBooking/)
+  assert.match(src('public-site/useBranchBooking.ts'), /await readApprovedBranchBookingConfig\(branchId\)/)
 })
