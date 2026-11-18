@@ -448,10 +448,10 @@ begin
  or (select count(*) from public.branch_booking_policies where is_approved)<>1
  or exists(select 1 from clinic_ci.issue77_original_pets old
    left join public.pets p using(id) where p.id is null or
-   (to_jsonb(p)-'species_id'-'breed_id'-'taxonomy_review_needed') is distinct from old.old_row)
+   to_jsonb(p) is distinct from old.old_row)
  or exists(select 1 from clinic_ci.issue77_original_appointments old
     left join public.appointments a using(id) where a.id is null or
-    (to_jsonb(a)-'branch_id'-'service_id'-'request_nonce') is distinct from old.old_row)
+    (to_jsonb(a)-'branch_id') is distinct from old.old_row)
  or (select count(*) from public.pets
     where id='33333333-3333-4333-8333-333333333333'
       and species='Dog' and breed='Chow Chow' and breed_id='dog-chow-chow')<>1
