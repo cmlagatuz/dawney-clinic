@@ -41,7 +41,7 @@ async function fixture(browser, account, width = 768, theme = 'light') {
   }, { authKey, session: accounts[account]?.session, theme })
   const page = await context.newPage()
   page.setDefaultTimeout(7000)
-  const state = { mode: 'ready', failOnce: false, rpc: [], writes: [], reads: [], unexpected: [], saved: null, holdPolicy: null }
+  const state = { mode: 'ready', failOnce: false, rpc: [], writes: [], reads: [], unexpected: [], saved: null, holdPolicy: null, schedule: null, durationMinutes: 30 }
   const json = (route, value, status = 200) => route.fulfill({
     status, json: value, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }
   })
@@ -84,12 +84,14 @@ async function fixture(browser, account, width = 768, theme = 'light') {
         if (state.mode === 'no_policy_table') return json(route, { code: '42P01', message: 'Missing branch_booking_policies' }, 404)
         return json(route, filter('branch_id') === branch ? [{
           branch_id: branch, is_approved: true, timezone: 'Asia/Manila',
-          weekly_hours: weeklyHours, holidays: [], lead_minutes: 1440,
-          max_advance_days: 4, slot_step_minutes: 30, revision: 1
+          weekly_hours: state.schedule?.weekly_hours ?? weeklyHours, holidays: [],
+          lead_minutes: state.schedule?.lead_minutes ?? 1440,
+          max_advance_days: state.schedule?.max_advance_days ?? 4,
+          slot_step_minutes: state.schedule?.slot_step_minutes ?? 30, revision: 1
         }] : [])
       case 'clinic_services':
         return json(route, [
-          { id: ids.service, slug: 'fixture-care', display_name: 'Fixture care', duration_minutes: 30 },
+          { id: ids.service, slug: 'fixture-care', display_name: 'Fixture care', duration_minutes: state.durationMinutes },
           { id: ids.hiddenService, slug: 'hidden-room-care', display_name: 'Hidden room care', duration_minutes: 30 }
         ].map(service => ({ ...service, branch_id: filter('branch_id'), summary: null, published_at: stamp })))
       case 'clinic_service_resources':
@@ -283,6 +285,65 @@ test('Issue #51 in Chromium with intercepted synthetic HTTP', async t => {
         await noForm(page)
         assert.equal(state.rpc.length, 0)
       } finally { finish.resolve(); await done() }
+    })
+  }
+
+  // Fixed-clock REAL Chromium: both routes render only the PostgreSQL-valid
+  // midnight-grid times and the exact inclusive start horizon. All Supabase
+  // HTTP stays intercepted by the fixture above; no clinical endpoints/writes.
+  for (const path of routes) {
+    await t.test(path + ' fixed-clock 09:05 grid and one-day instant horizon', async () => {
+      const clock = new Date('2026-11-18T01:00:00Z') // Manila: Wednesday 09:00
+      const allDays = (open, close) => Object.fromEntries(
+        ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map(day => [day, [{ open, close }]])
+      )
+      for (const scenario of [
+        {
+          name: 'misaligned opening', open: '09:05', close: '10:00', lead: 0,
+          today: ['2026-11-18T01:15:00.000Z', '2026-11-18T01:30:00.000Z'],
+          tomorrow: null
+        },
+        {
+          name: 'inclusive lead and horizon', open: '08:00', close: '10:00', lead: 15,
+          today: ['2026-11-18T01:15:00.000Z', '2026-11-18T01:30:00.000Z'],
+          tomorrow: [
+            '2026-11-19T00:00:00.000Z', '2026-11-19T00:15:00.000Z',
+            '2026-11-19T00:30:00.000Z', '2026-11-19T00:45:00.000Z',
+            '2026-11-19T01:00:00.000Z'
+          ]
+        }
+      ]) {
+        const { page, state, done } = await fixture(browser, 'A')
+        state.schedule = {
+          weekly_hours: allDays(scenario.open, scenario.close),
+          lead_minutes: scenario.lead, max_advance_days: 1, slot_step_minutes: 15
+        }
+        try {
+          await page.clock.install({ time: clock })
+          await page.goto(new URL(path, origin).href)
+          const form = page.getByRole('form', {
+            name: path === '/book' ? 'Naga appointment request' : 'Appointment request'
+          })
+          await form.waitFor(limit)
+          if (path === '/book') await form.getByRole('radio', { name: /Fixture care/ }).check()
+          else await form.getByRole('combobox', { name: /^Service/ }).selectOption(ids.service)
+          const date = form.getByLabel(/^Date/)
+          await date.waitFor(limit)
+          await date.selectOption('2026-11-18')
+          const slots = () => form.locator('input[name="slot"]').evaluateAll(elements =>
+            elements.map(element => element.value))
+          assert.deepEqual(await slots(), scenario.today, path + ': ' + scenario.name + ' today')
+          if (scenario.tomorrow === null) {
+            assert.equal(await date.locator('option[value="2026-11-19"]').count(), 0,
+              'a one-day horizon does not include the rest of the following day')
+          } else {
+            await date.selectOption('2026-11-19')
+            assert.deepEqual(await slots(), scenario.tomorrow,
+              path + ': inclusive exact horizon and no 09:15 overflow')
+          }
+          assert.deepEqual(state.rpc, [], 'the boundary test never submits a clinical request')
+        } finally { await done() }
+      }
     })
   }
 
