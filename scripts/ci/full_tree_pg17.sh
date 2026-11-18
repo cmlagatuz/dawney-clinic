@@ -252,9 +252,18 @@ ISSUE51_REPAIR_BLOBS
 # New issue58 source-only additions are fixed Git blob hashes, no wildcard.
 # Previous source PRs and eleven installed migrations retain the old hash pins.
 while read -r path sha; do
- [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
-    "$(git hash-object "$path")" == "$sha" ]] ||
-  fail "Issue58 unreviewed branch read source drift: $path"
+ if [[ "$path" == .github/workflows/full-tree-pg17-security.yml ]]; then
+   # Parent PR85's original workflow blob remains EXACT and immutable.
+   # This child adds only the separately pinned new Issue78 path triggers.
+   [[ "$(git rev-parse "0c3be38304a6fd9528e8e59d1aebac296d57486f:$path")" == "$sha" &&
+      "$(git rev-parse "HEAD:$path")" == 2b0e121b7aa201e3102a7836a6349c05884ef20b &&
+      "$(git hash-object "$path")" == 2b0e121b7aa201e3102a7836a6349c05884ef20b ]] ||
+     fail 'parent or updated full-tree workflow drifted outside Issue78 exact pins'
+ else
+   [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+      "$(git hash-object "$path")" == "$sha" ]] ||
+     fail "Issue58 unreviewed branch read source drift: $path"
+ fi
 done <<'ISSUE58_BLOBS'
 supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql c889477348d9505d54f54b1d08532c2f648992a9
 supabase/tests/issue58_staff_branch_queue_fixture.sql 627c704a311cfe92c3c805bb248a2ed90c1987dc
@@ -279,7 +288,7 @@ supabase/tests/issue78_inventory_synthetic_fixture.sql de5ee91ed724718acbc6724ce
 supabase/tests/issue78_inventory_pg17_denials.sql 24465f1c7e70d946c0f07ef1def7a39aa5439843
 scripts/ci/issue78_concurrent_denials.sh 989b18062262d4b677e7df76273cf6637519a432
 .github/workflows/issue78-inventory-pg17.yml 62679dc0dacbd5e59cdde57204654e3b52954e94
-docs/ISSUE78_MEDICINE_INVENTORY_READ_ONLY.md 0170f9a9f4a14e3cee42d30a3a7f53407649a5f3
+docs/ISSUE78_MEDICINE_INVENTORY_READ_ONLY.md 95d9a5333573be38cce5b42bccc737b81ee56d30
 .github/workflows/full-tree-pg17-security.yml 2b0e121b7aa201e3102a7836a6349c05884ef20b
 ISSUE78_BLOBS
 # Source-only issue77 additive candidate: exact immutable schema/test/workflow/docs.
