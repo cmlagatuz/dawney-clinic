@@ -332,8 +332,10 @@ while read -r path sha; do
    # This child adds only the separately pinned new Issue78 path triggers.
    [[ "$(git rev-parse "0c3be38304a6fd9528e8e59d1aebac296d57486f:$path")" == "$sha" &&
       "$(git rev-parse "72932678dde35fc6caa0667ff3f900f49255a135:$path")" == 2b0e121b7aa201e3102a7836a6349c05884ef20b &&
-      "$(git rev-parse "HEAD:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
-      "$(git hash-object "$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 ]] ||
+      "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
+      "$(git rev-parse "2171567f275b88b54d5c3997f97ecf4986b050f2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
+      "$(git rev-parse "HEAD:$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 &&
+      "$(git hash-object "$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 ]] ||
      fail 'parent or updated full-tree workflow drifted outside Issue78 exact pins'
  else
    [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
@@ -357,8 +359,10 @@ ISSUE58_BLOBS
 while read -r path sha; do
  if [[ "$path" == .github/workflows/full-tree-pg17-security.yml ]]; then
    [[ "$(git rev-parse "72932678dde35fc6caa0667ff3f900f49255a135:$path")" == "$sha" &&
-      "$(git rev-parse "HEAD:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
-      "$(git hash-object "$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 ]] ||
+      "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
+      "$(git rev-parse "2171567f275b88b54d5c3997f97ecf4986b050f2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
+      "$(git rev-parse "HEAD:$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 &&
+      "$(git hash-object "$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 ]] ||
     fail 'immutable PR86 workflow or public reader path triggers changed'
  else
   [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
