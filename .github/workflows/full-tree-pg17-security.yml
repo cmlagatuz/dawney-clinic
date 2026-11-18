@@ -63,6 +63,11 @@ on:
       - 'scripts/ci/issue78_concurrent_denials.sh'
       - '.github/workflows/issue78-inventory-pg17.yml'
       - 'docs/ISSUE78_MEDICINE_INVENTORY_READ_ONLY.md'
+      # Issue51 ASTRA branch-aware public reader; no booking UI or SQL edits.
+      - 'web/src/lib/branch-public-booking.ts'
+      - 'web/src/lib/branch-public-booking-reader.mjs'
+      - 'web/src/lib/branch-public-booking-reader.d.mts'
+      - 'web/tests/branch-public-booking-reader.test.mjs'
 
 permissions:
   contents: read
