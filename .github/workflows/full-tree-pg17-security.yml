@@ -139,11 +139,10 @@ jobs:
         run: |
           test "$VITE_PHASE4_PATIENT_FORM" = 'false'
           test "$VITE_PHASE5A_OPS_UI" = 'false'
-      - name: Require reviewed booking source before web build
+      - name: Require exact 13 reviewed CLOUD frontend blobs before Node and Vite
         run: |
-          test "$(git rev-parse HEAD:web/src/pages/AppointmentsPage.tsx)" = "4fb506194b1fa22ef14d795333e4a9bed0e25598"
+          bash scripts/ci/pr88_frontend_pins.sh
           test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
-          test "$(git rev-parse HEAD:web/tests/owner-booking-view.test.mjs)" = "0782a74fdb33532cd27dba75a395c08e1e2d23bc"
       - name: Run integrated React/booking/queue contract Node tests and TypeScript/Vite build
         working-directory: web
         run: |
@@ -204,10 +203,10 @@ jobs:
         run: |
           test "$VITE_PHASE4_PATIENT_FORM" = 'false'
           test "$VITE_PHASE5A_OPS_UI" = 'false'
-      - name: Require reviewed booking source before Chromium
+      - name: Require exact 13 reviewed CLOUD frontend blobs before Chromium
         run: |
-          test "$(git rev-parse HEAD:web/src/pages/AppointmentsPage.tsx)" = "4fb506194b1fa22ef14d795333e4a9bed0e25598"
-          test "$(git rev-parse HEAD:web/tests/owner-booking-view.test.mjs)" = "0782a74fdb33532cd27dba75a395c08e1e2d23bc"
+          bash scripts/ci/pr88_frontend_pins.sh
+          test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
       - name: Locked Vite build from full frontend/backend integration tree
         working-directory: web
         run: |
@@ -229,3 +228,28 @@ jobs:
           done
           curl --silent --fail http://127.0.0.1:4173/ >/dev/null
           node scripts/browser/anonymous.mjs http://127.0.0.1:4173
+
+      # CLOUD-owned browser harness, run only against intercepted synthetic data.
+      # Old anonymous Chromium gate above is retained byte-for-byte.
+      - name: Run CLOUD branch-booking.browser.mjs against intercepted fixture HTTP in real Chromium
+        working-directory: web
+        timeout-minutes: 8
+        shell: bash
+        env:
+          VITE_SUPABASE_URL: https://issue51-fixtures.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_issue51_offline
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: |
+          set -euo pipefail
+          bash ../scripts/ci/pr88_frontend_pins.sh
+          node --check tests/branch-booking.browser.mjs
+          # Rebuild ONLY the local preview against inert synthetic fixture origin.
+          npm run build
+          # Keep Playwright transient, isolated and pinned; do not edit lockfiles.
+          npm install --prefix "$RUNNER_TEMP/issue51-playwright" --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          test -f "$RUNNER_TEMP/issue51-playwright/node_modules/playwright/index.mjs"
+          CHROMIUM_BIN="$(node --input-type=module -e "import {discoverChromium} from '../scripts/browser/chromium-binary.mjs'; console.log((await discoverChromium())[0])")"
+          test -x "$CHROMIUM_BIN"
+          CODEX_PRIMARY_RUNTIME_NODE_MODULES="$RUNNER_TEMP/issue51-playwright/node_modules" \
+            CHROMIUM_BIN="$CHROMIUM_BIN" \
+            node --test tests/branch-booking.browser.mjs
