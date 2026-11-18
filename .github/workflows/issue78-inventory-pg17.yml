@@ -1,5 +1,5 @@
 name: Issue 78 medicine inventory security foundation — disposable PostgreSQL 17
-# Source-only 14th proposal; NEVER connects to a Supabase project or real Auth.
+# Source-only 15th proposal plus P2-01 branch-local date regression; NEVER uses hosted SQL or real Auth.
 on:
   pull_request:
     paths:
@@ -7,6 +7,7 @@ on:
       - 'supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql'
       - 'supabase/tests/issue78_inventory_synthetic_fixture.sql'
       - 'supabase/tests/issue78_inventory_pg17_denials.sql'
+      - 'supabase/tests/issue78_inventory_timezone_pg17.sql'
       - 'scripts/ci/issue78_concurrent_denials.sh'
       - 'scripts/ci/full_tree_pg17.sh'
       - '.github/workflows/full-tree-pg17-security.yml'
@@ -101,9 +102,10 @@ jobs:
           test "$(git hash-object supabase/migrations/20261117233500_issue77_four_branch_foundation.sql)" = "4732b815cff45850d2f01cdeb93c527dac0e22a0"
           test "$(git hash-object supabase/migrations/20261118203500_issue51_branch_booking_security.sql)" = "f58ca0e0bcb36d3a320060db7bf9bbeffe7f35f3"
           test "$(git hash-object supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql)" = "c889477348d9505d54f54b1d08532c2f648992a9"
-          test "$(git hash-object supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql)" = "e637cc3fc506ad7d6d813cadd077a820bf0530c6"
+          test "$(git hash-object supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql)" = "908f881bfc541ab4265912e0a9e55525ea8275a5"
           test "$(git hash-object supabase/tests/issue78_inventory_synthetic_fixture.sql)" = "de5ee91ed724718acbc6724ce1c6beb489e1ac80"
           test "$(git hash-object supabase/tests/issue78_inventory_pg17_denials.sql)" = "24465f1c7e70d946c0f07ef1def7a39aa5439843"
+          test "$(git hash-object supabase/tests/issue78_inventory_timezone_pg17.sql)" = "06bc46e34209dfd9d61e3fe576cf4b7d29d13992"
           test "$(git hash-object scripts/ci/issue78_concurrent_denials.sh)" = "989b18062262d4b677e7df76273cf6637519a432"
           bash -n scripts/ci/issue78_concurrent_denials.sh
           pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
@@ -115,4 +117,5 @@ jobs:
           pg supabase/tests/issue78_inventory_synthetic_fixture.sql
           pg supabase/tests/issue78_inventory_pg17_denials.sql
           bash scripts/ci/issue78_concurrent_denials.sh
+          pg supabase/tests/issue78_inventory_timezone_pg17.sql
           echo 'PASS: ISSUE78 offline 11+12+13+14+15 RLS, FEFO, 30/60/90, no negative stock, append-only ledger, overlapping denied writes, Chow Chow preserved'
