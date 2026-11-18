@@ -117,7 +117,18 @@ test('real Chromium: both booking routes use only valid 09:05 grid and exact one
             await browser.value(`(()=>{const el=document.querySelector('form[aria-label="Appointment request"] select[required]');el.value='${'10000000-0000-4000-8000-000000000004'}';el.dispatchEvent(new Event('change',{bubbles:true}));return true})()`)
           }
           const dateSelector = `[...document.querySelectorAll('form label')].find(x=>/^Date\\b/.test(x.textContent.trim()))?.querySelector('select')`
-          await browser.until('!!(' + dateSelector + ')')
+          try {
+            await browser.until('!!(' + dateSelector + ')', 5000)
+          } catch {
+            const snapshot = await browser.value(`({
+              path: location.pathname,
+              formNames: [...document.querySelectorAll('form')].map(x => x.getAttribute('aria-label')),
+              labels: [...document.querySelectorAll('form label')].map(x => x.textContent?.trim().slice(0, 35)),
+              statuses: [...document.querySelectorAll('[role="status"],[role="alert"]')].map(x => x.textContent?.trim().slice(0, 70)),
+              selectedService: !!document.querySelector('input[name="service"]:checked')
+            })`)
+            throw Error('Synthetic date picker not available: ' + JSON.stringify(snapshot))
+          }
           async function selectDate(date) {
             const changed = await browser.value(`(()=>{const el=${dateSelector};if(!el)return false;el.value='${date}';el.dispatchEvent(new Event('change',{bubbles:true}));return true})()`)
             assert.equal(changed, true)
