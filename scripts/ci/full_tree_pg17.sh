@@ -215,11 +215,11 @@ while read -r path sha; do
     "$(git hash-object "$path")" == "$sha" ]] ||
    fail "unreviewed Issue51 branch-booking security/test source drift: $path"
 done <<'ISSUE51_REPAIR_BLOBS'
-supabase/migrations/20261118203500_issue51_branch_booking_security.sql 1cc80f80df9a5efa092e961f72c0fbc1f4d02d1e
+supabase/migrations/20261118203500_issue51_branch_booking_security.sql f58ca0e0bcb36d3a320060db7bf9bbeffe7f35f3
 supabase/tests/issue51_branch_booking_pre_repair_pg17.sql caa144d8dc9bee0c7b0c578b46ff5001c695116d
 supabase/tests/issue51_branch_booking_after_repair_pg17.sql 175fe03c3acbd3af177543cecaacba8e839050fa
-.github/workflows/issue51-branch-booking-pg17.yml 502eb91ccefa191f1ac8398e0336f2cab7f7434b
-docs/ISSUE51_BRANCH_BOOKING_REPAIR.md 9ff3d8746af59a34bf4f8693ac7533b2aaccfe1d
+.github/workflows/issue51-branch-booking-pg17.yml 5dd1d415021f4cdf04f17861d4544d1f64184213
+docs/ISSUE51_BRANCH_BOOKING_REPAIR.md 5fe6cd5ad2248368330dc99cc19ba408e7f8cb96
 ISSUE51_REPAIR_BLOBS
 # Source-only issue77 additive candidate: exact immutable schema/test/workflow/docs.
 # Original eleven applied migrations and Grok/booking/staff blobs remain separately pinned.

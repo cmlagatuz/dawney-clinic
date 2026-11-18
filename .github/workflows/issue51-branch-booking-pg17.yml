@@ -189,7 +189,7 @@ jobs:
         run: |
           set -euo pipefail
           psql -X -v ON_ERROR_STOP=1 -q -f supabase/migrations/20261117233500_issue77_four_branch_foundation.sql
-          test "$(git hash-object supabase/migrations/20261118203500_issue51_branch_booking_security.sql)" = "1cc80f80df9a5efa092e961f72c0fbc1f4d02d1e"
+          test "$(git hash-object supabase/migrations/20261118203500_issue51_branch_booking_security.sql)" = "f58ca0e0bcb36d3a320060db7bf9bbeffe7f35f3"
           test "$(git hash-object supabase/tests/issue51_branch_booking_after_repair_pg17.sql)" = "175fe03c3acbd3af177543cecaacba8e839050fa"
           psql -X -v ON_ERROR_STOP=1 -q -f supabase/migrations/20261118203500_issue51_branch_booking_security.sql
           psql -X -v ON_ERROR_STOP=1 -q -f supabase/tests/issue51_branch_booking_after_repair_pg17.sql

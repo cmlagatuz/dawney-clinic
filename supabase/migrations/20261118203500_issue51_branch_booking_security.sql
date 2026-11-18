@@ -120,4 +120,20 @@ begin
  return new; -- existing exclusion constraint handles resource concurrency
 end;
 $$;
+-- The original permissive service/resource SELECT is keyed to the hidden
+-- global singleton. Add a NARROW authenticated-only OR arm using the approved
+-- branch schedule. PR80's restrictive service_resources_branch_read still
+-- intersects this policy; nothing becomes visible for OFF, wrong-branch or
+-- unpublished services. Anonymous resources remain fail-closed.
+create policy clinic_service_resources_branch_invoker_read
+ on public.clinic_service_resources for select to authenticated using (
+  exists(
+   select 1 from public.clinic_services s
+   join public.appointment_resources r on r.id=resource_id
+     and r.branch_id=s.branch_id and r.is_active
+   join public.branch_booking_policies bp on bp.branch_id=s.branch_id
+   join public.clinic_branches b on b.id=s.branch_id
+   where s.id=service_id and bp.is_approved and b.booking_enabled
+  )
+ );
 commit;
