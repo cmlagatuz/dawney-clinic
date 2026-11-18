@@ -68,6 +68,44 @@ git fetch --no-tags origin 'refs/pull/86/head:refs/remotes/origin/frozen-pr86'
  fail 'PR86 parent source moved; branch public reader must not follow drift'
 git merge-base --is-ancestor 72932678dde35fc6caa0667ff3f900f49255a135 "$EXPECTED_HEAD_SHA" ||
  fail 'public reader candidate not descended from PR86 frozen source'
+# Exact frontend CI-only child: frozen PR87 then frozen CLOUD PR88.
+git fetch --no-tags origin \
+ 'refs/pull/87/head:refs/remotes/origin/frozen-pr87' \
+ 'refs/pull/88/head:refs/remotes/origin/frozen-cloud-pr88'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr87)" == 26d5ed9bdc81275b24b80810a7da25f658c9e6e2 &&
+   "$(git rev-parse refs/remotes/origin/frozen-cloud-pr88)" == 2171567f275b88b54d5c3997f97ecf4986b050f2 &&
+   "$(git rev-parse 2171567f275b88b54d5c3997f97ecf4986b050f2^)" == 26d5ed9bdc81275b24b80810a7da25f658c9e6e2 ]] ||
+ fail 'CLOUD PR88 source or parent drifted'
+git merge-base --is-ancestor 2171567f275b88b54d5c3997f97ecf4986b050f2 "$EXPECTED_HEAD_SHA" ||
+ fail 'CI candidate does not contain exact reviewed PR88'
+diff -u <(cat <<'CLOUD_PR88_13_PATHS'
+A	web/src/components/BranchBookingAvailability.tsx
+M	web/src/components/ServiceBookingForm.tsx
+M	web/src/hooks/AuthProvider.tsx
+M	web/src/pages/AppointmentsPage.tsx
+M	web/src/pages/public/BookPage.tsx
+M	web/src/pages/public/ServicesPage.tsx
+D	web/src/public-site/useBookingMode.ts
+A	web/src/public-site/useBookingRequest.ts
+A	web/src/public-site/useBranchBooking.ts
+D	web/src/public-site/usePublicCatalog.ts
+A	web/tests/branch-booking.browser.mjs
+M	web/tests/naga-site.test.mjs
+M	web/tests/owner-booking-view.test.mjs
+CLOUD_PR88_13_PATHS
+) <(git diff --name-status 26d5ed9bdc81275b24b80810a7da25f658c9e6e2 2171567f275b88b54d5c3997f97ecf4986b050f2) ||
+ fail 'the 13-file CLOUD frontend diff changed'
+diff -u <(cat <<'CI_ONLY_SOURCE'
+.github/workflows/full-tree-pg17-security.yml
+scripts/ci/full_tree_pg17.sh
+scripts/ci/pr88_frontend_pins.sh
+CI_ONLY_SOURCE
+) <(git diff --name-only 2171567f275b88b54d5c3997f97ecf4986b050f2 "$EXPECTED_HEAD_SHA") ||
+ fail 'this child altered source outside its three CI-only paths'
+[[ "$(git rev-parse HEAD:scripts/ci/pr88_frontend_pins.sh)" == d4d4531a56abf28605530e8f7573e710b4b9fa44 &&
+   "$(git hash-object scripts/ci/pr88_frontend_pins.sh)" == d4d4531a56abf28605530e8f7573e710b4b9fa44 ]] ||
+ fail 'CLOUD exact source pin script changed'
+bash scripts/ci/pr88_frontend_pins.sh
 # The combined commit is based on the exact P1-repaired backend and imports
 # EXACT, independently reviewable PR79 Naga + PR81 branch-selector commits.
 # Reject any source-head drift rather than re-pinning an unreviewed commit.
@@ -85,8 +123,17 @@ for parent in "$EXPECTED_BACKEND_SHA" "$EXPECTED_PUBLIC_SHA" "$EXPECTED_BRANCH_U
 done
 # The seven PR70 files must be byte-for-byte identical to Claude's reviewed head.
 while IFS= read -r path; do
- [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$EXPECTED_FRONTEND_SHA:$path")" ]] ||
- fail "reviewed frontend source drift: $path"
+ case "$path" in
+  web/src/pages/AppointmentsPage.tsx|web/tests/owner-booking-view.test.mjs)
+   [[ "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" == "$(git rev-parse "$EXPECTED_FRONTEND_SHA:$path")" ]] ||
+    fail "original PR70 frontend source drift: $path"
+   # The exact changed CLOUD blob is checked by pr88_frontend_pins.sh.
+   ;;
+  *)
+   [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$EXPECTED_FRONTEND_SHA:$path")" ]] ||
+    fail "untouched PR70 frontend source drift: $path"
+   ;;
+ esac
 done <<'CLAUDE'
 docs/AI_HANDOFF.md
 web/src/pages/AppointmentsPage.tsx
@@ -193,7 +240,16 @@ while IFS= read -r path; do
   web/src/lib/branch-public-booking.ts|\
   web/src/lib/branch-public-booking-reader.mjs|\
   web/src/lib/branch-public-booking-reader.d.mts|\
-  web/tests/branch-public-booking-reader.test.mjs) ;;
+  web/tests/branch-public-booking-reader.test.mjs|\
+  web/src/components/BranchBookingAvailability.tsx|\
+  web/src/components/ServiceBookingForm.tsx|\
+  web/src/hooks/AuthProvider.tsx|\
+  web/src/public-site/useBookingMode.ts|\
+  web/src/public-site/useBookingRequest.ts|\
+  web/src/public-site/useBranchBooking.ts|\
+  web/src/public-site/usePublicCatalog.ts|\
+  web/tests/branch-booking.browser.mjs|\
+  scripts/ci/pr88_frontend_pins.sh) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
@@ -202,9 +258,18 @@ done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
 while read -r path sha; do
  [[ "$(git rev-parse "$EXPECTED_PUBLIC_SHA:$path")" == "$sha" &&
     "$(git rev-parse "$EXPECTED_BRANCH_UI_SHA:$path")" == "$sha" &&
-    "$(git rev-parse "HEAD:$path")" == "$sha" &&
-    "$(git hash-object "$path")" == "$sha" ]] ||
-  fail "reviewed PR79 Naga public source drift: $path"
+    "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" == "$sha" ]] ||
+ fail "original PR79/81 public source drift: $path"
+ case "$path" in
+  web/src/pages/public/BookPage.tsx|web/src/pages/public/ServicesPage.tsx|web/tests/naga-site.test.mjs)
+   # CLOUD's replacement is byte-pinned by pr88_frontend_pins.sh.
+   ;;
+  *)
+   [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+      "$(git hash-object "$path")" == "$sha" ]] ||
+    fail "untouched PR79 public source drift: $path"
+   ;;
+ esac
 done <<'NAGA_PUBLIC_BLOBS'
 web/index.html f2e7f6abbc6683fce6340d8f98841714461bb7f0
 web/src/components/SiteLayout.tsx 4db722e00b2cdc3277271963455634653128e804
@@ -267,8 +332,10 @@ while read -r path sha; do
    # This child adds only the separately pinned new Issue78 path triggers.
    [[ "$(git rev-parse "0c3be38304a6fd9528e8e59d1aebac296d57486f:$path")" == "$sha" &&
       "$(git rev-parse "72932678dde35fc6caa0667ff3f900f49255a135:$path")" == 2b0e121b7aa201e3102a7836a6349c05884ef20b &&
-      "$(git rev-parse "HEAD:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
-      "$(git hash-object "$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 ]] ||
+      "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
+      "$(git rev-parse "2171567f275b88b54d5c3997f97ecf4986b050f2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
+      "$(git rev-parse "HEAD:$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 &&
+      "$(git hash-object "$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 ]] ||
      fail 'parent or updated full-tree workflow drifted outside Issue78 exact pins'
  else
    [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
@@ -292,8 +359,10 @@ ISSUE58_BLOBS
 while read -r path sha; do
  if [[ "$path" == .github/workflows/full-tree-pg17-security.yml ]]; then
    [[ "$(git rev-parse "72932678dde35fc6caa0667ff3f900f49255a135:$path")" == "$sha" &&
-      "$(git rev-parse "HEAD:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
-      "$(git hash-object "$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 ]] ||
+      "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
+      "$(git rev-parse "2171567f275b88b54d5c3997f97ecf4986b050f2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
+      "$(git rev-parse "HEAD:$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 &&
+      "$(git hash-object "$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 ]] ||
     fail 'immutable PR86 workflow or public reader path triggers changed'
  else
   [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
@@ -352,7 +421,7 @@ supabase/tests/phase5a_staff_booking_rpc_queue.sql 9fd4a627f471391b192968af57f81
 supabase/tests/phase5a_staff_pg17_regression.sql a1b9781325724885188099075d8c36e9ed223b1b
 supabase/tests/phase3_storage_outer_path_after_fix.sql 293abc90a168f6157aa0b0055d2e78fea8f59a8f
 BLOBS
-echo 'PASS: frozen PR82/83/85/86; original 11 + proposed 12-15 migrations unchanged; exact Issue51 branch policy reader, tests and workflow pinned.'
+echo 'PASS: exact frozen PR87/88; CLOUD 13-file reviewed frontend delta; prior source pins/11+12-15 SQL unchanged; CI-only child verified.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
  if [[ "$PGDATABASE" == full_tree_history_ci ]]; then
