@@ -16,16 +16,14 @@ const hhmm = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`
 function addDays(date, n) { const d = new Date(`${date}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
 const utcIso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z')
 
+// Retain the historical mode classifier's public policy-shape semantics.
+// The server-exact stricter checks belong inside generateSlots only.
 export function isUsablePolicy(p) {
-  if (!p || typeof p.timezone !== 'string' || !p.timezone.trim() ||
-      !Number.isInteger(p.slot_step_minutes) || p.slot_step_minutes < 5 || p.slot_step_minutes > 60 ||
-      !Number.isInteger(p.max_advance_days) || p.max_advance_days < 1 || p.max_advance_days > 365 ||
-      !Number.isInteger(p.lead_minutes) || p.lead_minutes < 0 || p.lead_minutes > 10080 ||
-      !p.weekly_hours || typeof p.weekly_hours !== 'object' ||
-      !DAY_KEYS.every(key => Array.isArray(p.weekly_hours[key])) ||
-      (p.holidays != null && !Array.isArray(p.holidays))) return false
-  try { new Intl.DateTimeFormat('en-US', { timeZone: p.timezone }) } catch { return false }
-  return DAY_KEYS.some(key => p.weekly_hours[key].length > 0)
+  return Boolean(p && typeof p.timezone === 'string' && p.timezone &&
+    Number.isInteger(p.slot_step_minutes) && p.slot_step_minutes > 0 &&
+    Number.isInteger(p.max_advance_days) && p.max_advance_days > 0 &&
+    Number.isInteger(p.lead_minutes) && p.lead_minutes >= 0 && p.weekly_hours && typeof p.weekly_hours === 'object' &&
+    DAY_KEYS.some(k => Array.isArray(p.weekly_hours[k]) && p.weekly_hours[k].length > 0))
 }
 
 /** @returns {{date:string,weekday:string,slots:{time:string,startsAtUtc:string}[]}[]} days that have at least one slot */
@@ -34,8 +32,12 @@ export function generateSlots(policy, durationMinutes, nowMs = Date.now()) {
   // inclusive at BOTH endpoints. The horizon is an instant, not a calendar day.
   if (!isUsablePolicy(policy) || !Number.isInteger(durationMinutes) ||
       durationMinutes < 5 || durationMinutes > 240 || durationMinutes % 5 !== 0 ||
-      !Number.isFinite(nowMs)) return []
+      !Number.isFinite(nowMs) || policy.slot_step_minutes < 5 || policy.slot_step_minutes > 60 ||
+      policy.lead_minutes > 10080 || policy.max_advance_days > 365 ||
+      !DAY_KEYS.every(key => Array.isArray(policy.weekly_hours[key])) ||
+      (policy.holidays != null && !Array.isArray(policy.holidays))) return []
   const timezone = policy.timezone
+  try { new Intl.DateTimeFormat('en-US', { timeZone: timezone }) } catch { return [] }
   const today = utcToClinicSlot(utcIso(nowMs), timezone).date
   const earliest = nowMs + policy.lead_minutes * MINUTE_MS
   const latest = nowMs + policy.max_advance_days * DAY_MS
