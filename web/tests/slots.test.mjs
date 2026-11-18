@@ -83,9 +83,12 @@ test('holidays, invalid or incomplete policies and malformed intervals fail clos
     policy({ slot_step_minutes: 61 }), policy({ lead_minutes: -1 }),
     policy({ max_advance_days: 366 }), policy({ weekly_hours: { mon: [{ open: '09:00', close: '10:00' }] } })
   ]) {
-    assert.equal(isUsablePolicy(bad), false)
-    assert.deepEqual(generateSlots(bad, 30, now), [])
+    assert.deepEqual(generateSlots(bad, 30, now), [],
+      'the slot generator rejects anything the new branch SQL would reject')
   }
+  assert.equal(isUsablePolicy(policy({ weekly_hours: { mon: [{ open: '09:00', close: '10:00' }] } })), true,
+    'legacy policy-mode classifier keeps its accepted partial-week behavior')
+  assert.equal(isUsablePolicy(policy({ weekly_hours: {} })), false)
   assert.deepEqual(generateSlots(policy({ weekly_hours: hours('09:05XX', '10:00') }), 15, now), [])
   for (const duration of [0, 4, 7, 241, NaN]) assert.deepEqual(generateSlots(policy(), duration, now), [])
 })
