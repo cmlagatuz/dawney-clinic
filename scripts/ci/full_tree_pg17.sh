@@ -42,6 +42,13 @@ git merge-base --is-ancestor "$EXPECTED_SECURITY_SHA" "$EXPECTED_HEAD_SHA" ||
  fail 'tested commit is missing Grok-accepted PR68 ancestry'
 git merge-base --is-ancestor "$EXPECTED_STAFF_SHA" "$EXPECTED_HEAD_SHA" ||
  fail 'tested commit is missing PR71 staff UI ancestry'
+# PR82 remains a frozen Kimi-reviewed combined source. This incremental
+# backend-only security repair MUST be descended from that exact commit.
+git fetch --no-tags origin 'refs/pull/82/head:refs/remotes/origin/frozen-pr82'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr82)" == b0633b2e8d073e9328462d29f4bfca280c70eaa7 ]] ||
+ fail 'PR82 frozen source moved; do not test against an unreviewed tree'
+git merge-base --is-ancestor b0633b2e8d073e9328462d29f4bfca280c70eaa7 "$EXPECTED_HEAD_SHA" ||
+ fail 'issue51 repair is not descendant of frozen PR82'
 # The combined commit is based on the exact P1-repaired backend and imports
 # EXACT, independently reviewable PR79 Naga + PR81 branch-selector commits.
 # Reject any source-head drift rather than re-pinning an unreviewed commit.
@@ -143,7 +150,12 @@ while IFS= read -r path; do
   supabase/migrations/20261117233500_issue77_four_branch_foundation.sql|\
   supabase/tests/issue77_four_branch_pg17_denials.sql|\
   docs/ISSUE77_FOUR_BRANCH_FOUNDATION.md|\
-  .github/workflows/issue77-four-branch-pg17.yml) ;;
+  .github/workflows/issue77-four-branch-pg17.yml|\
+  .github/workflows/issue51-branch-booking-pg17.yml|\
+  supabase/tests/issue51_branch_booking_pre_repair_pg17.sql|\
+  supabase/tests/issue51_branch_booking_after_repair_pg17.sql|\
+  supabase/migrations/20261118203500_issue51_branch_booking_security.sql|\
+  docs/ISSUE51_BRANCH_BOOKING_REPAIR.md) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
@@ -196,6 +208,19 @@ scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 6287fd01a8b51b2540
 docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 5c61c7182d98cd48e519f8091859a69d59f0ab9c
 .github/workflows/staging-acceptance-plan-offline.yml 2c04fb85121b4d714b7dc319c39da4e82727566f
 STAGING_PREP_BLOBS
+# New Issue51-only corrective source may NEVER change frozen PR82 bytes.
+# New files are exact git blobs, not broad path-prefix or wildcard exceptions.
+while read -r path sha; do
+ [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+   fail "unreviewed Issue51 branch-booking security/test source drift: $path"
+done <<'ISSUE51_REPAIR_BLOBS'
+supabase/migrations/20261118203500_issue51_branch_booking_security.sql f58ca0e0bcb36d3a320060db7bf9bbeffe7f35f3
+supabase/tests/issue51_branch_booking_pre_repair_pg17.sql caa144d8dc9bee0c7b0c578b46ff5001c695116d
+supabase/tests/issue51_branch_booking_after_repair_pg17.sql c7a447e5583855d70dcbefb547a9f4019d2c3336
+.github/workflows/issue51-branch-booking-pg17.yml d47cef68217e85d5883fb0062bd6c51b6dbe486b
+docs/ISSUE51_BRANCH_BOOKING_REPAIR.md 5fe6cd5ad2248368330dc99cc19ba408e7f8cb96
+ISSUE51_REPAIR_BLOBS
 # Source-only issue77 additive candidate: exact immutable schema/test/workflow/docs.
 # Original eleven applied migrations and Grok/booking/staff blobs remain separately pinned.
 while read -r path sha; do
@@ -227,7 +252,7 @@ supabase/tests/phase5a_staff_booking_rpc_queue.sql 9fd4a627f471391b192968af57f81
 supabase/tests/phase5a_staff_pg17_regression.sql a1b9781325724885188099075d8c36e9ed223b1b
 supabase/tests/phase3_storage_outer_path_after_fix.sql 293abc90a168f6157aa0b0055d2e78fea8f59a8f
 BLOBS
-echo 'PASS: exact PR69/70/71/68 ancestry; PR80 repaired backend + PR79 Naga + PR81 staff branch selector exact ancestry, reviewed blob bytes; original eleven migrations + proposed 12th pinned.'
+echo 'PASS: frozen PR82 + immutable 11 migrations, original 12th and reviewed frontend; exact Issue51 add-on validator/tests/repro/workflow/doc pinned.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
  if [[ "$PGDATABASE" == full_tree_history_ci ]]; then
