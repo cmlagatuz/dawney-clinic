@@ -10,6 +10,9 @@ fail(){ echo "FULL_TREE_GATE_BLOCKED: $*" >&2; exit 1; }
    "$EXPECTED_FRONTEND_SHA" == 2a42489a4b85c46979f9c971474fc74579f673de &&
    "$EXPECTED_SECURITY_SHA" == 9bc84ef3cde86d6c052c4d40012ffbee9c2391f0 &&
    "$EXPECTED_STAFF_SHA" == 1dfd25f2ffcf5470ed7e0b4a33fcf5013a53a373 &&
+   "$EXPECTED_BACKEND_SHA" == 004544eb80ff0b5301745c74c7659a1d8de4fb39 &&
+   "$EXPECTED_PUBLIC_SHA" == f32b5fb16f7d16836fdada2d21212ab04cd4bfc6 &&
+   "$EXPECTED_BRANCH_UI_SHA" == 1de646b16c4327b67148e1b3ff405942ebb80dda &&
    "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ &&
    "$EXPECTED_PR_NUMBER" =~ ^[0-9]+$ ]] || fail 'not pinned release-candidate/CI/disposable PG17 environment'
 for bin in git psql; do command -v "$bin" >/dev/null || fail "missing $bin";done
@@ -39,6 +42,21 @@ git merge-base --is-ancestor "$EXPECTED_SECURITY_SHA" "$EXPECTED_HEAD_SHA" ||
  fail 'tested commit is missing Grok-accepted PR68 ancestry'
 git merge-base --is-ancestor "$EXPECTED_STAFF_SHA" "$EXPECTED_HEAD_SHA" ||
  fail 'tested commit is missing PR71 staff UI ancestry'
+# The combined commit is based on the exact P1-repaired backend and imports
+# EXACT, independently reviewable PR79 Naga + PR81 branch-selector commits.
+# Reject any source-head drift rather than re-pinning an unreviewed commit.
+git fetch --no-tags origin \
+ 'refs/pull/80/head:refs/remotes/origin/p1-backend' \
+ 'refs/pull/79/head:refs/remotes/origin/naga-public' \
+ 'refs/pull/81/head:refs/remotes/origin/branch-selector'
+[[ "$(git rev-parse refs/remotes/origin/p1-backend)" == "$EXPECTED_BACKEND_SHA" &&
+   "$(git rev-parse refs/remotes/origin/naga-public)" == "$EXPECTED_PUBLIC_SHA" &&
+   "$(git rev-parse refs/remotes/origin/branch-selector)" == "$EXPECTED_BRANCH_UI_SHA" ]] ||
+ fail 'PR79/PR80/PR81 reviewed source moved during combined integration'
+for parent in "$EXPECTED_BACKEND_SHA" "$EXPECTED_PUBLIC_SHA" "$EXPECTED_BRANCH_UI_SHA"; do
+ git merge-base --is-ancestor "$parent" "$EXPECTED_HEAD_SHA" ||
+  fail "tested combined commit lacks exact reviewed source ancestor: $parent"
+done
 # The seven PR70 files must be byte-for-byte identical to Claude's reviewed head.
 while IFS= read -r path; do
  [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$EXPECTED_FRONTEND_SHA:$path")" ]] ||
@@ -63,13 +81,22 @@ scripts/hosted-acceptance/acceptance.mjs
 scripts/hosted-acceptance/guards.mjs
 scripts/hosted-acceptance/tests/acceptance.test.mjs
 GROK
-# Reviewed #71 staff UI files must match the immutable source commit and
-# the checked-out bytes; allowlist below remains restrictive for other files.
+# Preserve every immutable PR71 staff source blob (including originals of the
+# three intentionally modified PR81 paths). All unchanged staff files stay
+# byte-identical at HEAD; changed files require exact PR81 SHA pins below.
 while read -r path sha; do
- [[ "$(git rev-parse "$EXPECTED_STAFF_SHA:$path")" == "$sha" &&
-    "$(git rev-parse "HEAD:$path")" == "$sha" &&
-    "$(git hash-object "$path")" == "$sha" ]] ||
-  fail "reviewed PR71 staff UI source drift: $path"
+ [[ "$(git rev-parse "$EXPECTED_STAFF_SHA:$path")" == "$sha" ]] ||
+  fail "original reviewed PR71 staff UI source drift: $path"
+ case "$path" in
+  web/src/ops/port-adapter.d.mts|web/src/ops/port-adapter.mjs|web/src/pages/staff/OpsPage.tsx)
+    # PR81 exact reviewed replacements pinned below; no unreviewed exception.
+    ;;
+  *)
+    [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+       "$(git hash-object "$path")" == "$sha" ]] ||
+      fail "untouched PR71 staff UI source drift: $path"
+    ;;
+ esac
 done <<'STAFF_BLOBS'
 docs/phase5a-ui/INTEGRATION.md 849736b92d23cfeae9f1c41d9354c98559063df6
 web/src/ops/port-adapter.d.mts be658d899e66551062b88fbf7062ff8444092efd
@@ -94,6 +121,21 @@ while IFS= read -r path; do
  web/src/ops/port-adapter.mjs|web/src/ops/port.ts|web/src/ops/useOpsData.ts|\
  web/src/pages/staff/OpsPage.tsx|web/tests/ops-model.test.mjs|\
  web/tests/ops-port.test.mjs|\
+  web/index.html|\
+  web/src/components/SiteLayout.tsx|\
+  web/src/pages/public/AboutPage.tsx|\
+  web/src/pages/public/BookPage.tsx|\
+  web/src/pages/public/HomePage.tsx|\
+  web/src/pages/public/ServicesPage.tsx|\
+  web/src/public-site/clinic-info.d.mts|\
+  web/src/public-site/clinic-info.mjs|\
+  web/tests/naga-site.test.mjs|\
+  web/tests/public-site.test.mjs|\
+  web/src/ops/branch-model.d.mts|\
+  web/src/ops/branch-model.mjs|\
+  web/src/ops/read-port.ts|\
+  web/src/ops/useBranchScope.ts|\
+  web/tests/ops-branch.test.mjs|\
   docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md|\
   .github/workflows/staging-acceptance-plan-offline.yml|\
   scripts/hosted-acceptance/staging-request-plan.mjs|\
@@ -105,6 +147,43 @@ while IFS= read -r path; do
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
+# Public site files must be identical to BOTH exact PR79 and PR81 source
+# commits, and to the checked-out working tree (no content synthesis).
+while read -r path sha; do
+ [[ "$(git rev-parse "$EXPECTED_PUBLIC_SHA:$path")" == "$sha" &&
+    "$(git rev-parse "$EXPECTED_BRANCH_UI_SHA:$path")" == "$sha" &&
+    "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+  fail "reviewed PR79 Naga public source drift: $path"
+done <<'NAGA_PUBLIC_BLOBS'
+web/index.html f2e7f6abbc6683fce6340d8f98841714461bb7f0
+web/src/components/SiteLayout.tsx 4db722e00b2cdc3277271963455634653128e804
+web/src/pages/public/AboutPage.tsx 235be92e03673abb0a10379460416a500433ac45
+web/src/pages/public/BookPage.tsx 15247ee6408b27d8c6a0dede40cad1453bd0ca0d
+web/src/pages/public/HomePage.tsx ff28f6860ff48d94133f0f650d0dbc5aae7d384a
+web/src/pages/public/ServicesPage.tsx 9004b0935ce1d31c4baa8dd464aeeb5c941c68f4
+web/src/public-site/clinic-info.d.mts 530162da5f1fb30c1902682d8d6882e45a32aca4
+web/src/public-site/clinic-info.mjs d91fd8d7b796874c87b6ad5f9dc220928efde172
+web/tests/naga-site.test.mjs 0b464538d1e72cc2b1716e35ba462307df7fb897
+web/tests/public-site.test.mjs 7738e66acefd74b1dd7a369b58e5c5b38455df3c
+NAGA_PUBLIC_BLOBS
+# PR81-only staff changes and additions are separately exact-pinned; this
+# replaces no other PR71 invariant and cannot authorize additional paths.
+while read -r path sha; do
+ [[ "$(git rev-parse "$EXPECTED_BRANCH_UI_SHA:$path")" == "$sha" &&
+    "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+  fail "reviewed PR81 branch selector source drift: $path"
+done <<'BRANCH_UI_BLOBS'
+web/src/ops/branch-model.d.mts dd33df741e89f2d354a676d471b39b5c947fc8e4
+web/src/ops/branch-model.mjs c3927986e90c555490985fa886df5fa546401ed2
+web/src/ops/port-adapter.d.mts 5c0437523ef465040bf7be911ec05c14d70bf990
+web/src/ops/port-adapter.mjs 01c85c09539fce8984aa8eac5399f4c5ab53e9a6
+web/src/ops/read-port.ts 032cd721d218f118c385b010b531b84109d87610
+web/src/ops/useBranchScope.ts 4bdfbc5ac23b073127bf7a9cb87733d664f08b31
+web/src/pages/staff/OpsPage.tsx 968abaff7a2986ebecc5b736a8765630ea0b65cc
+web/tests/ops-branch.test.mjs f43e98d20b73aae4aa1e9ad1303c2edb97b197c8
+BRANCH_UI_BLOBS
 # Offline-only PR75 staging transport plan and mock coverage: strict blob pins.
 # Grok-reviewed PR68 acceptance/guard source remains byte-identical to PR68.
 while read -r path sha; do
@@ -148,7 +227,7 @@ supabase/tests/phase5a_staff_booking_rpc_queue.sql 9fd4a627f471391b192968af57f81
 supabase/tests/phase5a_staff_pg17_regression.sql a1b9781325724885188099075d8c36e9ed223b1b
 supabase/tests/phase3_storage_outer_path_after_fix.sql 293abc90a168f6157aa0b0055d2e78fea8f59a8f
 BLOBS
-echo 'PASS: exact PR69+PR70+PR71+Grok-accepted PR68 ancestry/head; reviewed booking/staff/security blobs; original six Phase2/3 + four Phase4 + additive Storage correction pinned.'
+echo 'PASS: exact PR69/70/71/68 ancestry; PR80 repaired backend + PR79 Naga + PR81 staff branch selector exact ancestry, reviewed blob bytes; original eleven migrations + proposed 12th pinned.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
  if [[ "$PGDATABASE" == full_tree_history_ci ]]; then

@@ -8,10 +8,10 @@ import { formatClockTime, generateSlots, isUsablePolicy } from '../src/public-si
 const policy = { timezone: 'Asia/Manila', weekly_hours: { sun: [], mon: [{ open: '09:00', close: '11:00' }], tue: [], wed: [], thu: [], fri: [], sat: [] },
   holidays: ['2026-11-23'], lead_minutes: 60, max_advance_days: 14, slot_step_minutes: 30, revision: 1 }
 
-test('owner-supplied facts are used verbatim and unconfirmed facts stay null', () => {
-  assert.equal(DIRECTIONS_URL, 'https://maps.app.goo.gl/JGCXR1H6sHN42aSo6')
-  assert.equal(CLINIC_LOCATION, 'General Trias, Cavite, Philippines')
-  assert.equal(CLINIC_PHONE, null); assert.equal(CLINIC_HOURS, null)
+test('primary-branch exports are Naga and unconfirmed facts stay null', () => {
+  assert.equal(DIRECTIONS_URL, 'https://maps.app.goo.gl/7LrLejjre332MyxT6')
+  assert.equal(CLINIC_LOCATION, 'Naga, Camarines Sur, Philippines')
+  assert.equal(CLINIC_PHONE, null); assert.deepEqual([...CLINIC_HOURS], ['Monday–Saturday, 8:00 AM–5:00 PM (Philippine time)'])
   assert.ok(isSafeExternalUrl(DIRECTIONS_URL)); assert.ok(!isSafeExternalUrl('http://x.test')); assert.ok(!isSafeExternalUrl('javascript:alert(1)'))
 })
 test('tel links are built only from plausible numbers', () => {

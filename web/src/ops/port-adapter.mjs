@@ -23,3 +23,33 @@ export function createReadPortFor(deps, user) {
     counts: () => deps.getClinicDashboardCounts(user)
   }
 }
+
+import {branchDenied, deriveBranches, isBranchId} from './branch-model.mjs'
+
+/**
+ * Branch-scoped read port (source-only; needs Astra's #80 client readers). Injected deps:
+ *  listOwnBranchMemberships(user) → own staff_branch_memberships rows
+ *  listClinicBranches()          → public clinic_branches rows
+ *  assertStaffBranch(user, id)   → RPC assert_staff_branch (rejects 42501 when unauthorized)
+ *  listBranchQueueWindow(user, id, fromUtc, toUtc) / getBranchDashboardCounts(user, id)
+ * Every call re-checks the id shape, re-asserts server-side where it matters, and passes errors through.
+ */
+export function createBranchPortFor(deps, user) {
+  const uid = user && typeof user.id === 'string' ? user.id : ''
+  if (!uid) return null
+  const guard = id => { if (!isBranchId(id)) throw branchDenied() }
+  return {
+    async load() {
+      const [memberships, catalog] = await Promise.all([deps.listOwnBranchMemberships(user), deps.listClinicBranches()])
+      return deriveBranches(memberships, catalog, uid)
+    },
+    async assertBranch(id) {
+      guard(id)
+      const r = await deps.assertStaffBranch(user, id)
+      if (r !== id) throw branchDenied()
+      return id
+    },
+    window(id, fromUtc, toUtc) { guard(id); return deps.listBranchQueueWindow(user, id, fromUtc, toUtc) },
+    counts(id) { guard(id); return deps.getBranchDashboardCounts(user, id) }
+  }
+}
