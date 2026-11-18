@@ -1,127 +1,104 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { Link } from 'react-router'
 import { useAuth } from '../hooks/AuthProvider'
-import { cancelAppointment, listAppointments, listPets, listResources,
-  type Appointment, type BookingResource, type Pet } from '../lib/clinical'
+import { cancelAppointment, listAppointments, listPets, type Appointment, type Pet } from '../lib/clinical'
 import { readOwner } from '../lib/owners'
-import { friendlyBookingError } from '../clinical.mjs'
-import { submitOwnerAppointment } from '../lib/owner-booking-transition'
 import type { RequestedBooking } from '../lib/public-booking'
-import { useBookingMode } from '../public-site/useBookingMode'
-import { POLICY_FLIPPED_MESSAGE, SAFE_BOOKING_MESSAGE, isPolicyFlip, failureText, ownerFormView } from '../public-site/booking-mode.mjs'
+import { useBranchBooking } from '../public-site/useBranchBooking'
+import { BranchBookingAvailability } from '../components/BranchBookingAvailability'
 import { ServiceBookingForm } from '../components/ServiceBookingForm'
 import { EmptyState, LoadingCard, PageHeading, StatusBadge } from '../components/ui'
 
-const localTime = (iso:string) => new Intl.DateTimeFormat(undefined,{
-  dateStyle:'medium',timeStyle:'short'
-}).format(new Date(iso))
-const clinicTime=(iso:string,tz:string)=>new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short',timeZone:tz}).format(new Date(iso))+` (clinic time, ${tz})`
-const activeStatuses=new Set(['requested','confirmed'])
+const visitTime = (iso: string, timezone?: string) => new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium', timeStyle: 'short', timeZone: timezone
+}).format(new Date(iso)) + (timezone ? ` (clinic time, ${timezone})` : '')
+const activeStatuses = new Set(['requested', 'confirmed'])
+
+type AppointmentList = { ownerReady: boolean; pets: Pet[]; appointments: Appointment[] }
 
 export function AppointmentsPage() {
-  const {user}=useAuth()
-  // Key data loads on the account id, not the object: Supabase re-issues a new user object on every token refresh/tab focus,
-  // which would otherwise reload the page and wipe a half-filled booking form. A different account still reloads everything.
-  const uid=user?.id??null
-  const userRef=useRef(user);userRef.current=user
-  const bm=useBookingMode()
-  const [loading,setLoading]=useState(true)
-  const [saving,setSaving]=useState(false)
-  const [ownerReady,setOwnerReady]=useState(false)
-  const [pets,setPets]=useState<Pet[]>([])
-  const [resources,setResources]=useState<BookingResource[]>([])
-  const [appointments,setAppointments]=useState<Appointment[]>([])
-  const [error,setError]=useState<string|null>(null)
-  const [notice,setNotice]=useState<string|null>(null)
-  const [selectedPet,setSelectedPet]=useState('')
-  const [selectedResource,setSelectedResource]=useState('')
-  const [slot,setSlot]=useState('')
-  const [concern,setConcern]=useState('')
-  const [details,setDetails]=useState('')
-  const [cancelBusy,setCancelBusy]=useState<string|null>(null)
-  const view=ownerFormView({loading:bm.loading,mode:bm.mode,hasPets:pets.length>0,hasSchedule:Boolean(bm.schedule),hasUser:Boolean(user),resourceCount:resources.length})
-  async function reload() {
-    if(!user)return
-    const [owner,petsData,resourcesData,appointmentsData]=await Promise.all([
-      readOwner(user),listPets(user),listResources(),listAppointments(user)])
-    setOwnerReady(Boolean(owner));setPets(petsData);setResources(resourcesData);setAppointments(appointmentsData)
-    setSelectedPet(current=>current||petsData[0]?.id||'')
-    setSelectedResource(current=>current||resourcesData[0]?.id||'')
-  }
-  useEffect(()=>{
-    const u=userRef.current
-    if(!u||!uid)return
-    let active=true
+  const { user } = useAuth()
+  return user ? <OwnerAppointments key={user.id} user={user} /> : null
+}
+
+function OwnerAppointments({ user }: { user: User }) {
+  const { options, reload: retryBooking } = useBranchBooking()
+  const [attempt, setAttempt] = useState(0)
+  const [list, setList] = useState<AppointmentList | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [cancelBusy, setCancelBusy] = useState<string | null>(null)
+  const userRef = useRef(user)
+  userRef.current = user
+
+  useEffect(() => {
+    // Token refreshes may supply a new User object without changing the account.
+    const account = userRef.current
+    let active = true
     setLoading(true)
-    void Promise.all([readOwner(u),listPets(u),listResources(),listAppointments(u)]).then(([owner,petsData,resourcesData,appointmentsData])=>{
-      if(!active)return
-      setOwnerReady(Boolean(owner));setPets(petsData);setResources(resourcesData);setAppointments(appointmentsData)
-      setSelectedPet(petsData[0]?.id||'');setSelectedResource(resourcesData[0]?.id||'')
-    }).catch(()=>{if(active)setError('Could not retrieve your appointments. Please retry.')})
-      .finally(()=>{if(active)setLoading(false)})
-    return ()=>{active=false}
-  },[uid])
-  async function book(e:FormEvent) {
-    e.preventDefault();if(!user)return
-    setSaving(true);setError(null);setNotice(null)
-    try {
-      await submitOwnerAppointment(user,{kind:'legacy',details:{petId:selectedPet,resourceId:selectedResource,startsAt:slot,concern,details}})
-      setSlot('');setConcern('');setDetails('')
-      await reload()
-      setNotice('Appointment requested. Your booking is saved in Supabase; confirmation is pending clinic review.')
-    } catch(e){
-      if(isPolicyFlip(e)){bm.reload();setError(POLICY_FLIPPED_MESSAGE);return}
-      const code=(e&&typeof e==='object'&&'code' in e)?String(e.code):undefined
-      const text=failureText(e)
-      setError(SAFE_BOOKING_MESSAGE.test(text)?text:friendlyBookingError(code))
-    } finally {setSaving(false)}
-  }
-  function booked(b:RequestedBooking){
+    setLoadFailed(false)
+    void Promise.all([readOwner(account), listPets(account), listAppointments(account)])
+      .then(([owner, pets, appointments]) => { if (active) setList({ ownerReady: Boolean(owner), pets, appointments }) })
+      .catch(() => { if (active) setLoadFailed(true) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [attempt])
+
+  function booked(booking: RequestedBooking) {
     setError(null)
-    setNotice(b.status==='requested'?'Request received. It is saved as Requested and is not confirmed until the clinic confirms it.'
-      :b.status==='confirmed'?'This booking is already Confirmed by the clinic.':`This booking already exists with status: ${b.status.replace('_',' ')}.`)
-    void reload().catch(()=>setError('Saved, but your list could not refresh. Please reload.'))
+    setNotice(booking.status === 'requested'
+      ? 'Request received. The clinic will review it before confirming.'
+      : `This booking already exists with status: ${booking.status.replace('_', ' ')}.`)
+    setAttempt(n => n + 1)
   }
-  async function cancel(id:string) {
-    if(!user)return
-    setCancelBusy(id);setError(null);setNotice(null)
-    try {await cancelAppointment(user,id);await reload();setNotice('The appointment has been cancelled.')}
-    catch {setError('Unable to cancel this booking. Its status may have changed.')}
-    finally {setCancelBusy(null)}
+
+  async function cancel(id: string) {
+    setCancelBusy(id)
+    setError(null)
+    setNotice(null)
+    try {
+      await cancelAppointment(user, id)
+      setAttempt(n => n + 1)
+      setNotice('The appointment has been cancelled.')
+    } catch {
+      setError('Unable to cancel this booking. Its status may have changed.')
+    } finally {
+      setCancelBusy(null)
+    }
   }
+
   return <section className="page" aria-labelledby="appts-heading">
     <PageHeading id="appts-heading" eyebrow="Clinic visits" title="Appointments">
-      {bm.mode==='service'?'Request a service visit. The clinic confirms every request.':'Request a 30-minute slot. Confirmed hours and holidays are pending clinic configuration.'}</PageHeading>
-    {error&&<p role="alert" className="alert alert-error">{error}</p>}
-    {notice&&<p role="status" className="alert alert-success">{notice}</p>}
-    {loading?<LoadingCard label="Loading appointments…" rows={4} />:
-      !ownerReady?<EmptyState icon="user" title="Set up your owner profile" action={<Link className="button button-primary" to="/app/profile">Owner profile</Link>}>You need a verified profile before requesting an appointment.</EmptyState>:
-      <div className="info-grid"><div className="card"><h2>Request an appointment</h2>
-        {view==='no-pets'?<p>No patients yet. <Link to="/app/pets">Register a patient</Link> before booking.</p>:
-        view==='checking'?<p role="status">Checking clinic booking options…</p>:
-        view==='unknown'?<p role="alert" className="alert alert-error">We could not check the clinic’s booking options, so nothing was submitted. <button type="button" className="button-quiet" onClick={bm.reload}>Try again</button></p>:
-        view==='paused'?<p role="status" className="alert alert-info">Online requests are paused while the clinic finishes setting up its services and hours. Please contact the clinic to arrange a visit.</p>:
-        view==='service'&&bm.schedule&&user?<ServiceBookingForm key={user.id} user={user} services={bm.services} policy={bm.schedule} onBooked={booked} onPolicyChanged={bm.reload}/>:
-        view==='no-calendar'?<p role="status">No active booking calendar is currently available.</p>:
-        view==='legacy'?<form className="form-stack" onSubmit={e=>void book(e)}>
-          <label>Patient<select required value={selectedPet} onChange={e=>setSelectedPet(e.target.value)}>
-            {pets.map(p=><option key={p.id} value={p.id}>{p.name} · {p.species}</option>)}</select></label>
-          <label>Clinic resource<select required value={selectedResource} onChange={e=>setSelectedResource(e.target.value)}>
-            {resources.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
-          <label>Start time (your device time zone)<input type="datetime-local" required value={slot} onChange={e=>setSlot(e.target.value)}/></label>
-          <label>Reason for visit<input required maxLength={300} value={concern} placeholder="e.g. Annual health check" onChange={e=>setConcern(e.target.value)}/></label>
-          <label>Details (optional)<textarea rows={3} maxLength={2000} value={details} onChange={e=>setDetails(e.target.value)}/></label>
-          <p className="small-help">Requests are accepted only for available slots; a booking does not imply veterinarian confirmation. Times currently follow your device, not an approved clinic time zone (temporary until the clinic approves its schedule).</p>
-          <button className="button button-primary" disabled={saving}>{saving?'Checking slot…':'Request appointment'}</button>
-        </form>:null}
-      </div><div className="card"><h2>My bookings</h2>
-        {appointments.length===0?<p className="subtitle">No appointments yet. Requests you submit appear here with their confirmation status.</p>:
-        <div className="booking-list">{appointments.map(a=><article className="booking-item" key={a.id}>
-          <div className="booking-item-top"><strong>{pets.find(p=>p.id===a.pet_id)?.name??'Patient'}</strong><StatusBadge status={a.status}/></div>
-          <time dateTime={a.starts_at}>{bm.mode==='service'&&bm.schedule?clinicTime(a.starts_at,bm.schedule.timezone):localTime(a.starts_at)}</time><p>{a.concern}</p>
-          {activeStatuses.has(a.status)&&<button className="button button-secondary" type="button" disabled={cancelBusy!==null}
-            onClick={()=>void cancel(a.id)}>{cancelBusy===a.id?'Cancelling…':'Cancel booking'}</button>}
-        </article>)}</div>}
-      </div></div>}
+      View your bookings and request an appointment at Naga when online booking is available.
+    </PageHeading>
+    {error && <p role="alert" className="alert alert-error">{error}</p>}
+    {notice && <p role="status" className="alert alert-success">{notice}</p>}
+    {loading && !list && <LoadingCard label="Loading appointments…" rows={4} />}
+    {loadFailed && <p role="alert" className="alert alert-error">
+      Could not retrieve your appointments. <button type="button" className="button button-quiet" onClick={() => setAttempt(n => n + 1)}>Try again</button>
+    </p>}
+    {list && (!list.ownerReady
+      ? <EmptyState icon="user" title="Set up your owner profile" action={<Link className="button button-primary" to="/app/profile">Owner profile</Link>}>You need a verified profile before requesting an appointment.</EmptyState>
+      : <div className="info-grid">
+        <div className="card"><h2>Request an appointment</h2>
+          {options.kind !== 'ready' ? <>
+            <BranchBookingAvailability options={options} onRetry={retryBooking} />
+            <Link to="/about#contact">Clinic contact details</Link>
+          </> : list.pets.length === 0 ? <p>No patients yet. <Link to="/app/pets">Register a patient</Link> before booking.</p>
+            : <ServiceBookingForm key={options.branchId} user={user} services={options.services} policy={options.schedule} onBooked={booked} />}
+        </div>
+        <div className="card"><h2>My bookings</h2>
+          {list.appointments.length === 0 ? <p className="subtitle">No appointments yet. You can see the status of your requests here.</p>
+            : <div className="booking-list">{list.appointments.map(appointment => <article className="booking-item" key={appointment.id}>
+              <div className="booking-item-top"><strong>{list.pets.find(pet => pet.id === appointment.pet_id)?.name ?? 'Patient'}</strong><StatusBadge status={appointment.status} /></div>
+              <time dateTime={appointment.starts_at}>{visitTime(appointment.starts_at, options.kind === "ready" ? options.schedule.timezone : undefined)}</time><p>{appointment.concern}</p>
+              {activeStatuses.has(appointment.status) && <button className="button button-secondary" type="button" disabled={cancelBusy !== null}
+                onClick={() => void cancel(appointment.id)}>{cancelBusy === appointment.id ? 'Cancelling…' : 'Cancel booking'}</button>}
+            </article>)}</div>}
+        </div>
+      </div>)}
   </section>
 }

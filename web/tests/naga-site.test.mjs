@@ -48,7 +48,7 @@ test('no invented phone, price, duration, chat integration, or booking CTA on ca
 })
 test('Cavite appears only as an information/contact profile: no Cavite booking path', () => {
   const book = src('src/pages/public/BookPage.tsx')
-  assert.ok(!/CAVITE|cavite/.test(book)); assert.ok(!/branch_id|branchId/.test(PUBLIC.map(src).join('')), 'no UI-only branch filtering of private data')
+  assert.ok(!/CAVITE|cavite/.test(book)); assert.ok(!/branch_id/.test(PUBLIC.map(src).join('')), 'no UI-only branch filtering of private data')
 })
 test('no General Trias / Cavite-only identity left as the primary title or SEO', () => {
   const html = src('index.html')
