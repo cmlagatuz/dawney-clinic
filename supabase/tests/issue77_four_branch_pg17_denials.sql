@@ -71,6 +71,272 @@ begin
   raise exception 'ISSUE77_FAIL: historic branch fabricated';end if;
 end $$;
 
+-- P1: prove that global staff roles cannot mutate owner/pet identity through
+-- Phase2 permissive UPDATE/INSERT policies. CI-only users, no hosted requests.
+-- Owner B/pet B is Cavite-only; owner A/pet A is shared across Naga/Cavite.
+insert into public.appointments
+ (id,owner_id,pet_id,resource_id,starts_at,ends_at,status,concern,created_by)
+values('bbbbbbbb-7777-4777-8777-cccccccccccc',
+ '22222222-2222-4222-8222-222222222222','44444444-4444-4444-8444-444444444444',
+ '22222222-7777-4777-8777-222222222222',
+ now()+interval '33 days',now()+interval '33 days 30 minutes',
+ 'requested','CI Cavite-only patient',
+ 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+create table clinic_ci.issue77_p1_owner_snapshot as
+ select o.id,to_jsonb(o) old_row from public.owners o
+ where o.id in ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222');
+create table clinic_ci.issue77_p1_pet_snapshot as
+ select p.id,to_jsonb(p) old_row from public.pets p
+ where p.id in ('33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444');
+
+-- Temporarily simulate Naga-ONLY receptionist and administrator grants. Keep
+-- the established Cavite role fixtures unchanged after this isolated block.
+update public.staff_branch_memberships set is_active=false
+ where user_id in
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')
+ and branch_id='22222222-0000-4000-8000-000000000077';
+insert into public.staff_branch_memberships(user_id,branch_id,role,is_active)
+ values
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','11111111-0000-4000-8000-000000000077','receptionist',true),
+ ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','11111111-0000-4000-8000-000000000077','administrator',true);
+
+-- Naga-only receptionist: shared identities are readable, NEVER globally writable.
+set role authenticated;
+set request.jwt.claim.sub='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+set request.jwt.claims='{"is_anonymous":false}';
+set request.jwt.claim.active_branch_id='22222222-0000-4000-8000-000000000077';
+do $p1_receptionist$
+declare
+ n integer;
+ returned text;
+ target uuid;
+begin
+ if (select count(*) from public.owners where id='11111111-1111-4111-8111-111111111111')<>1
+    or (select count(*) from public.pets where id='33333333-3333-4333-8333-333333333333')<>1
+    or exists(select 1 from public.owners where id='22222222-2222-4222-8222-222222222222')
+    or exists(select 1 from public.pets where id='44444444-4444-4444-8444-444444444444') then
+  raise exception 'ISSUE77_P1_FAIL: receptionist branch read setup invalid';end if;
+ -- UPDATE ... RETURNING must yield NO row even for legitimately visible
+ -- shared Naga/Cavite identity. Invisible Cavite-only rows also yield none.
+ returned:=null;
+ update public.owners set first_name='P1_STAFF_FORGED_receptionist'
+  where id='11111111-1111-4111-8111-111111111111' returning first_name into returned;
+ get diagnostics n=row_count;
+ if n<>0 or returned is not null then
+  raise exception 'ISSUE77_P1_FAIL: receptionist changed shared owner (RETURNING)';end if;
+ returned:=null;
+ update public.pets set name='P1_STAFF_FORGED_receptionist'
+  where id='33333333-3333-4333-8333-333333333333' returning name into returned;
+ get diagnostics n=row_count;
+ if n<>0 or returned is not null then
+  raise exception 'ISSUE77_P1_FAIL: receptionist changed shared pet (RETURNING)';end if;
+ returned:=null;
+ update public.owners set first_name='P1_CAVITE_FORGED_receptionist'
+  where id='22222222-2222-4222-8222-222222222222' returning first_name into returned;
+ get diagnostics n=row_count;
+ if n<>0 or returned is not null then
+  raise exception 'ISSUE77_P1_FAIL: receptionist changed Cavite-only owner (RETURNING)';end if;
+ returned:=null;
+ update public.pets set name='P1_CAVITE_FORGED_receptionist'
+  where id='44444444-4444-4444-8444-444444444444' returning name into returned;
+ get diagnostics n=row_count;
+ if n<>0 or returned is not null then
+  raise exception 'ISSUE77_P1_FAIL: receptionist changed Cavite-only pet (RETURNING)';end if;
+ -- Both shared and Cavite-only owner ids must reject staff INSERT, not merely
+ -- skip invisible rows or fail because of a missing column-level grant.
+ for target in select unnest(array['11111111-1111-4111-8111-111111111111'::uuid,'22222222-2222-4222-8222-222222222222'::uuid]) loop
+  begin
+   insert into public.pets(owner_id,name,species,breed)
+    values(target,'P1 STAFF FORGED receptionist','Dog','Chow Chow');
+   raise exception 'ISSUE77_P1_FAIL: receptionist staff pet INSERT accepted';
+  exception when insufficient_privilege then
+   if position('row-level security' in sqlerrm)=0 then
+    raise exception 'ISSUE77_P1_FAIL: receptionist insert failed outside RLS: %',sqlerrm;
+   end if;
+  end;
+ end loop;
+end
+$p1_receptionist$;
+reset role;
+
+-- Naga-only administrator: shared identities are readable, NEVER globally writable.
+set role authenticated;
+set request.jwt.claim.sub='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+set request.jwt.claims='{"is_anonymous":false}';
+set request.jwt.claim.active_branch_id='22222222-0000-4000-8000-000000000077';
+do $p1_administrator$
+declare
+ n integer;
+ returned text;
+ target uuid;
+begin
+ if (select count(*) from public.owners where id='11111111-1111-4111-8111-111111111111')<>1
+    or (select count(*) from public.pets where id='33333333-3333-4333-8333-333333333333')<>1
+    or exists(select 1 from public.owners where id='22222222-2222-4222-8222-222222222222')
+    or exists(select 1 from public.pets where id='44444444-4444-4444-8444-444444444444') then
+  raise exception 'ISSUE77_P1_FAIL: administrator branch read setup invalid';end if;
+ -- UPDATE ... RETURNING must yield NO row even for legitimately visible
+ -- shared Naga/Cavite identity. Invisible Cavite-only rows also yield none.
+ returned:=null;
+ update public.owners set first_name='P1_STAFF_FORGED_administrator'
+  where id='11111111-1111-4111-8111-111111111111' returning first_name into returned;
+ get diagnostics n=row_count;
+ if n<>0 or returned is not null then
+  raise exception 'ISSUE77_P1_FAIL: administrator changed shared owner (RETURNING)';end if;
+ returned:=null;
+ update public.pets set name='P1_STAFF_FORGED_administrator'
+  where id='33333333-3333-4333-8333-333333333333' returning name into returned;
+ get diagnostics n=row_count;
+ if n<>0 or returned is not null then
+  raise exception 'ISSUE77_P1_FAIL: administrator changed shared pet (RETURNING)';end if;
+ returned:=null;
+ update public.owners set first_name='P1_CAVITE_FORGED_administrator'
+  where id='22222222-2222-4222-8222-222222222222' returning first_name into returned;
+ get diagnostics n=row_count;
+ if n<>0 or returned is not null then
+  raise exception 'ISSUE77_P1_FAIL: administrator changed Cavite-only owner (RETURNING)';end if;
+ returned:=null;
+ update public.pets set name='P1_CAVITE_FORGED_administrator'
+  where id='44444444-4444-4444-8444-444444444444' returning name into returned;
+ get diagnostics n=row_count;
+ if n<>0 or returned is not null then
+  raise exception 'ISSUE77_P1_FAIL: administrator changed Cavite-only pet (RETURNING)';end if;
+ -- Both shared and Cavite-only owner ids must reject staff INSERT, not merely
+ -- skip invisible rows or fail because of a missing column-level grant.
+ for target in select unnest(array['11111111-1111-4111-8111-111111111111'::uuid,'22222222-2222-4222-8222-222222222222'::uuid]) loop
+  begin
+   insert into public.pets(owner_id,name,species,breed)
+    values(target,'P1 STAFF FORGED administrator','Dog','Chow Chow');
+   raise exception 'ISSUE77_P1_FAIL: administrator staff pet INSERT accepted';
+  exception when insufficient_privilege then
+   if position('row-level security' in sqlerrm)=0 then
+    raise exception 'ISSUE77_P1_FAIL: administrator insert failed outside RLS: %',sqlerrm;
+   end if;
+  end;
+ end loop;
+end
+$p1_administrator$;
+reset role;
+
+-- Privileged follow-up: UPDATE RETURNING and INSERT produced zero persistent
+-- writes, including shared rows that the Naga staff could SELECT.
+do $p1_verify$
+begin
+ if exists(select 1 from clinic_ci.issue77_p1_owner_snapshot x
+  join public.owners o using(id) where to_jsonb(o) is distinct from x.old_row)
+ or exists(select 1 from clinic_ci.issue77_p1_pet_snapshot x
+  join public.pets p using(id) where to_jsonb(p) is distinct from x.old_row)
+ or (select count(*) from public.pets)<>2 then
+  raise exception 'ISSUE77_P1_FAIL: unauthorized owner/pet write persisted';
+ end if;
+end
+$p1_verify$;
+
+delete from public.staff_branch_memberships
+ where branch_id='11111111-0000-4000-8000-000000000077' and user_id in
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+update public.staff_branch_memberships set is_active=true
+ where branch_id='22222222-0000-4000-8000-000000000077' and user_id in
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+
+-- True authenticated owner retains profile UPDATE RETURNING, pet UPDATE
+-- RETURNING and pet INSERT (including the existing Chow Chow taxonomy).
+set role authenticated;
+set request.jwt.claim.sub='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+do $p1_owner_a$
+declare got text; affected integer; created uuid;
+begin
+ update public.owners set first_name='OwnerSelfService'
+  where id='11111111-1111-4111-8111-111111111111' returning first_name into got;
+ get diagnostics affected=row_count;
+ if affected<>1 or got<>'OwnerSelfService' then
+  raise exception 'ISSUE77_P1_FAIL: true owner profile update denied';end if;
+ update public.owners set first_name='Synthetic'
+  where id='11111111-1111-4111-8111-111111111111';
+ update public.pets set name='OwnerSelfServicePet'
+  where id='33333333-3333-4333-8333-333333333333' returning name into got;
+ get diagnostics affected=row_count;
+ if affected<>1 or got<>'OwnerSelfServicePet' then
+  raise exception 'ISSUE77_P1_FAIL: true owner pet update denied';end if;
+ update public.pets set name='Synthetic Chow'
+  where id='33333333-3333-4333-8333-333333333333';
+ insert into public.pets(id,owner_id,name,species,breed)
+  values('77777777-7777-4777-8777-777777777777',
+   '11111111-1111-4111-8111-111111111111','P1 Owner Test Dog','Dog','Chow Chow')
+  returning id into created;
+ if created is distinct from '77777777-7777-4777-8777-777777777777'::uuid then
+  raise exception 'ISSUE77_P1_FAIL: true owner pet creation denied';end if;
+ -- True owner A may not insert under owner B, regardless of staff grants.
+ begin
+  insert into public.pets(owner_id,name,species,breed)
+   values('22222222-2222-4222-8222-222222222222','P1 Stolen Pet','Dog','Chow Chow');
+  raise exception 'ISSUE77_P1_FAIL: owner A inserted under owner B';
+ exception when insufficient_privilege then null;end;
+ got:=null;
+ update public.pets set name='P1 Owner B Tampered'
+  where id='44444444-4444-4444-8444-444444444444' returning name into got;
+ get diagnostics affected=row_count;
+ if affected<>0 or got is not null then
+  raise exception 'ISSUE77_P1_FAIL: owner A updated owner B pet';end if;
+end
+$p1_owner_a$;
+reset role;
+-- Force a stronger future-grant scenario in this DISPOSABLE PG only: even if a
+-- broad column privilege is accidentally added, WITH CHECK blocks assigning a
+-- pet or owner to someone else's Auth UID. Revoke these CI-only grants afterward.
+grant update(user_id) on public.owners to authenticated;
+grant update(owner_id) on public.pets to authenticated;
+set role authenticated;
+set request.jwt.claim.sub='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+do $p1_reassignment$
+begin
+ begin
+  update public.owners set user_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+   where id='11111111-1111-4111-8111-111111111111';
+  raise exception 'ISSUE77_P1_FAIL: owner user_id reassignment accepted';
+ exception when insufficient_privilege then
+  if position('row-level security' in sqlerrm)=0 then
+   raise exception 'ISSUE77_P1_FAIL: owner reassignment not blocked by RLS: %',sqlerrm;
+  end if;
+ end;
+ begin
+  update public.pets set owner_id='22222222-2222-4222-8222-222222222222'
+   where id='33333333-3333-4333-8333-333333333333';
+  raise exception 'ISSUE77_P1_FAIL: pet owner_id reassignment accepted';
+ exception when insufficient_privilege then
+  if position('row-level security' in sqlerrm)=0 then
+   raise exception 'ISSUE77_P1_FAIL: pet reassignment not blocked by RLS: %',sqlerrm;
+  end if;
+ end;
+end
+$p1_reassignment$;
+reset role;
+revoke update(user_id) on public.owners from authenticated;
+revoke update(owner_id) on public.pets from authenticated;
+-- Restore all fixture snapshots after allowed owner round-trips and ephemeral
+-- pet cleanup. Historic Dog/Chow Chow bytes and branch attribution untouched.
+delete from public.pets where id='77777777-7777-4777-8777-777777777777';
+do $p1_final$
+begin
+ if exists(select 1 from clinic_ci.issue77_p1_owner_snapshot x
+  join public.owners o using(id) where to_jsonb(o) is distinct from x.old_row)
+ or exists(select 1 from clinic_ci.issue77_p1_pet_snapshot x
+  join public.pets p using(id) where to_jsonb(p) is distinct from x.old_row)
+ or (select count(*) from public.pets)<>2
+ or (select count(*) from public.pets where id='33333333-3333-4333-8333-333333333333'
+  and species='Dog' and breed='Chow Chow'
+  and species_id='dog' and breed_id='dog-chow-chow')<>1
+ or has_column_privilege('authenticated','public.owners','user_id','UPDATE')
+ or has_column_privilege('authenticated','public.pets','owner_id','UPDATE') then
+  raise exception 'ISSUE77_P1_FAIL: owner self-service changed historic rows or left elevated grants';
+ end if;
+end
+$p1_final$;
+\echo 'PASS: ISSUE77 P1 real PG17 denied Naga receptionist/admin owner/pet UPDATE RETURNING and pet INSERT for Cavite-only and shared identity; no persistence; true owners work; reassignment WITH CHECK; historic Chow Chow unchanged'
+
 -- Branch ID tamper cannot bypass appointment/resource link, even via privileged SQL.
 do $$
 begin

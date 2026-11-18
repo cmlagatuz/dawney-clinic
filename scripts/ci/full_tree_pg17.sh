@@ -124,9 +124,9 @@ while read -r path sha; do
     "$(git hash-object "$path")" == "$sha" ]] ||
    fail "unreviewed multi-branch source drift: $path"
 done <<'ISSUE77_BLOBS'
-supabase/migrations/20261117233500_issue77_four_branch_foundation.sql 9be4babfbedd94fcd63f0e174af3c0ed860ee1ed
-supabase/tests/issue77_four_branch_pg17_denials.sql 6f63298f6ea18da5ed37dba458005d06033aa11c
-docs/ISSUE77_FOUR_BRANCH_FOUNDATION.md f5cce3f6b1c330d32f59c269b973a1e92aace3b0
+supabase/migrations/20261117233500_issue77_four_branch_foundation.sql 4732b815cff45850d2f01cdeb93c527dac0e22a0
+supabase/tests/issue77_four_branch_pg17_denials.sql 8f6c2c67b33252488b719f0b15cc97798bdc146a
+docs/ISSUE77_FOUR_BRANCH_FOUNDATION.md c2058b309fed0be06617f4fedb504faf6a1d7ab4
 .github/workflows/issue77-four-branch-pg17.yml 131d7da33df4f6be56484046c87a95fd398a79b2
 ISSUE77_BLOBS
 while read -r path sha; do

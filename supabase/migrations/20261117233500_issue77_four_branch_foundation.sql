@@ -261,6 +261,56 @@ create policy pets_branch_need_to_know on public.pets
     and o.user_id=(select auth.uid())) or
  clinic_private.has_branch_pet_care(id,array['receptionist','veterinarian','administrator'])
 );
+-- P1 owner/pet write isolation. Phase2 permissive policies allow globally
+-- active receptionist/administrator roles to mutate any organization-shared
+-- identity. SELECT visibility does NOT authorize any direct profile/pet write.
+-- These restrictive guards intersect the original permissive policies and
+-- protect both old-row USING and proposed new-row WITH CHECK. No staff-role
+-- exception, branch-id client claim, or bypassing SECURITY DEFINER writer.
+-- Authenticated staff who are also legitimate pet owners retain their own
+-- *customer* self-service; staff-only access never grants these writes.
+create policy owners_branch_insert_true_owner on public.owners
+ as restrictive for insert to authenticated
+ with check (
+   (select clinic_private.is_permanent_user())
+   and user_id=(select auth.uid())
+ );
+create policy owners_branch_update_true_owner on public.owners
+ as restrictive for update to authenticated
+ using (
+   (select clinic_private.is_permanent_user())
+   and user_id=(select auth.uid())
+ )
+ with check (
+   (select clinic_private.is_permanent_user())
+   and user_id=(select auth.uid())
+ );
+create policy pets_branch_insert_true_owner on public.pets
+ as restrictive for insert to authenticated
+ with check (
+   (select clinic_private.is_permanent_user())
+   and exists (
+     select 1 from public.owners o
+      where o.id=pets.owner_id and o.user_id=(select auth.uid())
+   )
+ );
+create policy pets_branch_update_true_owner on public.pets
+ as restrictive for update to authenticated
+ using (
+   (select clinic_private.is_permanent_user())
+   and exists (
+     select 1 from public.owners o
+      where o.id=pets.owner_id and o.user_id=(select auth.uid())
+   )
+ )
+ with check (
+   (select clinic_private.is_permanent_user())
+   and exists (
+     select 1 from public.owners o
+      where o.id=pets.owner_id and o.user_id=(select auth.uid())
+   )
+ );
+
 create policy appointments_branch_read on public.appointments
  as restrictive for select to authenticated using(
  exists(select 1 from public.owners o where o.id=appointments.owner_id
