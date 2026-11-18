@@ -55,6 +55,13 @@ git fetch --no-tags origin 'refs/pull/83/head:refs/remotes/origin/frozen-pr83'
  fail 'PR83 source-review head moved during Issue58 integration'
 git merge-base --is-ancestor 0edeeb152d306fe5c652d289ec5f4e69f00c2f11 "$EXPECTED_HEAD_SHA" ||
  fail 'Issue58 branch-read candidate must descend from reviewed PR83'
+# Frozen PR85 remains the single approved backend source parent for ISSUE78.
+# Separate child branch; no edits allowed to SOL's independent PR85 review head.
+git fetch --no-tags origin 'refs/pull/85/head:refs/remotes/origin/frozen-pr85'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr85)" == 0c3be38304a6fd9528e8e59d1aebac296d57486f ]] ||
+ fail 'PR85 independent-review head changed; inventory candidate fails closed'
+git merge-base --is-ancestor 0c3be38304a6fd9528e8e59d1aebac296d57486f "$EXPECTED_HEAD_SHA" ||
+ fail 'inventory read-only candidate missing frozen PR85 ancestry'
 # The combined commit is based on the exact P1-repaired backend and imports
 # EXACT, independently reviewable PR79 Naga + PR81 branch-selector commits.
 # Reject any source-head drift rather than re-pinning an unreviewed commit.
@@ -170,7 +177,13 @@ while IFS= read -r path; do
   web/src/staff-branch-read-contract.d.mts|\
   web/src/lib/staff-branch.ts|\
   web/tests/staff-branch-read-contract.test.mjs|\
-  docs/ISSUE58_STAFF_BRANCH_READ.md) ;;
+  docs/ISSUE58_STAFF_BRANCH_READ.md|\
+  supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql|\
+  supabase/tests/issue78_inventory_synthetic_fixture.sql|\
+  supabase/tests/issue78_inventory_pg17_denials.sql|\
+  scripts/ci/issue78_concurrent_denials.sh|\
+  .github/workflows/issue78-inventory-pg17.yml|\
+  docs/ISSUE78_MEDICINE_INVENTORY_READ_ONLY.md) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
@@ -254,6 +267,21 @@ web/tests/staff-branch-read-contract.test.mjs ab8588bdec70ef4a498c4acc1625a688b0
 docs/ISSUE58_STAFF_BRANCH_READ.md 56aa231f45b068d22268d73185dd4f18ce3d6860
 .github/workflows/full-tree-pg17-security.yml 09c9c1978690d815f6779af172a53ce81eed7d6f
 ISSUE58_BLOBS
+# ISSUE78 only: pin exact Git blobs for new inventory schema, fixtures and
+# disposable race-denial CI. Do not relax pre-existing PR68-85 source pins.
+while read -r path sha; do
+ [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+ fail "Issue78 unreviewed inventory source drift: $path"
+done <<'ISSUE78_BLOBS'
+supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql e637cc3fc506ad7d6d813cadd077a820bf0530c6
+supabase/tests/issue78_inventory_synthetic_fixture.sql de5ee91ed724718acbc6724ce1c6beb489e1ac80
+supabase/tests/issue78_inventory_pg17_denials.sql 24465f1c7e70d946c0f07ef1def7a39aa5439843
+scripts/ci/issue78_concurrent_denials.sh 989b18062262d4b677e7df76273cf6637519a432
+.github/workflows/issue78-inventory-pg17.yml 62679dc0dacbd5e59cdde57204654e3b52954e94
+docs/ISSUE78_MEDICINE_INVENTORY_READ_ONLY.md 0170f9a9f4a14e3cee42d30a3a7f53407649a5f3
+.github/workflows/full-tree-pg17-security.yml 2b0e121b7aa201e3102a7836a6349c05884ef20b
+ISSUE78_BLOBS
 # Source-only issue77 additive candidate: exact immutable schema/test/workflow/docs.
 # Original eleven applied migrations and Grok/booking/staff blobs remain separately pinned.
 while read -r path sha; do
@@ -285,7 +313,7 @@ supabase/tests/phase5a_staff_booking_rpc_queue.sql 9fd4a627f471391b192968af57f81
 supabase/tests/phase5a_staff_pg17_regression.sql a1b9781325724885188099075d8c36e9ed223b1b
 supabase/tests/phase3_storage_outer_path_after_fix.sql 293abc90a168f6157aa0b0055d2e78fea8f59a8f
 BLOBS
-echo 'PASS: frozen PR82/83 and eleven immutable migration blobs; exact Issue58 staff branch read PG17, client adapter, tests and CI sources pinned.'
+echo 'PASS: frozen PR82/83/85; original 11 unchanged; proposed 12-14 unchanged; exact ISSUE78 migration #15, RLS tests, concurrent-denial CI and source files pinned.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
  if [[ "$PGDATABASE" == full_tree_history_ci ]]; then
