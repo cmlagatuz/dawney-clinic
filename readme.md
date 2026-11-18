@@ -2,6 +2,36 @@
 
 **Veterinary clinic management system — modernization in progress**
 
+## Current checkpoint and AI tooling (18 November 2026)
+
+**Current release truth:** `master` remains `5fb7972`. [PR #82](https://github.com/cmlagatuz/dawney-clinic/pull/82) is a DRAFT, unmerged Naga-first public/staff/branch-security source integration at `b0633b2`. [PR #83](https://github.com/cmlagatuz/dawney-clinic/pull/83) is a separate DRAFT, unmerged branch-booking security repair at `0edeeb1`, based on #82. Its synthetic PostgreSQL 17 pre-fix bypass reproduction and post-fix tests passed; independent security acceptance remains pending. Staging Supabase had **11 installed migrations** and production **6** at the last provider check; proposed migrations 12 and 13 have **not** been applied. The npm high-severity advisory gate is failing, and hosted clinical Auth/RLS/Storage/recovery verification is pending. **SOURCE READY is not STAGING VERIFIED or CLINIC LIVE. No production/clinical release GO.**
+
+### Active AI team and services
+
+| Agent / service | Current role | Project or boundary |
+| --- | --- | --- |
+| **Project Manager (GPT-6)** | Governance, task ownership, evidence review, release gates and owner liaison | Main Dawney Project Manager ChatGPT project; not the backend implementer |
+| **ASTRA (GPT-6)** | Exclusive backend engineer: PostgreSQL/Supabase Auth, RLS, Storage, APIs/RPCs, migrations and security-code repairs | Separate **ASTRA - Dawney Animal Clinic Veterinary System** ChatGPT project |
+| **Claude** | Exclusive React UI, public website, customer/staff frontend, accessibility and browser tests | Frontend branch/PR owner |
+| **Qwen** | Independent read-only functional QA and reproducible regression suggestions | Not a security signoff or a substitute for executed CI |
+| **Manus** | GitHub/Cloudflare integrations, source/deployment provenance and operational release evidence | Connector-based operations; GitHub comments do not launch other private AI chats |
+| **SOL (GPT-5.6)** | **Sole active independent security auditor**: RLS/Auth, branch isolation, booking/Storage security, adversarial source reviews and exact-SHA verdicts | Separate **SOL - Dawney Animal Clinic Veterinary System** ChatGPT project; **not ASTRA** |
+
+[Active orchestration rules](docs/FIVE_AGENT_ORCHESTRATION.md) · [SOL security charter](SOL.md) · [Shared engineering contract](AGENTS.md) · [Manus operating rules](MANUS.md).
+
+### Historical AI tools and participation (not active assignments)
+
+| Historical tool / AI | Evidence and historical contribution | Current standing |
+| --- | --- | --- |
+| **Grok** | Earlier independent security/threat assessments, including a reported PR #80 pre-fix owner/pet cross-branch write P1 later repaired by ASTRA. Older [GROK.md](GROK.md) is preserved as history; prior audit text should not be recast as SOL's work. | **Retired from active Dawney assignments**, regardless of quota recovery; **not a release signoff for current PRs** |
+| **Kimi (Moonshot AI)** | Briefly evaluated as Grok's backup; owner relayed an **interim** source audit of PR #82 with no confirmed findings at that stage. No final Kimi-authored GitHub security verdict was independently verified. | **Retired from active assignments** due availability constraints; no assumed final security signoff |
+| **OpenCode / Terra** | Historical local development/test assistance where evidenced in PRs/handoffs | Not part of the five accountable specialist lanes; use only on new explicit assignment |
+| **CodeRabbit** | Automated PR review/check feedback, subject to its actual check status and draft-PR limitations | Supplemental tool, not independent clinical security approval |
+
+Historical contributors and their past GitHub evidence remain intact; SOL alone owns new security audits. Do **not** erase or misattribute Grok/Kimi history. No AI, plugin or green synthetic test can self-approve production data access, services, branch-booking activation, deployments or spending.
+
+### Historical project snapshots (the dated entries below are archival, not today's release status)
+
 > **New P0 scope (14 Nov 2026):** No public customer-facing home/services/contact/location page exists on current `master`. `/` redirects into the signed-in owner portal, and customers currently must register/authenticate, complete owner/pet records and request (not confirm) a provisional device-local 30-minute appointment. Dawney Animal Clinic is in **General Trias, Cavite, Philippines**; exact phone, unit and opening hours require owner verification. [Public clinic website + safe booking contract](docs/PHASE4_PUBLIC_SITE_BOOKING_SPEC.md) · [Issue #42](https://github.com/cmlagatuz/dawney-clinic/issues/42). Claude PRs #34 and #41 are open/NOT deployed; Astra PR #40 is open/NOT live. No Phase4 migrations applied.\n
 
 > **Supervisor status (14 November 2026):** Astra's Phase 4 **backend code** for 50 animal types, breed relationships and private attachment metadata has merged via PRs #29–#33, but the two additive Phase 4 migrations are **not applied** to the connected Supabase. Claude's actual Dawney logo, new React theme/navigation and owner overview are in **open PR #34**, with passing CI but **not merged/deployed**. Species/Breed are still free-text in PR #34, and photo/health/vaccination uploads are not yet in the page. **Live patient Dog/Chow Chow is absent from the new seed — P0 [issue #35](https://github.com/cmlagatuz/dawney-clinic/issues/35) must be fixed before migration.** See [current supervisor brief](docs/PHASE4_CURRENT_SUPERVISOR_BRIEF.md) for merge and QA gates.
@@ -18,7 +48,7 @@ Dawney Veterinary Clinic aims to provide a practical, secure, accessible, and re
 
 **Repository:** [cmlagatuz/dawney-clinic](https://github.com/cmlagatuz/dawney-clinic)  
 **Default branch:** `master`  
-**Collaboration:** ChatGPT GPT-6 Astra (architecture, security, backend, integration) + Claude Sonnet Free (UI/UX, accessibility, frontend), coordinated through GitHub.  
+**Collaboration:** Project Manager + five active specialist AIs (ASTRA, Claude, Qwen, Manus, SOL); see [current role ownership](docs/FIVE_AGENT_ORCHESTRATION.md).  
 **Budget:** No paid backend, hosting subscription, mandatory payment API or compulsory purchase. Free service limits apply; no uptime or backup SLA is implied.
 
 ## Current implementation — distinguish existing code from planned features
@@ -95,11 +125,12 @@ Cloudflare Pages **cannot run Laravel/PHP** in this static architecture. The tea
 Before making changes, agents and contributors must read:
 
 1. **[AGENTS.md](AGENTS.md)** — shared engineering, privacy, branches, release and verification rules.
-2. **[CLAUDE.md](CLAUDE.md)** — Claude-specific scoped-work guidance.
-3. **[docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)** — current branch/PR ownership, blockers and upcoming task.
-4. **[docs/PHASE1_LEGACY_AUDIT.md](docs/PHASE1_LEGACY_AUDIT.md)** — feature parity and migration/security requirements.
+2. **[SOL.md](SOL.md)** and **[docs/FIVE_AGENT_ORCHESTRATION.md](docs/FIVE_AGENT_ORCHESTRATION.md)** — current security auditor and team ownership.
+3. **[CLAUDE.md](CLAUDE.md)** — Claude-specific scoped-work guidance.
+4. **[docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)** — current branch/PR ownership, blockers and upcoming task.
+5. **[docs/PHASE1_LEGACY_AUDIT.md](docs/PHASE1_LEGACY_AUDIT.md)** — feature parity and migration/security requirements.
 
-Use separate `ai/chatgpt/*` and `ai/claude/*` branches; propose tested changes through PRs, check conflict status and checks before merge, and update the shared handoff. Do not store credentials, raw client/animal records or private backups in GitHub.
+Use one isolated branch per authorized agent task, including ASTRA and Claude source tasks; SOL normally reviews read-only; propose tested changes through PRs, check conflict status and checks before merge, and update the shared handoff. Do not store credentials, raw client/animal records or private backups in GitHub.
 
 ### Supabase skills
 
