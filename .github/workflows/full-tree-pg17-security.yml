@@ -6,6 +6,12 @@ on:
     paths:
       - '.github/workflows/full-tree-pg17-security.yml'
       - 'scripts/ci/full_tree_pg17.sh'
+      - 'scripts/ci/pr88_frontend_pins.sh'
+      # PR91 four exact CLOUD slot-grid/horizon source/test paths.
+      - 'web/src/public-site/slots.mjs'
+      - 'web/tests/slots.test.mjs'
+      - 'web/tests/branch-booking.browser.mjs'
+      - 'web/tests/slot-routes.chromium.test.mjs'
       - 'supabase/tests/full_tree_approved_booking_gate.sql'
       - 'docs/UNIFIED_RELEASE_CANDIDATE.md'
       - 'docs/AI_HANDOFF.md'
@@ -129,6 +135,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 # Retain exact frozen PR90 historic browser/slots SHA verification
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -139,7 +146,7 @@ jobs:
         run: |
           test "$VITE_PHASE4_PATIENT_FORM" = 'false'
           test "$VITE_PHASE5A_OPS_UI" = 'false'
-      - name: Require exact 13 reviewed CLOUD frontend blobs before Node and Vite
+      - name: Require PR88 frozen manifest plus exact four CLOUD PR91 slot/browser blobs before Node/Vite
         run: |
           bash scripts/ci/pr88_frontend_pins.sh
           test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
@@ -193,6 +200,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 # Retain exact frozen PR90 historic browser/slots SHA verification
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -203,7 +211,7 @@ jobs:
         run: |
           test "$VITE_PHASE4_PATIENT_FORM" = 'false'
           test "$VITE_PHASE5A_OPS_UI" = 'false'
-      - name: Require exact 13 reviewed CLOUD frontend blobs before Chromium
+      - name: Require PR88 frozen manifest plus exact four CLOUD PR91 slot/browser blobs before Chromium
         run: |
           bash scripts/ci/pr88_frontend_pins.sh
           test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
@@ -253,3 +261,17 @@ jobs:
           CODEX_PRIMARY_RUNTIME_NODE_MODULES="$RUNNER_TEMP/issue51-playwright/node_modules" \
             CHROMIUM_BIN="$CHROMIUM_BIN" \
             node --test tests/branch-booking.browser.mjs
+
+      - name: Run both booking routes in actual Chromium with synthetic slot-grid fixtures
+        working-directory: web
+        timeout-minutes: 5
+        env:
+          VITE_SUPABASE_URL: https://issue51-fixtures.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_issue51_offline
+        run: |
+          set -euo pipefail
+          (cd .. && bash scripts/ci/pr88_frontend_pins.sh)
+          node --check tests/slot-routes.chromium.test.mjs
+          # Browser uses localhost Vite, intercepts every external HTTP request;
+          # any unexpected third-party route is denied by CLOUD's unchanged test.
+          node --test tests/slot-routes.chromium.test.mjs

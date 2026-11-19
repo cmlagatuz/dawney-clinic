@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# PR88 CLOUD frontend manifest: reviewed exact 13-file source delta.
+# PR88 CLOUD frontend manifest retained; PR91's exact four-slot-path delta is checked separately.
+# Never replace older reviewed browser source hash with an unverified HEAD hash.
 # CI-only: safe on shallow Node/Chromium checkouts and full-tree PG17.
 # No RLS/migration, feature-flag, source or advisory exemptions.
 set -Eeuo pipefail
@@ -11,9 +12,18 @@ fail(){ echo "PR88_CLOUD_SOURCE_BLOCKED: $*" >&2; exit 1; }
 # This CI-only child DESCENDS from the exact PR88 source commit.
 # Full-tree PG17 separately verifies exact ancestry and unchanged prior source.
 while read -r path sha; do
- [[ "$(git rev-parse "HEAD:$path" 2>/dev/null)" == "$sha" &&
-    "$(git hash-object "$path")" == "$sha" ]] ||
-  fail "CLOUD changed or missing reviewed frontend source: $path"
+ if [[ "$path" == web/tests/branch-booking.browser.mjs ]]; then
+  # The original PR88 test MUST remain exact at frozen PR90. CLOUD PR91
+  # legitimately extended this one test; its new blob is independently pinned.
+  [[ "$(git rev-parse "961ee716316720821e1ce159815977743b823cee:$path")" == "$sha" &&
+     "$(git rev-parse "HEAD:$path")" == db91b57c285f80fa24c4487de9c652f4fd04957f &&
+     "$(git hash-object "$path")" == db91b57c285f80fa24c4487de9c652f4fd04957f ]] ||
+   fail "CLOUD PR88 ancestor browser test or PR91 reviewed extension changed: $path"
+ else
+  [[ "$(git rev-parse "HEAD:$path" 2>/dev/null)" == "$sha" &&
+     "$(git hash-object "$path")" == "$sha" ]] ||
+   fail "CLOUD changed or missing reviewed frontend source: $path"
+ fi
 done <<'CLOUD_PR88_PRESENT'
 web/src/components/BranchBookingAvailability.tsx 798effde15763b52981781f70627d6feb93c2de8
 web/src/components/ServiceBookingForm.tsx 180410495143b79676502438f2dcc53fa2210f51
@@ -34,5 +44,24 @@ done <<'CLOUD_PR88_REMOVED'
 web/src/public-site/useBookingMode.ts
 web/src/public-site/usePublicCatalog.ts
 CLOUD_PR88_REMOVED
+# PR91 four and ONLY four frontend changes over frozen CI-only PR90:
+# two changed sources (slots, browser fixture above), two brand-new tests.
+# Historical slot implementation and original PR88 browser SHA are immutable.
+[[ "$(git rev-parse "961ee716316720821e1ce159815977743b823cee:web/src/public-site/slots.mjs")" == 4932b1f5db8ce4983461e38aa6c24a8448c61f1e ]] ||
+ fail 'PR90 source slots.mjs ancestor changed'
+while read -r path sha; do
+ [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+  fail "CLOUD PR91 exact slot source/test blob changed: $path"
+done <<'CLOUD_PR91_FOUR_NEW'
+web/src/public-site/slots.mjs 958acabddeda66067299fe3ec7713684b37e440b
+web/tests/branch-booking.browser.mjs db91b57c285f80fa24c4487de9c652f4fd04957f
+web/tests/slots.test.mjs 51a144774d138a09a3dfe386cd228bddd6d99989
+web/tests/slot-routes.chromium.test.mjs 87f80ebbb64e7509c77ee7e3fcbea691df9d5af2
+CLOUD_PR91_FOUR_NEW
+for path in web/tests/slots.test.mjs web/tests/slot-routes.chromium.test.mjs; do
+ ! git cat-file -e "961ee716316720821e1ce159815977743b823cee:$path" 2>/dev/null ||
+  fail "PR91 newly-added test already existed in frozen PR90: $path"
+done
 # The 7-argument booking RPC and all SQL blobs remain checked by full_tree_pg17.sh.
-echo 'PASS: exact 11 reviewed PR88 frontend blobs and 2 intentional deletions, no substitutions'
+echo 'PASS: exact prior 11 PR88 blobs (browser history at frozen PR90), 2 deletions, and four PR91 slot/browser blobs pinned'
