@@ -319,7 +319,9 @@ test('Issue #51 in Chromium with intercepted synthetic HTTP', async t => {
           lead_minutes: scenario.lead, max_advance_days: 1, slot_step_minutes: 15
         }
         try {
-          await page.clock.install({ time: clock })
+          // Exact lead/horizon inclusivity must not drift by elapsed test time.
+          // Keep Date.now() fixed while Playwright leaves page timers running.
+          await page.clock.setFixedTime(clock)
           await page.goto(new URL(path, origin).href)
           const form = page.getByRole('form', {
             name: path === '/book' ? 'Naga appointment request' : 'Appointment request'
@@ -330,6 +332,8 @@ test('Issue #51 in Chromium with intercepted synthetic HTTP', async t => {
           const date = form.getByLabel(/^Date/)
           await date.waitFor(limit)
           await date.selectOption('2026-11-18')
+          assert.equal(await page.evaluate(() => Date.now()), clock.getTime(),
+            'boundary clock remains exact after rendering and selecting the date')
           const slots = () => form.locator('input[name="slot"]').evaluateAll(elements =>
             elements.map(element => element.value))
           assert.deepEqual(await slots(), scenario.today, path + ': ' + scenario.name + ' today')
