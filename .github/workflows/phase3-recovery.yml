@@ -99,8 +99,8 @@ jobs:
           scripts/recovery/tests/phase3-preserved-snapshot.sql 84578873ac8cac4b3735b273fc3c1918d1c951cc
           scripts/recovery/tests/phase3-phase4-positive-assertions.sql d8a4b0335a16c1b789f710a433e641125eec1f09
           scripts/recovery/tests/phase3-to-15-history-snapshot.sql b13a10eb386e2743904c379a4d89aef33afe24c8
-          scripts/recovery/tests/phase3-to-15-assertions.sql f51aed74ab5bac5a984708388117fa468d9bdbe1
-          scripts/recovery/tests/synthetic-phase3-phase4-positive.sh 623b53956c83f107a4321930c93801f63fdaeedc
+          scripts/recovery/tests/phase3-to-15-assertions.sql 6e17a935cf8f68caae757f5759c725e25f6f4447
+          scripts/recovery/tests/synthetic-phase3-phase4-positive.sh 76cd48e241bda58562e4934697009a5d9cbd41fa
           EXACT_RECOVERY_INPUTS
           echo 'PASS: frozen PR96 source + original PR49 six/Phase4 positive evidence and exact additive recovery files pinned'
       - name: Execute PR49 signed five-component restore then full ordered #11-15 and recovered identity/RLS/expiry test

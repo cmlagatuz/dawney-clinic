@@ -220,10 +220,10 @@ while read -r path sha; do
     "$(git hash-object "$path")" == "$sha" ]] ||
  fail "recovery extension exact source drift: $path"
 done <<'RECOVERY_EXTENSION_PINS'
-.github/workflows/phase3-recovery.yml a4e3ed02eefc6ed0209bd5ca7c6ca8ab10f2db1f
-scripts/recovery/tests/synthetic-phase3-phase4-positive.sh 623b53956c83f107a4321930c93801f63fdaeedc
+.github/workflows/phase3-recovery.yml 8897020270294b8da628b4db2c9cef07b5827309
+scripts/recovery/tests/synthetic-phase3-phase4-positive.sh 76cd48e241bda58562e4934697009a5d9cbd41fa
 scripts/recovery/tests/phase3-to-15-history-snapshot.sql b13a10eb386e2743904c379a4d89aef33afe24c8
-scripts/recovery/tests/phase3-to-15-assertions.sql f51aed74ab5bac5a984708388117fa468d9bdbe1
+scripts/recovery/tests/phase3-to-15-assertions.sql 6e17a935cf8f68caae757f5759c725e25f6f4447
 RECOVERY_EXTENSION_PINS
 while read -r path sha; do
  [[ "$(git rev-parse "e3207dfef7f6473ab3b0dae9a807519845a57da4:$path")" == "$sha" &&

@@ -50,6 +50,8 @@ values
 ('a0000078-0000-4000-8000-000000000001','REC-A','Recovery synthetic A','synthetic vial','1 mg','vial',0),
 ('a0000078-0000-4000-8000-000000000002','REC-B','Recovery synthetic B','synthetic vial','2 mg','vial',0),
 ('a0000078-0000-4000-8000-000000000003','REC-C','Recovery synthetic C','synthetic vial','3 mg','vial',0);
+-- Catalog defaults to INACTIVE. Enable ONLY disposable test products, inside ROLLBACK.
+update public.medicine_catalog set is_active=true where product_code in ('REC-A','REC-B','REC-C');
 insert into public.branch_medicine_rules(branch_id,medicine_id,reorder_point_units,expiry_warning_days)
 values
 ('11111111-0000-4000-8000-000000000077','a0000078-0000-4000-8000-000000000001',2,30),

@@ -260,7 +260,7 @@ done <<'RECOVERY_FOUR_ADDITIVE_BLOBS'
 20261118225000_issue78_inventory_read_only_foundation.sql 908f881bfc541ab4265912e0a9e55525ea8275a5
 RECOVERY_FOUR_ADDITIVE_BLOBS
 [[ "$(git hash-object scripts/recovery/tests/phase3-to-15-history-snapshot.sql)" == b13a10eb386e2743904c379a4d89aef33afe24c8 &&
-   "$(git hash-object scripts/recovery/tests/phase3-to-15-assertions.sql)" == f51aed74ab5bac5a984708388117fa468d9bdbe1 ]] ||
+   "$(git hash-object scripts/recovery/tests/phase3-to-15-assertions.sql)" == 6e17a935cf8f68caae757f5759c725e25f6f4447 ]] ||
  fail 'RECOVERY15 new history/assertion source drift'
 history_snapshot(){
  pgclient psql -X -v ON_ERROR_STOP=1 -At -d phase3_restored_ci \
