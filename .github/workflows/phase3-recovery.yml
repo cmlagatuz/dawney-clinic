@@ -47,3 +47,74 @@ jobs:
       - uses: actions/checkout@v4
       - name: Real encrypted dump and isolated restore of synthetic PostgreSQL 17 records
         run: bash scripts/recovery/tests/isolated-restore.sh
+
+  signed-pr96-five-component-recovery-pg17:
+    # Additive exact-lineage rehearsal; PR49's signed components are retained.
+    # Deliberately no hosted URLs, Supabase credentials, patient exports, or publishing.
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: dawney-phase3-ci-only
+          POSTGRES_DB: phase3_source_ci
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d phase3_source_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fail closed on frozen PR96 and signed PR49 harness integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          git fetch --no-tags origin \
+            'refs/pull/96/head:refs/remotes/origin/recovery-frozen-pr96' \
+            'refs/pull/49/head:refs/remotes/origin/recovery-frozen-pr49'
+          test "$(git rev-parse refs/remotes/origin/recovery-frozen-pr96)" = "162c554f2866547f83ff37c698cada203842aaa9"
+          test "$(git rev-parse refs/remotes/origin/recovery-frozen-pr49)" = "034be375d577bf421b9590d68c3599c0067a8b58"
+          bash -n scripts/recovery/tests/synthetic-phase3-phase4-positive.sh
+          bash -n scripts/ci/full_tree_pg17.sh
+          while read -r file sha; do
+            test "$(git rev-parse "HEAD:$file")" = "$sha"
+            test "$(git hash-object "$file")" = "$sha"
+          done <<'EXACT_RECOVERY_INPUTS'
+          scripts/recovery/tests/phase3-provider-bootstrap.sql 3c40fded35f8022c813796e79e991930bf3f4bef
+          scripts/recovery/tests/phase3-synthetic-records.sql 36b8afee6df92e0e1000ad7d05b5ffbbf325e909
+          scripts/recovery/tests/phase3-preserved-snapshot.sql 84578873ac8cac4b3735b273fc3c1918d1c951cc
+          scripts/recovery/tests/phase3-phase4-positive-assertions.sql d8a4b0335a16c1b789f710a433e641125eec1f09
+          scripts/recovery/tests/phase3-to-15-history-snapshot.sql b13a10eb386e2743904c379a4d89aef33afe24c8
+          scripts/recovery/tests/phase3-to-15-assertions.sql 6e17a935cf8f68caae757f5759c725e25f6f4447
+          scripts/recovery/tests/synthetic-phase3-phase4-positive.sh 76cd48e241bda58562e4934697009a5d9cbd41fa
+          EXACT_RECOVERY_INPUTS
+          echo 'PASS: frozen PR96 source + original PR49 six/Phase4 positive evidence and exact additive recovery files pinned'
+      - name: Execute PR49 signed five-component restore then full ordered #11-15 and recovered identity/RLS/expiry test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/phase4-signed-source"
+          for file in \
+            20261116002500_phase3_storage_outer_object_path_rls_fix.sql \
+            20261113211600_phase4_taxonomy_attachments.sql \
+            20261113211700_phase4_animal_catalog_seed.sql \
+            20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql \
+            20261114090000_phase4_public_booking_contract.sql; do
+              cp "supabase/migrations/$file" "$RUNNER_TEMP/phase4-signed-source/$file"
+          done
+          bash scripts/recovery/tests/synthetic-phase3-phase4-positive.sh \
+            "$RUNNER_TEMP/phase4-signed-source"
