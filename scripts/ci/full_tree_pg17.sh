@@ -168,14 +168,63 @@ supabase/tests/issue78_inventory_timezone_pg17.sql
 PR92_FOUR_REVIEWED
 ) <(git diff --name-only 72932678dde35fc6caa0667ff3f900f49255a135 e3207dfef7f6473ab3b0dae9a807519845a57da4) ||
  fail 'PR92 had source outside SOL-reviewed four paths'
+# Do not rebase or synthesize the SOL-accepted PR96 exact source.
+git fetch --no-tags origin 'refs/pull/96/head:refs/remotes/origin/frozen-pr96'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr96)" == 162c554f2866547f83ff37c698cada203842aaa9 &&
+   "$(git rev-parse "162c554f2866547f83ff37c698cada203842aaa9^")" == ba1d0a19c9b7b51f58d92a7d417e44cf257cb97f ]] ||
+ fail 'reviewed PR96 combined source or direct parent changed'
 diff -u <(cat <<'INVENTORY_INTEGRATION_ONLY'
 .github/workflows/issue78-inventory-pg17.yml
 scripts/ci/full_tree_pg17.sh
 supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql
 supabase/tests/issue78_inventory_timezone_pg17.sql
 INVENTORY_INTEGRATION_ONLY
-) <(git diff --name-only ba1d0a19c9b7b51f58d92a7d417e44cf257cb97f "$EXPECTED_HEAD_SHA") ||
- fail 'inventory child changed paths outside exactly four approved files'
+) <(git diff --name-only ba1d0a19c9b7b51f58d92a7d417e44cf257cb97f 162c554f2866547f83ff37c698cada203842aaa9) ||
+ fail 'frozen PR96 inventory child changed its exact four paths'
+git merge-base --is-ancestor 162c554f2866547f83ff37c698cada203842aaa9 "$EXPECTED_HEAD_SHA" ||
+ fail 'recovery child is missing reviewed PR96 ancestor'
+# PR49 positive five-piece signed restore is an external immutable source,
+# copied only into recovery scripts; do not pretend it is in PR96 ancestry.
+git fetch --no-tags origin 'refs/pull/49/head:refs/remotes/origin/frozen-recovery-pr49'
+[[ "$(git rev-parse refs/remotes/origin/frozen-recovery-pr49)" == 034be375d577bf421b9590d68c3599c0067a8b58 ]] ||
+ fail 'reviewed PR49 recovery harness head moved'
+diff -u <(cat <<'RECOVERY_CHILD_ONLY'
+.github/workflows/phase3-recovery.yml
+scripts/ci/full_tree_pg17.sh
+scripts/recovery/tests/phase3-phase4-positive-assertions.sql
+scripts/recovery/tests/phase3-preserved-snapshot.sql
+scripts/recovery/tests/phase3-provider-bootstrap.sql
+scripts/recovery/tests/phase3-synthetic-records.sql
+scripts/recovery/tests/phase3-to-15-assertions.sql
+scripts/recovery/tests/phase3-to-15-history-snapshot.sql
+scripts/recovery/tests/synthetic-phase3-phase4-positive.sh
+RECOVERY_CHILD_ONLY
+) <(git diff --name-only 162c554f2866547f83ff37c698cada203842aaa9 "$EXPECTED_HEAD_SHA") ||
+ fail 'recovery child changed files beyond nine authorized scripts/tests/workflow/CI paths'
+# PR49 supporting test fixtures are exact, not a new Auth/Storage model.
+while read -r path sha; do
+ [[ "$(git rev-parse "034be375d577bf421b9590d68c3599c0067a8b58:$path")" == "$sha" &&
+    "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+ fail "PR49 signed recovery supporting source changed: $path"
+done <<'PR49_SIGNED_SUPPORT'
+scripts/recovery/tests/phase3-phase4-positive-assertions.sql d8a4b0335a16c1b789f710a433e641125eec1f09
+scripts/recovery/tests/phase3-preserved-snapshot.sql 84578873ac8cac4b3735b273fc3c1918d1c951cc
+scripts/recovery/tests/phase3-provider-bootstrap.sql 3c40fded35f8022c813796e79e991930bf3f4bef
+scripts/recovery/tests/phase3-synthetic-records.sql 36b8afee6df92e0e1000ad7d05b5ffbbf325e909
+PR49_SIGNED_SUPPORT
+[[ "$(git rev-parse "034be375d577bf421b9590d68c3599c0067a8b58:scripts/recovery/tests/synthetic-phase3-phase4-positive.sh")" == 24ff53d115d7d153474f5018adb289aee525798f ]] ||
+ fail 'original positive signed five-component PR49 harness changed'
+while read -r path sha; do
+ [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+ fail "recovery extension exact source drift: $path"
+done <<'RECOVERY_EXTENSION_PINS'
+.github/workflows/phase3-recovery.yml a4e3ed02eefc6ed0209bd5ca7c6ca8ab10f2db1f
+scripts/recovery/tests/synthetic-phase3-phase4-positive.sh 623b53956c83f107a4321930c93801f63fdaeedc
+scripts/recovery/tests/phase3-to-15-history-snapshot.sql b13a10eb386e2743904c379a4d89aef33afe24c8
+scripts/recovery/tests/phase3-to-15-assertions.sql f51aed74ab5bac5a984708388117fa468d9bdbe1
+RECOVERY_EXTENSION_PINS
 while read -r path sha; do
  [[ "$(git rev-parse "e3207dfef7f6473ab3b0dae9a807519845a57da4:$path")" == "$sha" &&
     "$(git rev-parse "HEAD:$path")" == "$sha" &&
@@ -340,6 +389,14 @@ while IFS= read -r path; do
   web/src/public-site/slots.mjs|\
   web/tests/slots.test.mjs|\
   web/tests/slot-routes.chromium.test.mjs|\
+  .github/workflows/phase3-recovery.yml|\
+  scripts/recovery/tests/phase3-phase4-positive-assertions.sql|\
+  scripts/recovery/tests/phase3-preserved-snapshot.sql|\
+  scripts/recovery/tests/phase3-provider-bootstrap.sql|\
+  scripts/recovery/tests/phase3-synthetic-records.sql|\
+  scripts/recovery/tests/phase3-to-15-assertions.sql|\
+  scripts/recovery/tests/phase3-to-15-history-snapshot.sql|\
+  scripts/recovery/tests/synthetic-phase3-phase4-positive.sh|\
   scripts/ci/pr88_frontend_pins.sh) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
@@ -517,7 +574,7 @@ supabase/tests/phase5a_staff_booking_rpc_queue.sql 9fd4a627f471391b192968af57f81
 supabase/tests/phase5a_staff_pg17_regression.sql a1b9781325724885188099075d8c36e9ed223b1b
 supabase/tests/phase3_storage_outer_path_after_fix.sql 293abc90a168f6157aa0b0055d2e78fea8f59a8f
 BLOBS
-echo 'PASS: frozen PR87/88/90/91/93/94/95; reviewed PR92 #15 timezone and rollback regression; immutable historical migrations and CLOUD Chromium source.'
+echo 'PASS: frozen PR49 recovery inputs, PR92/95/96 source, exact 11+12-15 SQL, nine-path signed recovery child and unchanged browser/RLS pins.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
  if [[ "$PGDATABASE" == full_tree_history_ci ]]; then
