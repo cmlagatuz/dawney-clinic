@@ -153,8 +153,20 @@ create function public.list_branch_medicine_fefo(p_branch uuid,p_medicine uuid)
 returns table(batch_id uuid,lot_number text,expiry_date date,
  available_units bigint,received_on date)
 language plpgsql stable security invoker set search_path='' as $fefo$
+declare
+ -- Stable instant across statements within the current transaction.
+ -- The PostgreSQL session/request timezone NEVER determines inventory date.
+ v_inventory_instant timestamptz := pg_catalog.transaction_timestamp();
+ v_inventory_date date;
 begin
  perform public.assert_staff_branch(p_branch);
+ -- Only an authenticated branch-authorized caller may compute stock eligibility.
+ select (v_inventory_instant at time zone cb.timezone)::date
+  into v_inventory_date
+ from public.clinic_branches cb where cb.id=p_branch;
+ if v_inventory_date is null then
+  raise exception 'Inventory branch timezone unavailable' using errcode='42501';
+ end if;
  return query
   select b.id,b.lot_number,b.expiry_date,
      (b.on_hand_units-b.reserved_units-b.quarantined_units),b.received_on
@@ -162,7 +174,7 @@ begin
   join public.medicine_catalog m on m.id=b.medicine_id
   where b.branch_id=p_branch and b.medicine_id=p_medicine
     and m.is_active and b.disposition='released'
-    and b.expiry_date>current_date+m.minimum_shelf_life_days
+    and b.expiry_date>v_inventory_date+m.minimum_shelf_life_days
     and (b.on_hand_units-b.reserved_units-b.quarantined_units)>0
   order by b.expiry_date,b.received_on,b.lot_number,b.id;
 end;
@@ -181,8 +193,20 @@ returns table(medicine_id uuid,product_code text,available_units bigint,
  expiry_warning_days integer,near_expiry_batches bigint,
  expired_batches bigint,quarantined_batches bigint)
 language plpgsql stable security invoker set search_path='' as $alerts$
+declare
+ -- Stable instant across statements within the current transaction.
+ -- The PostgreSQL session/request timezone NEVER determines inventory date.
+ v_inventory_instant timestamptz := pg_catalog.transaction_timestamp();
+ v_inventory_date date;
 begin
  perform public.assert_staff_branch(p_branch);
+ -- Only an authenticated branch-authorized caller may compute stock eligibility.
+ select (v_inventory_instant at time zone cb.timezone)::date
+  into v_inventory_date
+ from public.clinic_branches cb where cb.id=p_branch;
+ if v_inventory_date is null then
+  raise exception 'Inventory branch timezone unavailable' using errcode='42501';
+ end if;
  return query
  select r.medicine_id,m.product_code,coalesce(x.available,0)::bigint,
         r.reorder_point_units,(coalesce(x.available,0)=0),
@@ -194,12 +218,12 @@ begin
  left join lateral (
   select
    sum(b.on_hand_units-b.reserved_units-b.quarantined_units)
-     filter(where b.disposition='released' and b.expiry_date>current_date
-       and b.expiry_date>current_date+m.minimum_shelf_life_days) as available,
+     filter(where b.disposition='released' and b.expiry_date>v_inventory_date
+       and b.expiry_date>v_inventory_date+m.minimum_shelf_life_days) as available,
    count(*) filter(where b.disposition='released'
-     and b.on_hand_units>0 and b.expiry_date>current_date
-     and b.expiry_date<=current_date+r.expiry_warning_days) as near_expiry,
-   count(*) filter(where b.on_hand_units>0 and b.expiry_date<=current_date) as expired,
+     and b.on_hand_units>0 and b.expiry_date>v_inventory_date
+     and b.expiry_date<=v_inventory_date+r.expiry_warning_days) as near_expiry,
+   count(*) filter(where b.on_hand_units>0 and b.expiry_date<=v_inventory_date) as expired,
    count(*) filter(where b.on_hand_units>0
      and (b.disposition='quarantined' or b.disposition='recalled'
           or b.quarantined_units>0)) as quarantined

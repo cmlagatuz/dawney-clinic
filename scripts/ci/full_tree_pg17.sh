@@ -142,12 +142,50 @@ diff -u <(printf '%s\n' $'M\tweb/tests/branch-booking.browser.mjs') \
 [[ "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:web/tests/branch-booking.browser.mjs")" == db91b57c285f80fa24c4487de9c652f4fd04957f &&
    "$(git rev-parse "10650396dc968a4685f8f6ba1c6d5f932df117a9:web/tests/branch-booking.browser.mjs")" == 3b1fffccd16d002cb02b08e44c932442bd34d66e ]] ||
  fail 'PR91 or independently reviewed PR94 browser-test blob changed'
-diff -u <(cat <<'CI_CHILD_ONLY'
+# Preserve ASTRA PR95 exactly; this integration may only add reviewed PR92 inventory paths.
+git fetch --no-tags origin 'refs/pull/95/head:refs/remotes/origin/frozen-pr95'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr95)" == ba1d0a19c9b7b51f58d92a7d417e44cf257cb97f &&
+   "$(git rev-parse "ba1d0a19c9b7b51f58d92a7d417e44cf257cb97f^")" == 10650396dc968a4685f8f6ba1c6d5f932df117a9 ]] ||
+ fail 'PR95 Playwright full-tree source lineage changed'
+diff -u <(cat <<'PR95_CI_ONLY'
 scripts/ci/full_tree_pg17.sh
 scripts/ci/pr88_frontend_pins.sh
-CI_CHILD_ONLY
-) <(git diff --name-only 10650396dc968a4685f8f6ba1c6d5f932df117a9 "$EXPECTED_HEAD_SHA") ||
- fail 'PR94 child changed a path outside two exact-source CI scripts'
+PR95_CI_ONLY
+) <(git diff --name-only 10650396dc968a4685f8f6ba1c6d5f932df117a9 ba1d0a19c9b7b51f58d92a7d417e44cf257cb97f) ||
+ fail 'PR95 original CI correction changed'
+git merge-base --is-ancestor ba1d0a19c9b7b51f58d92a7d417e44cf257cb97f "$EXPECTED_HEAD_SHA" ||
+ fail 'inventory integration is missing frozen green PR95'
+# Approved PR92 is a separate branch, NOT assumed to be an ancestor of this child.
+git fetch --no-tags origin 'refs/pull/92/head:refs/remotes/origin/frozen-pr92'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr92)" == e3207dfef7f6473ab3b0dae9a807519845a57da4 &&
+   "$(git rev-parse "e3207dfef7f6473ab3b0dae9a807519845a57da4^")" == 72932678dde35fc6caa0667ff3f900f49255a135 ]] ||
+ fail 'SOL-approved PR92 source or parent moved'
+diff -u <(cat <<'PR92_FOUR_REVIEWED'
+.github/workflows/issue78-inventory-pg17.yml
+scripts/ci/full_tree_pg17.sh
+supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql
+supabase/tests/issue78_inventory_timezone_pg17.sql
+PR92_FOUR_REVIEWED
+) <(git diff --name-only 72932678dde35fc6caa0667ff3f900f49255a135 e3207dfef7f6473ab3b0dae9a807519845a57da4) ||
+ fail 'PR92 had source outside SOL-reviewed four paths'
+diff -u <(cat <<'INVENTORY_INTEGRATION_ONLY'
+.github/workflows/issue78-inventory-pg17.yml
+scripts/ci/full_tree_pg17.sh
+supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql
+supabase/tests/issue78_inventory_timezone_pg17.sql
+INVENTORY_INTEGRATION_ONLY
+) <(git diff --name-only ba1d0a19c9b7b51f58d92a7d417e44cf257cb97f "$EXPECTED_HEAD_SHA") ||
+ fail 'inventory child changed paths outside exactly four approved files'
+while read -r path sha; do
+ [[ "$(git rev-parse "e3207dfef7f6473ab3b0dae9a807519845a57da4:$path")" == "$sha" &&
+    "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+ fail "independently reviewed PR92 migration/test/workflow drift: $path"
+done <<'PR92_PINNED_CONTENT'
+.github/workflows/issue78-inventory-pg17.yml 4fc7d56d512fb2eacd2bea7136104b2d82d6b14f
+supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql 908f881bfc541ab4265912e0a9e55525ea8275a5
+supabase/tests/issue78_inventory_timezone_pg17.sql 06bc46e34209dfd9d61e3fe576cf4b7d29d13992
+PR92_PINNED_CONTENT
 [[ "$(git rev-parse "961ee716316720821e1ce159815977743b823cee:scripts/ci/pr88_frontend_pins.sh")" == d4d4531a56abf28605530e8f7573e710b4b9fa44 &&
    "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:scripts/ci/pr88_frontend_pins.sh")" == d4d4531a56abf28605530e8f7573e710b4b9fa44 &&
    "$(git rev-parse "10650396dc968a4685f8f6ba1c6d5f932df117a9:scripts/ci/pr88_frontend_pins.sh")" == 2a9f2ba92baab119c2d781b63063b676eb02fa56 &&
@@ -283,6 +321,7 @@ while IFS= read -r path; do
   supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql|\
   supabase/tests/issue78_inventory_synthetic_fixture.sql|\
   supabase/tests/issue78_inventory_pg17_denials.sql|\
+  supabase/tests/issue78_inventory_timezone_pg17.sql|\
   scripts/ci/issue78_concurrent_denials.sh|\
   .github/workflows/issue78-inventory-pg17.yml|\
   docs/ISSUE78_MEDICINE_INVENTORY_READ_ONLY.md|\
@@ -426,11 +465,12 @@ while read -r path sha; do
   fail "Issue78 unreviewed inventory source drift: $path"
  fi
 done <<'ISSUE78_BLOBS'
-supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql e637cc3fc506ad7d6d813cadd077a820bf0530c6
+supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql 908f881bfc541ab4265912e0a9e55525ea8275a5
 supabase/tests/issue78_inventory_synthetic_fixture.sql de5ee91ed724718acbc6724ce1c6beb489e1ac80
 supabase/tests/issue78_inventory_pg17_denials.sql 24465f1c7e70d946c0f07ef1def7a39aa5439843
+supabase/tests/issue78_inventory_timezone_pg17.sql 06bc46e34209dfd9d61e3fe576cf4b7d29d13992
 scripts/ci/issue78_concurrent_denials.sh 989b18062262d4b677e7df76273cf6637519a432
-.github/workflows/issue78-inventory-pg17.yml 62679dc0dacbd5e59cdde57204654e3b52954e94
+.github/workflows/issue78-inventory-pg17.yml 4fc7d56d512fb2eacd2bea7136104b2d82d6b14f
 docs/ISSUE78_MEDICINE_INVENTORY_READ_ONLY.md 95d9a5333573be38cce5b42bccc737b81ee56d30
 .github/workflows/full-tree-pg17-security.yml 2b0e121b7aa201e3102a7836a6349c05884ef20b
 ISSUE78_BLOBS
@@ -477,7 +517,7 @@ supabase/tests/phase5a_staff_booking_rpc_queue.sql 9fd4a627f471391b192968af57f81
 supabase/tests/phase5a_staff_pg17_regression.sql a1b9781325724885188099075d8c36e9ed223b1b
 supabase/tests/phase3_storage_outer_path_after_fix.sql 293abc90a168f6157aa0b0055d2e78fea8f59a8f
 BLOBS
-echo 'PASS: frozen PR87/88/90/91/93/94, reviewed CLOUD 13+4+1 frontend history, immutable 11+12-15 SQL and CI-only two-script child.'
+echo 'PASS: frozen PR87/88/90/91/93/94/95; reviewed PR92 #15 timezone and rollback regression; immutable historical migrations and CLOUD Chromium source.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
  if [[ "$PGDATABASE" == full_tree_history_ci ]]; then
