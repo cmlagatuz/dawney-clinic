@@ -95,16 +95,45 @@ M	web/tests/owner-booking-view.test.mjs
 CLOUD_PR88_13_PATHS
 ) <(git diff --name-status 26d5ed9bdc81275b24b80810a7da25f658c9e6e2 2171567f275b88b54d5c3997f97ecf4986b050f2) ||
  fail 'the 13-file CLOUD frontend diff changed'
+# Original PR88→PR90 CI source remains precisely three reviewed paths.
 diff -u <(cat <<'CI_ONLY_SOURCE'
 .github/workflows/full-tree-pg17-security.yml
 scripts/ci/full_tree_pg17.sh
 scripts/ci/pr88_frontend_pins.sh
 CI_ONLY_SOURCE
-) <(git diff --name-only 2171567f275b88b54d5c3997f97ecf4986b050f2 "$EXPECTED_HEAD_SHA") ||
- fail 'this child altered source outside its three CI-only paths'
-[[ "$(git rev-parse HEAD:scripts/ci/pr88_frontend_pins.sh)" == d4d4531a56abf28605530e8f7573e710b4b9fa44 &&
-   "$(git hash-object scripts/ci/pr88_frontend_pins.sh)" == d4d4531a56abf28605530e8f7573e710b4b9fa44 ]] ||
- fail 'CLOUD exact source pin script changed'
+) <(git diff --name-only 2171567f275b88b54d5c3997f97ecf4986b050f2 961ee716316720821e1ce159815977743b823cee) ||
+ fail 'frozen PR90 original CI-only delta changed'
+# The four CLOUD PR91 slot/browser paths are frozen independent of their 9 commits.
+git fetch --no-tags origin \
+ 'refs/pull/90/head:refs/remotes/origin/frozen-pr90' \
+ 'refs/pull/91/head:refs/remotes/origin/frozen-pr91'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr90)" == 961ee716316720821e1ce159815977743b823cee &&
+   "$(git rev-parse refs/remotes/origin/frozen-pr91)" == c3ab821bc4cf359a7ea2929356dd035c540d6eb6 ]] ||
+ fail 'frozen PR90/PR91 source moved'
+git merge-base --is-ancestor 961ee716316720821e1ce159815977743b823cee c3ab821bc4cf359a7ea2929356dd035c540d6eb6 ||
+ fail 'PR91 not descended from the frozen PR90'
+git merge-base --is-ancestor c3ab821bc4cf359a7ea2929356dd035c540d6eb6 "$EXPECTED_HEAD_SHA" ||
+ fail 'CI child must descend from frozen CLOUD PR91'
+diff -u <(cat <<'CLOUD_PR91_FOUR'
+M	web/src/public-site/slots.mjs
+M	web/tests/branch-booking.browser.mjs
+A	web/tests/slot-routes.chromium.test.mjs
+A	web/tests/slots.test.mjs
+CLOUD_PR91_FOUR
+) <(git diff --name-status 961ee716316720821e1ce159815977743b823cee c3ab821bc4cf359a7ea2929356dd035c540d6eb6) ||
+ fail 'CLOUD PR91 was not exactly four reviewed frontend changes'
+diff -u <(cat <<'CI_CHILD_ONLY'
+.github/workflows/full-tree-pg17-security.yml
+scripts/ci/full_tree_pg17.sh
+scripts/ci/pr88_frontend_pins.sh
+CI_CHILD_ONLY
+) <(git diff --name-only c3ab821bc4cf359a7ea2929356dd035c540d6eb6 "$EXPECTED_HEAD_SHA") ||
+ fail 'PR91 child changed a path outside three CI-only files'
+[[ "$(git rev-parse "961ee716316720821e1ce159815977743b823cee:scripts/ci/pr88_frontend_pins.sh")" == d4d4531a56abf28605530e8f7573e710b4b9fa44 &&
+   "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:scripts/ci/pr88_frontend_pins.sh")" == d4d4531a56abf28605530e8f7573e710b4b9fa44 &&
+   "$(git rev-parse HEAD:scripts/ci/pr88_frontend_pins.sh)" == 2a9f2ba92baab119c2d781b63063b676eb02fa56 &&
+   "$(git hash-object scripts/ci/pr88_frontend_pins.sh)" == 2a9f2ba92baab119c2d781b63063b676eb02fa56 ]] ||
+ fail 'PR88 historical or PR91 new source-pin script changed'
 bash scripts/ci/pr88_frontend_pins.sh
 # The combined commit is based on the exact P1-repaired backend and imports
 # EXACT, independently reviewable PR79 Naga + PR81 branch-selector commits.
@@ -249,6 +278,9 @@ while IFS= read -r path; do
   web/src/public-site/useBranchBooking.ts|\
   web/src/public-site/usePublicCatalog.ts|\
   web/tests/branch-booking.browser.mjs|\
+  web/src/public-site/slots.mjs|\
+  web/tests/slots.test.mjs|\
+  web/tests/slot-routes.chromium.test.mjs|\
   scripts/ci/pr88_frontend_pins.sh) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
@@ -334,8 +366,10 @@ while read -r path sha; do
       "$(git rev-parse "72932678dde35fc6caa0667ff3f900f49255a135:$path")" == 2b0e121b7aa201e3102a7836a6349c05884ef20b &&
       "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
       "$(git rev-parse "2171567f275b88b54d5c3997f97ecf4986b050f2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
-      "$(git rev-parse "HEAD:$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 &&
-      "$(git hash-object "$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 ]] ||
+      "$(git rev-parse "961ee716316720821e1ce159815977743b823cee:$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 &&
+      "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 &&
+      "$(git rev-parse "HEAD:$path")" == bbb1f1d3d03ff40d269c0b33dd0a2f520e56d86d &&
+      "$(git hash-object "$path")" == bbb1f1d3d03ff40d269c0b33dd0a2f520e56d86d ]] ||
      fail 'parent or updated full-tree workflow drifted outside Issue78 exact pins'
  else
    [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
@@ -361,8 +395,10 @@ while read -r path sha; do
    [[ "$(git rev-parse "72932678dde35fc6caa0667ff3f900f49255a135:$path")" == "$sha" &&
       "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
       "$(git rev-parse "2171567f275b88b54d5c3997f97ecf4986b050f2:$path")" == f5e8b4e0c02aae2a9abc31dde6cac83f7d46bdf8 &&
-      "$(git rev-parse "HEAD:$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 &&
-      "$(git hash-object "$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 ]] ||
+      "$(git rev-parse "961ee716316720821e1ce159815977743b823cee:$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 &&
+      "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:$path")" == 55c88d25d7c44074b1c608f432fbe498106cdec2 &&
+      "$(git rev-parse "HEAD:$path")" == bbb1f1d3d03ff40d269c0b33dd0a2f520e56d86d &&
+      "$(git hash-object "$path")" == bbb1f1d3d03ff40d269c0b33dd0a2f520e56d86d ]] ||
     fail 'immutable PR86 workflow or public reader path triggers changed'
  else
   [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
@@ -421,7 +457,7 @@ supabase/tests/phase5a_staff_booking_rpc_queue.sql 9fd4a627f471391b192968af57f81
 supabase/tests/phase5a_staff_pg17_regression.sql a1b9781325724885188099075d8c36e9ed223b1b
 supabase/tests/phase3_storage_outer_path_after_fix.sql 293abc90a168f6157aa0b0055d2e78fea8f59a8f
 BLOBS
-echo 'PASS: exact frozen PR87/88; CLOUD 13-file reviewed frontend delta; prior source pins/11+12-15 SQL unchanged; CI-only child verified.'
+echo 'PASS: frozen PR87/88/90/91, reviewed CLOUD 13+4 frontend blobs, immutable 11+12-15 SQL and CI-only three-file child.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
  if [[ "$PGDATABASE" == full_tree_history_ci ]]; then
