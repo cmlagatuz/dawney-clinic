@@ -53,7 +53,7 @@ jobs:
           done <<'SOURCE'
           supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql a017d6f11819fcd7dba743cf37e4533342d8a5a5
           supabase/tests/clinical_chart_encounter_pg17.sql d223db9503a5145372b0603445d05e645dd079fa
-          web/src/lib/clinical-chart.ts 718aff682146e81daca59f54ccfd0f03e51729d8
+          web/src/lib/clinical-chart.ts 62221ba4c8a854456da99f044ca1ddb36acbed03
           docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 346b0a668391fd2efc59b1bc2525bb5a07b7c280
           SOURCE
           while read -r file sha; do

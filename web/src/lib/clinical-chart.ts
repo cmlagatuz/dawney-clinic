@@ -49,7 +49,8 @@ function parsePage(raw:unknown,section:ChartSection,branchId:string,accountId:st
  !(raw.nextCursor===null||cursor(raw.nextCursor))||
  (raw.hasMore&&raw.nextCursor===null))throw Error('Malformed clinical chart response')
  const p=raw.patient
- if(!validId(p.id)||!validId(p.ownerId)||!(p.breed===null||str(p.breed))||
+ if(!str(p.id)||!str(p.ownerId)||!validId(p.id)||!validId(p.ownerId)||
+ !(p.breed===null||str(p.breed))||
  !['male','female','unknown'].includes(String(p.sex))||
  !(p.birthDate===null||str(p.birthDate))||typeof p.taxonomyReviewNeeded!=='boolean')
  throw Error('Malformed clinical patient')
