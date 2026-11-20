@@ -52,7 +52,9 @@ web/src/public-site/usePatientEligibility.ts
 web/src/public-site/useServiceSpecies.ts
 web/tests/owner-booking-view.test.mjs
 CLAUDE
-# Every imported Grok-accepted PR68 source blob must remain unchanged.
+# Grok-reviewed PR68 journal runner, workflow, docs and tests remain unchanged.
+# The single guard exception below is explicitly anchored to PR98's frozen
+# previously reviewed blob, then separately pinned to this child's correction.
 while IFS= read -r path; do
  [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$EXPECTED_SECURITY_SHA:$path")" ]] ||
  fail "Grok-accepted hosted harness drift: $path"
@@ -60,9 +62,10 @@ done <<'GROK'
 .github/workflows/hosted-security-acceptance-source.yml
 docs/HOSTED_SECURITY_ACCEPTANCE.md
 scripts/hosted-acceptance/acceptance.mjs
-scripts/hosted-acceptance/guards.mjs
 scripts/hosted-acceptance/tests/acceptance.test.mjs
 GROK
+[[ "$(git rev-parse "51ae2c4cfaa92f9126925ab9b9632f8fe77ad1a7:scripts/hosted-acceptance/guards.mjs")" == c6361ee848c1c78370fc5e771d8765090c367708 ]] ||
+ fail 'PR98 signed-owner guard ancestor changed'
 # Reviewed #71 staff UI files must match the immutable source commit and
 # the checked-out bytes; allowlist below remains restrictive for other files.
 while read -r path sha; do
@@ -101,8 +104,8 @@ while IFS= read -r path; do
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
-# Frozen SOL-reviewed parent PR75 must be unchanged. This child can only
-# repair its offline staging planner, tests, docs and THIS source guard.
+# Frozen SOL-reviewed parent PR75 must be unchanged. Explicitly allow only
+# its original five remediation paths plus this one signed-owner guard exception.
 git fetch --no-tags origin 'refs/pull/75/head:refs/remotes/origin/frozen-pr75'
 [[ "$(git rev-parse refs/remotes/origin/frozen-pr75)" == c9995b0e44469408eaa5f46261f2702d3590fc12 &&
    "$(git rev-parse "c9995b0e44469408eaa5f46261f2702d3590fc12:scripts/hosted-acceptance/staging-request-plan.mjs")" == 2654049c6221efea7a1b9c138c7c88442d99961e &&
@@ -114,22 +117,25 @@ diff -u <(cat <<'P2_REMEDIATION_ONLY'
 .github/workflows/staging-acceptance-plan-offline.yml
 docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md
 scripts/ci/full_tree_pg17.sh
+scripts/hosted-acceptance/guards.mjs
 scripts/hosted-acceptance/staging-request-plan.mjs
 scripts/hosted-acceptance/tests/staging-request-plan.test.mjs
 P2_REMEDIATION_ONLY
 ) <(git diff --name-only c9995b0e44469408eaa5f46261f2702d3590fc12 "$EXPECTED_HEAD_SHA") ||
- fail 'staging planner remediation expanded outside four authorized paths'
+ fail 'staging remediation expanded outside six explicitly authorized paths'
 # Offline-only PR75 staging transport plan and mock coverage: strict blob pins.
-# Grok-reviewed PR68 acceptance/guard source remains byte-identical to PR68.
+# Only the hardened guard differs from the original PR68 guard source; the
+# PR68 journal-first acceptance runner and inherited source tests stay pinned.
 while read -r path sha; do
  [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
     "$(git hash-object "$path")" == "$sha" ]] ||
   fail "unreviewed staging transport-preparation source drift: $path"
 done <<'STAGING_PREP_BLOBS'
-scripts/hosted-acceptance/staging-request-plan.mjs bc23dae4ba238b74c6e52522e6e95d46d9729826
-scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 71c948c30df0419532b44c1d544c7861a37e014b
-docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 2dc5cc7e3deb4951468d6875daa5c49f015b4cc8
-.github/workflows/staging-acceptance-plan-offline.yml 2990c2a00c3c9d91f95db5f87aa496c82cf84a76
+scripts/hosted-acceptance/guards.mjs dd17dd88beba2f17db771632591577b14e84fee0
+scripts/hosted-acceptance/staging-request-plan.mjs f45250d8bf49b4efef9093d7b4fbd358421b8020
+scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 6687c5e2da23acc5c05426339265073d98001ba8
+docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 487cfe380f4d5eb6353f7a54bed109640be7f6e2
+.github/workflows/staging-acceptance-plan-offline.yml 24983ec1cec9b34f21e0fb1443b078e327eeb793
 STAGING_PREP_BLOBS
 while read -r path sha; do
  [[ -s "$path" && "$(git hash-object "$path")" == "$sha" ]] ||

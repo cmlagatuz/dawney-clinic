@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {generateKeyPairSync,createPublicKey,sign as signBytes,createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
-import {harnessHashes,sha256,BACKEND_SOURCE_SHA} from '../guards.mjs';
+import {harnessHashes,sha256,BACKEND_SOURCE_SHA,verifyOwnerGate} from '../guards.mjs';
 import {prepareStagingRequest,materializeValidatedStagingBody,stagingPlanSha256,STAGING_ORIGIN,STAGING_REF} from '../staging-request-plan.mjs';
 
 // Disposable signing key and synthetic JWT-like token: never a hosted secret.
@@ -297,4 +297,146 @@ test('inert planner exports no networking credential or trusted post-plan mutati
  assert.throws(()=>materializeValidatedStagingBody(read),{
   message:'HOSTED_ACCEPTANCE_BLOCKED:unvalidated_request_plan'
  });
+});
+
+/**
+ * SOL P2 regressions. Each signed malicious value is deliberately invalid:
+ * a second getter read would substitute a valid value after RSA verification.
+ */
+function deceptiveSignedClaims(changes){
+ const ctx=approvalFor();
+ const claims={...ctx.approval.claims};
+ for(const [field,[signedValue]] of Object.entries(changes))claims[field]=signedValue;
+ ctx.approval.signature=signBytes('RSA-SHA256',
+  Buffer.from(JSON.stringify(claims)),privateKey).toString('base64url');
+ const reads=Object.create(null);
+ for(const [field,[signedValue,afterValue]] of Object.entries(changes)){
+  reads[field]=0;
+  Object.defineProperty(claims,field,{enumerable:true,configurable:true,
+   get(){reads[field]++;return reads[field]===1?signedValue:afterValue;}});
+ }
+ ctx.approval.claims=claims;
+ return {ctx,reads};
+}
+
+test('SOL P2-01 request getter for synthetic booking is refused without invocation',()=>{
+ const data=booking();
+ let reads=0;
+ Object.defineProperty(data,'p_details',{enumerable:true,
+  get(){reads++;return reads===1?marker:'REAL_PATIENT_DATA';}});
+ denied(req('ownerA','POST','/rest/v1/rpc/request_service_appointment',data,
+  {'Content-Type':'application/json'}),'request_body_data_only');
+ assert.equal(reads,0);
+});
+test('SOL P2-01 method/path/header accessors cannot change after validation',()=>{
+ const path='/rest/v1/rpc/request_service_appointment';
+ for(const field of ['origin','actor','method','path']){
+  const r=req('ownerA','POST',path,booking(),{'Content-Type':'application/json'});
+  const good=r[field];
+  let reads=0;
+  Object.defineProperty(r,field,{enumerable:true,get(){reads++;return good;}});
+  denied(r,'request_data_only');
+  assert.equal(reads,0,field);
+ }
+ for(const field of ['apikey','Authorization','Content-Type']){
+  const r=req('ownerA','POST',path,booking(),{'Content-Type':'application/json'});
+  const good=r.headers[field];
+  let reads=0;
+  Object.defineProperty(r.headers,field,{enumerable:true,get(){reads++;return good;}});
+  denied(r,'request_headers_data_only');
+  assert.equal(reads,0,field);
+ }
+});
+test('SOL P2-01 proxies, inherited data and hidden fields are never trusted',()=>{
+ const path='/rest/v1/rpc/request_service_appointment';
+ const valid=()=>req('ownerA','POST',path,booking(),{'Content-Type':'application/json'});
+ const proxied=new Proxy(valid(),{get(){throw Error('proxy must not execute');}});
+ denied(proxied,'request_data_only');
+ const r=valid();
+ r.headers=new Proxy(r.headers,{get(){throw Error('header proxy must not execute');}});
+ denied(r,'request_headers_data_only');
+ const b=valid();
+ b.body=new Proxy(b.body,{get(){throw Error('body proxy must not execute');}});
+ denied(b,'request_body_data_only');
+ const hidden=valid();
+ Object.defineProperty(hidden.body,'patient_record',{value:'unapproved',enumerable:false});
+ denied(hidden,'request_body_data_only');
+ const inherited=valid();
+ inherited.headers=Object.create({Authorization:token});
+ denied(inherited,'request_headers_data_only');
+});
+test('SOL P2-01 validated owned JSON/PDF match descriptors despite caller alias edits',()=>{
+ const r=req('ownerA','POST','/rest/v1/rpc/request_service_appointment',
+  booking(),{'Content-Type':'application/json'});
+ const p=plan(r);
+ r.method='DELETE';r.path='/auth/v1/signup';
+ r.headers.apikey='sb_secret_unapproved';
+ r.body.p_details='REAL_PATIENT_DATA';
+ assert.equal(p.method,'POST');
+ assert.equal(p.url,STAGING_ORIGIN+'/rest/v1/rpc/request_service_appointment');
+ assert.equal(p.headers.apikey,'sb_publishable_offline_only');
+ assert.equal(materializeValidatedStagingBody(p).p_details,marker);
+ const bytes=pdf();
+ const upload=req('ownerA','POST','/storage/v1/object/clinical-attachments/'+key,
+  bytes,{'Content-Type':'application/pdf','x-upsert':'false'});
+ const saved=Buffer.from(bytes);
+ const output=plan(upload);
+ bytes.fill(0);
+ assert.equal(materializeValidatedStagingBody(output).equals(saved),true);
+});
+test('SOL P2-02 expired signed approval cannot be revived by changing getter claims',()=>{
+ const past=Date.now()-7200000;
+ const {ctx,reads}=deceptiveSignedClaims({
+  notBefore:[past-1000,Date.now()-1000],
+  expiresAt:[past+60000,Date.now()+60000]
+ });
+ denied(req('anonymous','GET','/auth/v1/.well-known/jwks.json'),
+  'approval_expired',ctx);
+ assert.equal(reads.notBefore,1);
+ assert.equal(reads.expiresAt,1);
+});
+test('SOL P2-02 backend/harness signed source cannot be substituted by getters',()=>{
+ const {ctx,reads}=deceptiveSignedClaims({
+  backendSourceSha:['0'.repeat(40),BACKEND_SOURCE_SHA],
+  harnessFiles:[{'guards.mjs':'0'.repeat(64),'acceptance.mjs':'1'.repeat(64)},harnessHashes()]
+ });
+ denied(req('anonymous','GET','/auth/v1/.well-known/jwks.json'),
+  'backend_source_not_approved',ctx);
+ assert.equal(reads.backendSourceSha,1);
+ assert.equal(reads.harnessFiles,1);
+ const h=deceptiveSignedClaims({
+  harnessFiles:[{'guards.mjs':'0'.repeat(64),'acceptance.mjs':'1'.repeat(64)},harnessHashes()]
+ });
+ denied(req('anonymous','GET','/auth/v1/.well-known/jwks.json'),
+  'harness_content_not_approved',h.ctx);
+ assert.equal(h.reads.harnessFiles,1);
+});
+test('SOL P2-02 project, origin and planner hash remain signed-value bound',()=>{
+ const wrong='abcdefghijklmnopqrst';
+ for(const [field,bad,good,expected] of [
+  ['projectRef',wrong,STAGING_REF,'staging_origin_mismatch'],
+  ['origin','https://'+wrong+'.supabase.co',STAGING_ORIGIN,'staging_origin_mismatch'],
+  ['stagingPlanSha256','0'.repeat(64),stagingPlanSha256(),
+   'staging_plan_content_not_approved']
+ ]){
+  const {ctx,reads}=deceptiveSignedClaims({[field]:[bad,good]});
+  denied(req('anonymous','GET','/auth/v1/.well-known/jwks.json'),expected,ctx);
+  assert.equal(reads[field],1,field);
+ }
+});
+test('SOL P2-02 verified claims preserve valid signatures and deny post-sign mutation',()=>{
+ const ctx=approvalFor();
+ const original=ctx.approval.claims;
+ let reads=0;
+ Object.defineProperty(original,'runId',{enumerable:true,configurable:true,
+  get(){reads++;return RUN;}});
+ // Re-sign precisely the values represented by the accessor.
+ ctx.approval.signature=signBytes('RSA-SHA256',
+  Buffer.from(JSON.stringify({...original})),privateKey).toString('base64url');
+ reads=0;
+ const r=req('anonymous','GET','/auth/v1/.well-known/jwks.json');
+ assert.equal(plan(r,ctx).method,'GET');
+ assert.equal(reads,1);
+ original.backendSourceSha='0'.repeat(40);
+ denied(r,'owner_signature_invalid',ctx);
 });
