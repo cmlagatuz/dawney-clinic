@@ -149,7 +149,7 @@ test('CLOUD clinical browser: staff-scoped chart, themes/widths, keyboard, no wr
       await browser.goto(origin+'/app/clinical?case=denied')
       await browser.until('!!document.querySelector(".clinical-failure")')
       assert.equal(await browser.value('!!document.querySelector(".clinical-chart")'),false)
-      assert.equal(await browser.value('window.__clinicalCalls.paths.some(p=>/\/appointments|\/pets|\/clinical_records/.test(p))'),false)
+      assert.equal(await browser.value('window.__clinicalCalls.paths.some(p=>["/appointments","/pets","/clinical_records"].some(endpoint=>p.includes(endpoint)))'),false)
 
       // No signed patient selection survives a branch change.
       await browser.goto(origin+'/app/clinical?case=two')
