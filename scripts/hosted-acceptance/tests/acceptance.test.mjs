@@ -451,3 +451,110 @@ test('SOL P2 guard rejects inherited, nonenumerable and extra staging claims',()
  const valid=verifyOwnerGate({approval:context.approval,trust,staging,now});
  assert.equal(valid.origin,staging.origin);
 });
+
+
+test('SOL P2 actor credentials reject getters without invoking once and before journal or network',async()=>{
+ const {transport,state}=fakeTransport();
+ let reads=0;
+ const poisoned={...actors};
+ Object.defineProperty(poisoned,'ownerA',{enumerable:true,configurable:true,get(){
+  reads++;return reads<=3?actors.ownerA:actors.anonymousAuth;
+ }});
+ const input={...base(),transport,actors:poisoned};
+ await assert.rejects(runHostedAcceptance(input),/actor_tokens_data_only/);
+ assert.equal(reads,0,'credential getter must never run even during validation');
+ assert.deepEqual(state.calls,[]);
+ const {readdirSync}=await import('node:fs');
+ assert.deepEqual(readdirSync(input.journalDir),[],'no approval journal before actor snapshot');
+});
+
+test('SOL P2 actor Proxy rejected before inspecting trap/getter/prototype',async()=>{
+ const {transport,state}=fakeTransport();
+ const traps={get:0,proto:0,keys:0,descriptor:0};
+ const proxy=new Proxy({...actors},{
+  get(){traps.get++;throw Error('unexpected actor read');},
+  getPrototypeOf(){traps.proto++;throw Error('unexpected proto');},
+  ownKeys(){traps.keys++;throw Error('unexpected ownKeys');},
+  getOwnPropertyDescriptor(){traps.descriptor++;throw Error('unexpected descriptor');}
+ });
+ const input={...base(),transport,actors:proxy};
+ await assert.rejects(runHostedAcceptance(input),/actor_tokens_data_only/);
+ assert.deepEqual(traps,{get:0,proto:0,keys:0,descriptor:0});
+ assert.equal(state.calls.length,0);
+ const {readdirSync}=await import('node:fs');
+ assert.deepEqual(readdirSync(input.journalDir),[]);
+});
+
+test('SOL P2 actor credentials reject inherited, extra, hidden, missing, symbol and null tokens',async()=>{
+ const {transport,state}=fakeTransport();
+ const inherited=Object.assign(Object.create({ownerA:actors.ownerA}),actors);
+ delete inherited.ownerA;
+ const invalid=[
+  inherited,
+  Object.assign(Object.create({inherited:true}),actors),
+  Object.defineProperty({...actors},'ownerA',{value:actors.ownerA,enumerable:false}),
+  Object.defineProperty({...actors},'hidden',{value:actors.ownerA,enumerable:false}),
+  {...actors,administrator:actors.staff},
+  Object.assign({...actors},{ownerA:null}),
+  Object.fromEntries(Object.entries(actors).filter(([key])=>key!=='ownerB')),
+  Object.assign(Object.create(null),actors,{ownerB:''}),
+  Object.defineProperty({...actors},Symbol('extra'),{value:actors.ownerA,enumerable:true})
+ ];
+ for(const candidate of invalid){
+  await assert.rejects(runHostedAcceptance({...base(),transport,actors:candidate}),
+   /actor_tokens_data_only/);
+ }
+ assert.equal(state.calls.length,0);
+});
+
+test('SOL P2 captures immutable token identity despite caller token swaps after JWT verification',async()=>{
+ const original={...actors},caller={...actors};
+ const {transport,state}=fakeTransport();
+ const observed=[];
+ const input={...base(),actors:caller};
+ input.transport={async request(req){
+  const expected=req.actor==='anonymous'?undefined:original[req.actor];
+  const actual=req.headers.Authorization;
+  assert.equal(actual,expected?'Bearer '+expected:undefined,
+   'Authorization bytes must belong to verified actor, not req.actor label alone');
+  observed.push({actor:req.actor,path:req.path,hasBearer:typeof actual==='string'});
+  // Mutation happens *after* JWKS and ownerA Auth-user verification, before
+  // positive and negative owner queries, and again after the positive owner read.
+  // The old implementation used these later anonymous/staff tokens as Bearer.
+  if(req.actor==='ownerA'&&req.path==='/auth/v1/user'){
+   caller.ownerA=original.anonymousAuth;
+   caller.ownerB=original.staff;
+   caller.staff=original.ownerB;
+   caller.revoked=original.ownerA;
+   caller.anonymousAuth=original.ownerB;
+  }
+  if(req.actor==='ownerA'&&req.path.includes('/rest/v1/pets?')){
+   caller.ownerA=original.revoked;
+  }
+  return transport.request(req);
+ }};
+ const result=await runHostedAcceptance(input);
+ assert.equal(result.cleanup.status,'passed');
+ assert.ok(observed.some(x=>x.actor==='ownerA'&&x.path.includes('/rest/v1/owners?')));
+ assert.ok(observed.some(x=>x.actor==='ownerA'&&x.path.includes('id=eq.'+fixtures.ownerB.ownerId)));
+ assert.ok(observed.some(x=>x.actor==='staff'&&x.hasBearer));
+ assert.ok(observed.some(x=>x.actor==='revoked'&&x.hasBearer));
+ assert.ok(observed.some(x=>x.actor==='anonymousAuth'&&x.hasBearer));
+ assert.ok(observed.some(x=>x.actor==='anonymous'&&!x.hasBearer));
+ assert.ok(state.calls.length>20);
+});
+
+test('SOL P2 rejects JWT identity/expiry/anonymous/revoked role mismatch independently of data-only snapshot',async()=>{
+ for(const [role,token,error] of [
+  ['ownerA',jwt('ownerB'),/jwt_identity_invalid/],
+  ['ownerB',jwt('ownerB',{exp:Math.floor(now/1000)-1}),/jwt_expired_or_not_yet_valid/],
+  ['staff',jwt('staff',{role:'service_role'}),/jwt_identity_invalid/],
+  ['revoked',jwt('revoked',{is_anonymous:true}),/jwt_anonymity_mismatch/],
+  ['anonymousAuth',jwt('anonymousAuth',{is_anonymous:false}),/jwt_anonymity_mismatch/]
+ ]){
+  const {transport,state}=fakeTransport();
+  await assert.rejects(runHostedAcceptance({...base(),transport,
+   actors:{...actors,[role]:token}}),error);
+  assert.ok(state.calls.every(call=>call.path.startsWith('/auth/v1/')));
+ }
+});
