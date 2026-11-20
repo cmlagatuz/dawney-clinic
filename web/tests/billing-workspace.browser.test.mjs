@@ -15,6 +15,8 @@ function installBillingFixture(){
  const mode=params.get('case')||'multi'
  const theme=params.get('theme')==='dark'?'dark':'light'
  localStorage.setItem('dawney-theme',theme)
+ // The standalone test-only fixture lacks production index.html theme-init.js.
+ document.documentElement.setAttribute('data-theme',theme)
  const user={id:actor==='staff'?ids.staff:ids.owner,
    aud:'authenticated',role:'authenticated',email:'qa-billing@example.test',
    email_confirmed_at:'2025-01-01T00:00:00Z',created_at:'2025-01-01T00:00:00Z',
@@ -142,7 +144,7 @@ test('CLOUD billing: protected production routes never invent owner/staff financ
      await browser.goto(base+'/app/billing?actor=staff&theme=light')
      await browser.until('document.querySelector("#main-content")?.textContent.includes("Billing read service not integrated")',9000)
      assert.equal(await browser.value('document.querySelectorAll(".billing-invoice").length'),0)
-     const snapshot=await browser.value('({calls:window.__qaBilling.calls,writes:window.__qaBilling.writes,unexpected:window.__qaBilling.unexpected,disabled:[...document.querySelectorAll(".billing-actions button")].every(e=>e.disabled)})')
+     const snapshot=await browser.value('({calls:window.__qaBilling.calls,writes:window.__qaBilling.writes,unexpected:window.__qaBilling.unexpected,disabled:[...document.querySelectorAll(".billing-workspace > .billing-actions button")].every(e=>e.disabled)})')
      assert.ok(snapshot.calls.some(x=>x.includes('/rpc/assert_staff_branch')))
      assert.equal(snapshot.calls.some(x=>/\/invoices\b|\/payments\b|\/receipts\b/.test(x)),false)
      assert.deepEqual(snapshot.writes,[])
@@ -193,7 +195,7 @@ test('CLOUD billing: synthetic branch invoice/detail/payment/receipt UI, respons
          assert.ok(search)
          await browser.until('document.querySelectorAll(".billing-invoice").length===1')
          await browser.value('document.querySelector(".billing-invoice").click();true')
-         await browser.until('document.querySelector(".billing-history")?.textContent.includes("QA-RECEIPT-TEST")',9000)
+         await browser.until('document.querySelector('section[aria-label="Issued receipts"]')?.textContent.includes("QA-RECEIPT-TEST")',9000)
          assert.match(await browser.value('document.querySelector(".billing-totals").textContent'),/PHP 230.00/)
          assert.equal(await browser.value('document.body.textContent.includes("999999")'),false)
          assert.equal(await browser.value('document.body.textContent.includes("SECRET_SHOULD_NOT_APPEAR")'),false)
