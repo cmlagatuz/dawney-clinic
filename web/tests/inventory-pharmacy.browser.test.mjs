@@ -239,7 +239,7 @@ test('CLOUD Issue78: real Chromium pharmacy isolation, FEFO, statuses, keyboard 
             labels:[...document.querySelectorAll('.pharmacy-batch .pharmacy-tag')].map(x=>x.textContent),
             disabled:[...document.querySelectorAll('.pharmacy-actions-panel button')].every(x=>x.disabled)
           })`)
-          assert.equal(ctx.lots.some(v=>v.includes('LOT-N-EXP')),true)
+          assert.equal(ctx.lots.some(v=>v.includes('LOT-N-EXP')),true,'Synthetic returned lots: '+JSON.stringify(ctx.lots))
           assert.equal(ctx.labels.some(v=>v.includes('Expired')),true)
           assert.equal(ctx.labels.some(v=>v.includes('Quarantined')),true)
           assert.equal(ctx.disabled,true)
