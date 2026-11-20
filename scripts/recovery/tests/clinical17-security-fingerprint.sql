@@ -12,7 +12,7 @@ WITH
  WHERE n.nspname IN ('public','clinic_private','auth','storage','extensions','clinic_ci')
  ),
  entities AS (
- SELECT 'schema' k,n.nspname identity,
+ SELECT 'schema'::text k,n.nspname::text identity,
  jsonb_build_object('owner',n.own,'acl',coalesce((
   SELECT jsonb_agg(jsonb_build_array(
    case when a.grantee=0 then 'PUBLIC' else pg_get_userbyid(a.grantee) end,
