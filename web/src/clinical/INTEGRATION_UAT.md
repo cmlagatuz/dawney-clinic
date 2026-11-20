@@ -1,7 +1,7 @@
 # CLOUD — clinical patient chart / encounter draft acceptance and ASTRA integration handoff
 
 **Scope:** PR #112, isolated child of PR #110 frozen at aa414f61261a28e17953ba55f3825516c1080244.
-**Contract reference only:** ASTRA PR #109 at 08713ddc9a3ef984426807f475cf7829631c5326. SQL #16 and #17 are UNAPPLIED and #109 requires independent SOL PASS. This frontend does NOT import that branch's web/src/lib/clinical-chart.ts, send any real clinical RPC, or enable VITE_CLINICAL_WORKSPACE_UI.
+**Contract reference only:** ASTRA PR #109 at 08713ddc9a3ef984426807f475cf7829631c5326. SQL #16 and #17 are UNAPPLIED. SOL's 2026-11-20 22:05 UTC exact-head PR109 review returned **NEEDS FIX (one confirmed P2: recovery authorization/ACL fidelity)**; see https://github.com/cmlagatuz/dawney-clinic/pull/109#issuecomment-7051738226. No backend integration until that finding is corrected and independently reaccepted. This frontend does NOT import that branch's web/src/lib/clinical-chart.ts, send any real clinical RPC, or enable VITE_CLINICAL_WORKSPACE_UI.
 
 ## Source ownership / trust boundary
 
@@ -46,7 +46,7 @@ Manual UAT: open owner /book with synthetic fixture (previous release regression
 
 ## Precise ASTRA / SOL / PM handoff
 
-1. **SOL** independently audits exact PR109 head and the two original clinical P2s; no approval implied by this frontend work.
+1. **SOL** has independently reviewed exact PR109 and returned **NEEDS FIX** (P2 recovery ACL fidelity). **ASTRA** owns an isolated remediation; SOL must independently accept its new exact SHA. No approval is implied by this frontend work.
 2. **ASTRA** after SOL PASS prepares a separately reviewed frontend/backend integration source tree. Import only **approved** web/src/lib/clinical-chart.ts into a minimal CLOUD-owned adapter; forward user, branch, pet, section, cursor and limit; retain caller-side ownerId check from the verified queue. For drafts, only vet passes expectedRevision, requestId and 4 bounded fields. An unauthenticated, expired or revoked account must fail immediately and clear chart. Never use listClinicClinicalRecords, generic clinical INSERT, owner-provided role metadata or legacy branch guessing.
 3. **PM and human owner** authorize migrations #12–#17 in order only after signed/rehearsed provider Auth+Storage+Postgres recovery. Test real owner A/B, receptionist, one- and two-branch vets, global/branch revocation mid-session, 50/51/251, legacy NULL provenance, exact appointment idempotency and two-vet revision conflicts. No live SQL or clinical writes without specific consent.
 4. **CLOUD** on a new approved integration assignment replaces the unconnected port and test-only synthetic write switch with a release-gated real API; must update copy from synthetic acknowledgement to real verified save only on actual RPC success. Add real hosted browser UAT then rerun all 223+ baseline Node tests, strict TS/Vite, Chromium and the reviewed full-tree source guard.
