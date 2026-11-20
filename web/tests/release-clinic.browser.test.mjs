@@ -197,3 +197,80 @@ test('CLOUD RELEASE: full clinic owner-to-operator route acceptance with source-
       delete process.env[key]
   }
 })
+
+
+test('CLOUD RELEASE: real public discovery, 360/768/1440 light/dark and PII-free booking sign-in return',
+  {timeout:180000},async()=>{
+  process.env.VITE_SUPABASE_URL='https://issue51-fixtures.supabase.co'
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY='sb_publishable_issue51_offline'
+  const vite=await createServer({root:fileURLToPath(new URL('../',import.meta.url)),
+    server:{host:'127.0.0.1',port:0,strictPort:false}})
+  try{
+    await vite.listen()
+    const origin='http://127.0.0.1:'+vite.httpServer.address().port
+    await withChromium(async browser=>{
+      await browser.send('Page.addScriptToEvaluateOnNewDocument',
+        {source:'('+releaseClinicFixture.toString()+')()'})
+      for(const width of [360,768,1440]){
+        await browser.send('Emulation.setDeviceMetricsOverride',
+          {width,height:900,deviceScaleFactor:1,mobile:false})
+        for(const theme of ['light','dark']){
+          for(const route of ['/','/services','/location','/book']){
+            await browser.goto(origin+route+'?actor=visitor&theme='+theme)
+            await browser.until('!!document.querySelector("#main-content h1")',9000)
+            const view=await browser.value('({theme:document.documentElement.getAttribute("data-theme"),h1:document.querySelector("#main-content h1")?.textContent,overflow:document.documentElement.scrollWidth>innerWidth,external:[...document.querySelectorAll("a[target=_blank]")].every(a=>a.rel.includes("noopener")&&a.rel.includes("noreferrer")&&a.href.startsWith("https://")),writes:window.__cloudIntegrated.directWrites,unknown:window.__cloudIntegrated.unexpected,categories:document.querySelectorAll("#cat-heading + ul > li").length,branches:document.querySelectorAll(".branch-directory .branch-card").length})')
+            assert.equal(view.theme,theme,route+' theme')
+            assert.ok(view.h1,route+' H1')
+            assert.equal(view.overflow,false,route+' horizontal overflow '+width+'/'+theme)
+            assert.equal(view.external,true,'safe external links')
+            assert.deepEqual(view.writes,[],'public visitor no provider mutation')
+            assert.deepEqual(view.unknown,[],'no unapproved external origin')
+            if(route==='/services')assert.equal(view.categories,8,'informational categories only')
+            if(route==='/location')assert.equal(view.branches,2,'Naga and contact-only Cavite')
+          }
+        }
+      }
+      // Start a real anonymous /book journey with an approved test-only schedule.
+      await browser.send('Emulation.setDeviceMetricsOverride',
+        {width:768,height:900,deviceScaleFactor:1,mobile:false})
+      await browser.goto(origin+'/book?actor=visitor&theme=light')
+      await browser.until('!!document.querySelector("form[aria-label=\"Naga appointment request\"] input[name=service]")',9000)
+      assert.equal(await browser.value('!!document.querySelector("[aria-label=\"Naga appointment request\"] button[type=submit]:not(:disabled)")'),false)
+      await browser.value('document.querySelector("input[name=service]").click();true')
+      await browser.until('!!document.querySelector("form[aria-label=\"Naga appointment request\"] label select")',9000)
+      const options=await browser.value('[...document.querySelectorAll("form[aria-label=\"Naga appointment request\"] select")].at(-1)?.options.length')
+      assert.ok(options>=2,'synthetic approved schedule dates exposed as choices, not guessed hours')
+      const date=await browser.value('(()=>[...document.querySelectorAll("form[aria-label=\"Naga appointment request\"] select")].at(-1).options[1].value)()')
+      await browser.value('(()=>{const el=[...document.querySelectorAll("form[aria-label=\"Naga appointment request\"] select")].at(-1);el.value="'+date+'";el.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
+      await browser.until('!!document.querySelector("form[aria-label=\"Naga appointment request\"] input[name=slot]")',9000)
+      const slot=await browser.value('document.querySelector("form[aria-label=\"Naga appointment request\"] input[name=slot]").value')
+      assert.ok(Number.isFinite(Date.parse(slot)))
+      assert.equal(new Date(slot).getUTCMinutes()%15,0,'quarter-hour grid in synthetic Manila schedule')
+      await browser.value('document.querySelector("form[aria-label=\"Naga appointment request\"] input[name=slot]").click();true')
+      await browser.value('[...document.querySelectorAll("form[aria-label=\"Naga appointment request\"] button")].find(x=>x.textContent.includes("Sign in to continue")).click();true')
+      await browser.until('location.pathname==="/auth/signin"',9000)
+      assert.equal(await browser.value('new URLSearchParams(location.search).get("next")'),'/book')
+      assert.equal(await browser.value('location.href.includes("40000000")||location.href.includes("20000000")'),false,
+        'no patient IDs carried through login redirect')
+      const intent=await browser.value('sessionStorage.getItem("dawney.publicBookingIntent.v1")')
+      assert.equal(typeof intent,'string','only non-PII booking intent survives')
+      assert.equal(intent.includes('Synthetic Patient'),false)
+      await browser.value('document.querySelector("input[type=email]").focus();true')
+      await browser.send('Input.insertText',{text:'synthetic-release-owner@example.test'})
+      await browser.value('document.querySelector("input[type=password]").focus();true')
+      await browser.send('Input.insertText',{text:'fixture-only-password'})
+      await browser.value('document.querySelector("form button[type=submit],form button").click();true')
+      await browser.until('location.pathname==="/book"',9000)
+      assert.equal(await browser.value('window.__cloudIntegrated.authSubmits'),1)
+      await browser.until('!!document.querySelector("form[aria-label=\"Naga appointment request\"]")',9000)
+      assert.equal(await browser.value('document.body.textContent.includes("Your patient and request")'),true,
+        'verified owner returns to intended booking with its patient step')
+      assert.equal(await browser.value('window.__cloudIntegrated.directWrites.length'),0,
+        'authentication navigation did not create an appointment')
+    })
+  }finally{
+    await vite.close()
+    delete process.env.VITE_SUPABASE_URL
+    delete process.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  }
+})
