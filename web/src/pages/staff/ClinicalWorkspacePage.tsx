@@ -153,7 +153,8 @@ function ClinicalDay({port,branch,accountId,onDenied}:{port:ClinicalReadPort;bra
           {selected
             ?<PatientChart key={branch.id+':'+readKey+':'+selected} petId={selected}
               rows={rows} branchName={branch.name} role={branch.role}
-              accountId={accountId} branchId={branch.id} appointmentId={rows.find(r=>r.pet_id===selected)?.id??''}
+              accountId={accountId} ownerId={rows.find(r=>r.pet_id===selected)?.owner_id??''}
+              branchId={branch.id} appointmentId={rows.find(r=>r.pet_id===selected)?.id??''}
               onDenied={onDenied}/>
             :<div className="card clinical-selection"><h2>Choose a patient appointment</h2>
               <p>No patient chart is loaded yet. Select a record from the authorized
