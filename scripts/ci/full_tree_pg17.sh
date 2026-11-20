@@ -141,8 +141,32 @@ scripts/hosted-acceptance/staging-request-plan.mjs
 scripts/hosted-acceptance/tests/acceptance.test.mjs
 scripts/hosted-acceptance/tests/staging-request-plan.test.mjs
 RUNNER_CHILD_ONLY
-) <(git diff --name-only 0a8ac3ca914676189272ee5e736bf40e22f36a17 "$EXPECTED_HEAD_SHA") ||
- fail 'runner remediation changed files outside eight authorized security and CI paths'
+) <(git diff --name-only 0a8ac3ca914676189272ee5e736bf40e22f36a17 c8bddb28fca73856a7917a8ffc70de56f38f8e2e) ||
+ fail 'frozen PR103 original eight-path security remediation changed'
+# Freeze the SOL-reviewed PR103 source independent from the new child.
+git fetch --no-tags origin 'refs/pull/103/head:refs/remotes/origin/frozen-pr103'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr103)" == c8bddb28fca73856a7917a8ffc70de56f38f8e2e &&
+   "$(git rev-parse "c8bddb28fca73856a7917a8ffc70de56f38f8e2e:scripts/ci/full_tree_pg17.sh")" == 074d451cb90e65ce5d90b56b4c3b41d191d76803 ]] ||
+ fail 'PR103 exact reviewed parent moved'
+git merge-base --is-ancestor c8bddb28fca73856a7917a8ffc70de56f38f8e2e "$EXPECTED_HEAD_SHA" ||
+ fail 'actor-security child missing frozen PR103 ancestor'
+diff -u <(cat <<'ACTOR_BOUNDARY_CHILD'
+.github/workflows/staging-acceptance-plan-offline.yml
+scripts/ci/full_tree_pg17.sh
+scripts/hosted-acceptance/acceptance.mjs
+scripts/hosted-acceptance/tests/acceptance.test.mjs
+ACTOR_BOUNDARY_CHILD
+) <(git diff --name-only c8bddb28fca73856a7917a8ffc70de56f38f8e2e "$EXPECTED_HEAD_SHA") ||
+ fail 'actor credential child expanded beyond four reviewed runner/test/CI paths'
+while read -r path sha; do
+ [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+ fail "actor credential child source blob drift: $path"
+done <<'ACTOR_BOUNDARY_BLOBS'
+.github/workflows/staging-acceptance-plan-offline.yml f00971f2ff8f2eaf8b19f55e1765a33880d312db
+scripts/hosted-acceptance/acceptance.mjs e28531d440f9c9f6ca736565d03f167403ec21c5
+scripts/hosted-acceptance/tests/acceptance.test.mjs 73bb6968711470a040566769d48da4e71ac68335
+ACTOR_BOUNDARY_BLOBS
 [[ "$(git rev-parse "0a8ac3ca914676189272ee5e736bf40e22f36a17:.github/workflows/phase3-recovery.yml")" == 5c81e8bbc82497157c71842560f3400f7e581ab5 &&
    "$(git rev-parse "HEAD:.github/workflows/phase3-recovery.yml")" == c8cd61ac2b896a56251f4068d7b1d07fcc5fd488 &&
    "$(git hash-object .github/workflows/phase3-recovery.yml)" == c8cd61ac2b896a56251f4068d7b1d07fcc5fd488 ]] ||
@@ -153,10 +177,10 @@ while read -r path parent current; do
     "$(git hash-object "$path")" == "$current" ]] ||
  fail "unreviewed source drift on runner remediation: $path"
 done <<'RUNNER_SECURITY_BLOBS'
-scripts/hosted-acceptance/acceptance.mjs ab77c3cb5cad7e3d52f39e418e4c01fb595c9afe 9817e02eef60e55aec896ef84faece7464813e68
+scripts/hosted-acceptance/acceptance.mjs ab77c3cb5cad7e3d52f39e418e4c01fb595c9afe e28531d440f9c9f6ca736565d03f167403ec21c5
 scripts/hosted-acceptance/guards.mjs dd17dd88beba2f17db771632591577b14e84fee0 58d5fd6e2444ecd018c21f76b770269ac6ac04a9
 scripts/hosted-acceptance/staging-request-plan.mjs f45250d8bf49b4efef9093d7b4fbd358421b8020 d96da92c8e7db950df891b13a1ac4b856aabade3
-scripts/hosted-acceptance/tests/acceptance.test.mjs c5d2dd61e4fecd0f65b8f57fd30cfc240f0131ea ad4d8d4672c563929988e1a20672a4cedd5fb547
+scripts/hosted-acceptance/tests/acceptance.test.mjs c5d2dd61e4fecd0f65b8f57fd30cfc240f0131ea 73bb6968711470a040566769d48da4e71ac68335
 scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 6687c5e2da23acc5c05426339265073d98001ba8 75ee84cbfa8f830b0429d509a4cef4646bf96614
 RUNNER_SECURITY_BLOBS
 # Preserve the exact PR100 workflow and pin ONLY the added networkless
@@ -177,7 +201,7 @@ scripts/hosted-acceptance/guards.mjs 58d5fd6e2444ecd018c21f76b770269ac6ac04a9
 scripts/hosted-acceptance/staging-request-plan.mjs d96da92c8e7db950df891b13a1ac4b856aabade3
 scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 75ee84cbfa8f830b0429d509a4cef4646bf96614
 docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 487cfe380f4d5eb6353f7a54bed109640be7f6e2
-.github/workflows/staging-acceptance-plan-offline.yml 24983ec1cec9b34f21e0fb1443b078e327eeb793
+.github/workflows/staging-acceptance-plan-offline.yml f00971f2ff8f2eaf8b19f55e1765a33880d312db
 STAGING_PREP_BLOBS
 while read -r path sha; do
  [[ -s "$path" && "$(git hash-object "$path")" == "$sha" ]] ||

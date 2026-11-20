@@ -5,6 +5,9 @@ on:
   pull_request:
     paths:
       - 'scripts/hosted-acceptance/guards.mjs'
+      # Rerun offline planner whenever the exported runner/token boundary changes.
+      - 'scripts/hosted-acceptance/acceptance.mjs'
+      - 'scripts/hosted-acceptance/tests/acceptance.test.mjs'
       - 'scripts/hosted-acceptance/staging-request-plan.mjs'
       - 'scripts/hosted-acceptance/tests/staging-request-plan.test.mjs'
       - 'docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md'

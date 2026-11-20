@@ -4,12 +4,33 @@
  * All I/O must be injected by a SEPARATELY REVIEWED future staging adapter.
  */
 import {randomUUID} from 'node:crypto';
+import {isProxy} from 'node:util/types';
 import {openSync,closeSync,writeFileSync,fsyncSync,renameSync,lstatSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {resolve,join} from 'node:path';
 import {assertFixtures,ensure,isUuid,sha256,storageKey,verifyOwnerGate,verifySignedJwt,PROTECTED_PROJECT_REF} from './guards.mjs';
 
 const roles=['ownerA','ownerB','staff','revoked','anonymousAuth'];
+
+/**
+ * Caller-owned actor tokens are untrusted even after a valid signed approval.
+ * The SAME immutable string must be verified against JWKS/Auth and placed in
+ * every future Authorization header. Never inspect proxies or invoke getters.
+ */
+function ownedActorTokens(actors){
+ ensure(actors!==null&&typeof actors==='object'&&!isProxy(actors)&&
+  !Array.isArray(actors),'actor_tokens_data_only');
+ const proto=Object.getPrototypeOf(actors);
+ ensure(proto===Object.prototype||proto===null,'actor_tokens_data_only');
+ const props=Object.getOwnPropertyDescriptors(actors);
+ const keys=Reflect.ownKeys(props);
+ ensure(keys.length===roles.length&&keys.every(key=>typeof key==='string'&&
+  roles.includes(key)&&props[key].enumerable&&
+  Object.hasOwn(props[key],'value')&&typeof props[key].value==='string'&&
+  props[key].value.length>0&&props[key].value.length<32768),
+  'actor_tokens_data_only');
+ return Object.freeze(Object.fromEntries(roles.map(role=>[role,props[role].value])));
+}
 const allowed=(method,path)=>{
  const exact=['/auth/v1/.well-known/jwks.json','/auth/v1/user'];
  if(method==='GET'&&exact.includes(path))return true;
@@ -93,6 +114,8 @@ export async function runHostedAcceptance(options={}){
  ensure(options!==null&&typeof options==='object'&&!Object.hasOwn(options,'now'),
    'caller_time_forbidden');
  const {transport,approval,trust,staging,actors,fixtures,publishableKey,journalDir}=options;
+ // Snapshot all token bytes exactly once, before approval/JWKS/Auth or journal.
+ const actorTokens=ownedActorTokens(actors);
  const now=Date.now();
  // No invocation of an injected transport may occur until every safety gate succeeds.
  ensure(transport&&typeof transport.request==='function','no_transport_injected');
@@ -100,8 +123,6 @@ export async function runHostedAcceptance(options={}){
  ensure(typeof publishableKey==='string'&&/^sb_publishable_[A-Za-z0-9_-]{4,}$/.test(publishableKey),
    'publishable_key_only');
  assertFixtures(fixtures);
- ensure(actors&&roles.every(a=>typeof actors[a]==='string'&&actors[a].length>0),
-   'signed_test_jwts_required');
  ensure(Date.parse(fixtures.slotA)>now+60000&&Date.parse(fixtures.slotB)>now+60000,
    'expired_staging_slots');
  // Exclusive runId claim happens before ANY injected HTTP call, even JWKS.
@@ -110,7 +131,8 @@ export async function runHostedAcceptance(options={}){
 
  async function request(actor,method,path,{body,headers={}}={}){
   ensure(allowed(method,path),'unapproved_http_operation');
-  const token=actors[actor];
+  const token=actor==='anonymous'?null:actorTokens[actor];
+  ensure(actor==='anonymous'||Object.hasOwn(actorTokens,actor),'actor_not_authorized');
   const req={
    origin:gate.origin,actor,method,path,
    headers:{
@@ -169,7 +191,7 @@ export async function runHostedAcceptance(options={}){
   ['anonymousAuth',fixtures.anonymousAuth.userId]
  ]);
  for(const [actor,sub] of subjects){
-  verifySignedJwt(actors[actor],jwks,{origin:gate.origin,expectedSub:sub,
+  verifySignedJwt(actorTokens[actor],jwks,{origin:gate.origin,expectedSub:sub,
    anonymous:actor==='anonymousAuth',now});
   const authReply=await request(actor,'GET','/auth/v1/user');
   ensure(authReply.status===200,'auth_user_http_status');
