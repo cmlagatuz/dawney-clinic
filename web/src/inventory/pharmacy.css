@@ -1,0 +1,127 @@
+/* CLOUD · issue78 veterinary pharmacy. Scoped to .pharmacy, no global theme mutation. */
+.pharmacy{max-width:1540px;min-width:0}
+.pharmacy *,.pharmacy *::before,.pharmacy *::after{box-sizing:border-box}
+.pharmacy h2,.pharmacy h3{line-height:1.26;margin:0 0 .5rem}
+.pharmacy h2{font-size:1.28rem}
+.pharmacy h3{font-size:1.06rem}
+.pharmacy p{line-height:1.55}
+.pharmacy-muted{font-size:.89rem;color:var(--muted)}
+.pharmacy-lock{display:inline-block;padding:.42rem .8rem;font-weight:750;font-size:.84rem;
+  border:1px solid var(--warning);color:var(--warning);background:var(--surface);
+  border-radius:999px}
+.pharmacy-branch,.pharmacy-toolbar,.pharmacy-controls,.pharmacy-detail-actions{
+  display:flex;align-items:center;gap:.75rem 1rem;flex-wrap:wrap}
+.pharmacy-branch{padding:1rem;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);margin:1rem 0}
+.pharmacy-branch label,.pharmacy-controls label,.pharmacy-detail-actions label{font-weight:650}
+.pharmacy-branch>p{flex-basis:100%;margin:0}
+.pharmacy :is(select,input[type=search]){font:inherit;color:var(--text);background:var(--surface);
+  border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  padding:.62rem .75rem;max-width:100%;min-width:0}
+.pharmacy-branch select{min-width:235px}
+.pharmacy-toolbar{justify-content:space-between;margin:1rem 0}
+.pharmacy-toolbar p{margin:0}
+.pharmacy-controls{display:grid;grid-template-columns:minmax(180px,1.6fr) repeat(2,minmax(150px,1fr));
+  gap:.8rem;padding:1rem;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--surface)}
+.pharmacy-controls label{display:grid;gap:.5rem;min-width:0}
+.pharmacy-controls select,.pharmacy-controls input{width:100%}
+.pharmacy-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin:1rem 0}
+.pharmacy-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:1rem;display:grid;gap:.2rem}
+.pharmacy-kpi strong{font-size:1.65rem;line-height:1.2;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.pharmacy-kpi span{font-size:.82rem;color:var(--muted)}
+.pharmacy-advisory{padding:.8rem 1rem;border:1px solid var(--warning);border-radius:var(--radius-sm);
+  color:var(--text);background:var(--surface-2)}
+.pharmacy-failure{border-inline-start:4px solid var(--danger)}
+.pharmacy-shell{display:grid;grid-template-columns:minmax(220px,315px) minmax(0,1fr);
+  gap:1rem;align-items:start;margin-top:.75rem}
+.pharmacy-medicines{display:grid;gap:.55rem;list-style:none;margin:0;padding:0}
+.pharmacy-medicines li{min-width:0}
+.pharmacy-medicine{display:grid;gap:.5rem;width:100%;min-width:0;text-align:left;
+  background:var(--surface);color:var(--text);font:inherit;padding:1rem;
+  border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;
+  overflow-wrap:anywhere;box-shadow:var(--shadow-sm)}
+.pharmacy-medicine:hover{border-color:var(--primary)}
+.pharmacy-medicine.is-selected{border:2px solid var(--primary);background:var(--primary-soft)}
+.pharmacy-medicine-title{display:flex;align-items:start;justify-content:space-between;flex-wrap:wrap;gap:.4rem}
+.pharmacy-medicine-title strong{font-size:.97rem}
+.pharmacy-code{font-size:.77rem;font-weight:700;color:var(--muted);letter-spacing:.035em}
+.pharmacy-tags{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+.pharmacy-tag{display:inline-flex;align-items:center;padding:.27rem .58rem;
+  border:1px solid var(--border-strong);border-radius:999px;background:var(--surface);
+  font-size:.77rem;font-weight:700;color:var(--text);width:max-content;max-width:100%;overflow-wrap:anywhere}
+.pharmacy-tag.is-danger,.pharmacy-tag.is-expired{color:var(--danger);border-color:var(--danger)}
+.pharmacy-tag.is-warning,.pharmacy-tag.is-near{color:var(--warning);border-color:var(--warning)}
+.pharmacy-tag.is-ok,.pharmacy-tag.is-eligible{color:var(--success);border-color:var(--success)}
+.pharmacy-detail-area,.pharmacy-detail{min-width:0}
+.pharmacy-detail,.pharmacy-prompt{border:1px solid var(--border);background:var(--surface);
+  border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.pharmacy-prompt{padding:1.5rem}
+.pharmacy-detail-head{padding:1.1rem;display:flex;flex-wrap:wrap;
+  align-items:start;justify-content:space-between;gap:.75rem;border-bottom:1px solid var(--border)}
+.pharmacy-detail-head h2{font-size:1.32rem}
+.pharmacy-detail-head h2:focus{outline:2px solid var(--focus);outline-offset:4px}
+.pharmacy-detail-head p{margin:.35rem 0}
+.pharmacy-medicine-meta{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem;
+  font-size:.82rem;color:var(--muted)}
+.pharmacy-medicine-meta span{background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:.4rem .6rem}
+.pharmacy-tabs{display:flex;overflow-x:auto;gap:.25rem;scrollbar-width:thin;
+  padding:.3rem .7rem;border-bottom:1px solid var(--border)}
+.pharmacy-tabs button{font:inherit;font-size:.89rem;font-weight:700;padding:.65rem .8rem;
+  border:0;border-bottom:3px solid transparent;background:transparent;color:var(--muted);
+  border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap}
+.pharmacy-tabs button[aria-selected=true]{background:var(--primary-soft);color:var(--primary-text);
+  border-bottom-color:var(--primary)}
+.pharmacy-panel{padding:1rem;min-width:0;outline-offset:-3px}
+.pharmacy-panel h3{margin:0 0 .4rem}
+.pharmacy-detail-actions{justify-content:space-between;margin-bottom:.5rem}
+.pharmacy-detail-actions label{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.pharmacy-batches,.pharmacy-ledger,.pharmacy-fefo{list-style:none;display:grid;gap:.75rem;
+  margin:1rem 0;padding:0}
+.pharmacy-batch,.pharmacy-ledger li,.pharmacy-fefo li{padding:.9rem;border:1px solid var(--border);
+  border-radius:var(--radius-sm);background:var(--surface-2);min-width:0}
+.pharmacy-batch-top{display:flex;justify-content:space-between;flex-wrap:wrap;
+  gap:.5rem;align-items:center}
+.pharmacy-batch dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem;margin:.8rem 0 0}
+.pharmacy-batch dl div{min-width:0}
+.pharmacy-batch dt{font-size:.8rem;font-weight:650;color:var(--muted)}
+.pharmacy-batch dd{margin:.1rem 0 0;font-size:.9rem;overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums}
+.pharmacy-fefo{counter-reset:fefo}
+.pharmacy-fefo li{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+.pharmacy-fefo li::before{counter-increment:fefo;content:counter(fefo) ".";
+  font-weight:750;color:var(--primary-text)}
+.pharmacy-fefo li span:last-child{font-weight:700}
+.pharmacy-ledger li p{font-size:.88rem;margin:.4rem 0 0}
+.pharmacy-empty{background:var(--surface-2);padding:1rem;border:1px dashed var(--border-strong);
+  border-radius:var(--radius-sm);color:var(--muted)}
+.pharmacy-actions-panel{border-top:1px solid var(--border);padding:1.1rem}
+.pharmacy-actions{display:flex;flex-wrap:wrap;gap:.6rem;margin:.5rem 0}
+.pharmacy-actions button:disabled{cursor:not-allowed;opacity:.65}
+.pharmacy-footer-note{margin:1.2rem 0;max-width:90ch}
+.pharmacy :is(button,select,input,a):focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+@media(max-width:1150px){
+  .pharmacy-shell{grid-template-columns:minmax(190px,240px) minmax(0,1fr)}
+  .pharmacy-batch dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:768px){
+  .pharmacy-shell{grid-template-columns:minmax(0,1fr)}
+  .pharmacy-medicines{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  .pharmacy-controls{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pharmacy-controls label:first-child{grid-column:1 / -1}
+  .pharmacy-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:480px){
+  .pharmacy-branch{align-items:stretch;flex-direction:column}
+  .pharmacy-branch select,.pharmacy-toolbar button{width:100%}
+  .pharmacy-controls,.pharmacy-medicines{grid-template-columns:minmax(0,1fr)}
+  .pharmacy-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pharmacy-kpi{padding:.7rem}
+  .pharmacy-kpi strong{font-size:1.35rem}
+  .pharmacy-panel,.pharmacy-detail-head{padding:.8rem}
+  .pharmacy-batch dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pharmacy-actions{display:grid;grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){.pharmacy *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
