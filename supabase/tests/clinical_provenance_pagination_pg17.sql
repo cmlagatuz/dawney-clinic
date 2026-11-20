@@ -109,6 +109,7 @@ begin
  where branch_id=branch and pet_id=pet and concern='CI synthetic Naga queue'
  order by id limit 1;
  if b_appointment is null then raise exception 'CLINICAL17_FAIL missing second appointment fixture';end if;
+ perform set_config('clinic_ci.b_appointment',b_appointment::text,true);
  -- B first (older), then A (newer) with separate appointment.
  b:=public.save_staff_clinical_encounter_draft(branch,pet,b_appointment,
   'b1717171-1111-4111-8111-111111111111',0,
@@ -143,8 +144,7 @@ set request.jwt.claims='{"role":"authenticated","is_anonymous":false}';
 do $editor$
 declare b uuid;reply jsonb;
 begin
- select d.appointment_id into b from public.clinical_encounter_drafts d
- where d.complaint='Synthetic B prior note';
+ b:=current_setting('clinic_ci.b_appointment')::uuid;
  reply:=public.save_staff_clinical_encounter_draft(
  '11111111-0000-4000-8000-000000000077',
  '33333333-3333-4333-8333-333333333333',b,
@@ -175,8 +175,7 @@ begin
  if p->'items'->0->>'id'=current_setting('clinic_ci.first_cursor_id') then
   raise exception 'CLINICAL17_FAIL duplicate draft across pages';end if;
  -- Request nonce replay by second editor cannot change creator attribution.
- select d.appointment_id into v from public.clinical_encounter_drafts d
- where d.complaint='Synthetic B edited AFTER page one';
+ v:=current_setting('clinic_ci.b_appointment')::uuid;
  q:=public.save_staff_clinical_encounter_draft(
   '11111111-0000-4000-8000-000000000077',
   '33333333-3333-4333-8333-333333333333',v,
