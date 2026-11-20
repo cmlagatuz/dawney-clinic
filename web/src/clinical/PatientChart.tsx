@@ -1,4 +1,4 @@
-import {useRef,useState,type KeyboardEvent} from 'react'
+import {useEffect,useRef,useState,type KeyboardEvent} from 'react'
 import {StatusBadge} from '../components/ui'
 import {formatClinicTime,shortRef} from '../ops/ops-model.mjs'
 import type {OpsRole,OpsRow} from '../ops/ops-model.mjs'
@@ -22,6 +22,10 @@ function emptyDrafts():Drafts{
 export function PatientChart({petId,rows,branchName,role}:Props){
   const [section,setSection]=useState<ClinicalSectionId>('overview')
   const tabs=useRef<Array<HTMLButtonElement|null>>([])
+  const headingRef=useRef<HTMLHeadingElement>(null)
+  // A changed patient remounts this chart; move focus to its newly authorized
+  // context so screen-reader and keyboard users do not remain on stale details.
+  useEffect(()=>{headingRef.current?.focus()},[])
   const [drafts,setDrafts]=useState<Drafts>(emptyDrafts)
   const [errors,setErrors]=useState<Record<string,string>>({})
   const [notice,setNotice]=useState('')
@@ -67,7 +71,7 @@ export function PatientChart({petId,rows,branchName,role}:Props){
   return <section className="clinical-chart" aria-label="Selected patient chart">
     <header className="clinical-chart-head">
       <div><p className="eyebrow">Verified appointment · {branchName}</p>
-        <h2>Patient record {shortRef(petId)}</h2>
+        <h2 ref={headingRef} tabIndex={-1}>Patient record {shortRef(petId)}</h2>
         <p className="clinical-muted">Only a branch-authorized appointment establishes this patient context.
           The secure patient profile read is not connected. No species, breed, owner identity or medical history is inferred.</p></div>
       <span className="clinical-state">Chart preview · read-only backend</span>
