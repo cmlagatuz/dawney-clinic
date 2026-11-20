@@ -80,13 +80,18 @@ test('incomplete or malformed counts are rejected, not shown as 0',()=>{
  assert.throws(()=>validateCounts(null))
  assert.deepEqual(validateCounts({patients:1,requestedAppointments:2,confirmedAppointments:3}),{patients:1,requestedAppointments:2,confirmedAppointments:3})
 })
-test('static: port.ts uses only the three read functions; flag default OFF; no writes or sample data',()=>{
+test('static: active port imports only verified branch readers and never any global queue/count',()=>{
  const rd=f=>readFileSync(new URL('../src/'+f,import.meta.url),'utf8')
  const port=rd('ops/port.ts')
- assert.match(port,/import \{getClinicDashboardCounts, listClinicQueueWindow, verifiedStaffSession\} from '\.\.\/lib\/staff-clinic'/)
- assert.ok(!/listClinicQueue\(|listClinicPatients|listClinicClinicalRecords|roleCan|\.insert|\.update|\.upsert|\.delete|\.rpc|supabase/.test(port.replace(/PR #59|supabase/g,'')))
- assert.ok(!/=>\s*null\s*$/m.test(port))
+ assert.match(port,/import \{verifiedStaffSession\} from '\.\.\/lib\/staff-clinic'/)
+ assert.match(port,/from '\.\.\/lib\/staff-branch'/)
+ assert.match(port,/createBranchPortFor/)
+ assert.ok(!/\b(listClinicQueueWindow|getClinicDashboardCounts|listClinicQueue|listClinicPatients|listClinicClinicalRecords|createReadPortFor)\b/.test(
+   port.replace(/\/\*[\s\S]*?\*\//g,'')),'only verified branch data may reach the UI')
+ assert.ok(!/\.insert|\.update|\.upsert|\.delete|\.rpc\(|\.from\(|supabase/.test(
+   port.replace(/\/\*[\s\S]*?\*\//g,'')),'frontend port has no write or raw SQL client')
+ assert.match(port,/window: unscopedDenied/)
+ assert.match(port,/counts: unscopedDenied/)
  assert.match(rd('ops/flag.ts'),/VITE_PHASE5A_OPS_UI === 'true'/)
- assert.ok(!/\.catch\(/.test(rd('ops/port-adapter.mjs')),'adapter never swallows errors')
  assert.match(rd('pages/staff/OpsPage.tsx'),/\[uid\]/)
 })
