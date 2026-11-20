@@ -89,7 +89,8 @@ declare v_actor uuid := auth.uid();
  v_patient jsonb; v_items jsonb; v_next jsonb := null;
  v_count integer; v_allowed boolean;
 begin
- if v_actor is null or not clinic_private.has_branch_role(p_branch,
+ if v_actor is null or coalesce((auth.jwt()->>'is_anonymous')::boolean,false)
+   or not clinic_private.has_branch_role(p_branch,
    array['receptionist','veterinarian','administrator']) then
   raise exception 'Clinical chart access denied' using errcode='42501';
  end if;
@@ -209,7 +210,8 @@ declare v_actor uuid := auth.uid(); v_appointment public.appointments%rowtype;
  v_role uuid; v_payload jsonb; v_existing clinic_private.clinical_draft_requests%rowtype;
  v_id uuid; v_revision integer; v_now timestamptz; v_response jsonb; v_action text;
 begin
- if v_actor is null or not clinic_private.has_branch_role(p_branch,array['veterinarian']) then
+ if v_actor is null or coalesce((auth.jwt()->>'is_anonymous')::boolean,false)
+   or not clinic_private.has_branch_role(p_branch,array['veterinarian']) then
   raise exception 'Clinician branch access denied' using errcode='42501';
  end if;
  if p_branch is null or p_pet is null or p_appointment is null
