@@ -207,7 +207,7 @@ test('CLOUD RELEASE: full clinic owner-to-operator route acceptance with source-
         await browser.until('!!document.querySelector("#clinical-tab-history")')
         await browser.value('document.querySelector("#clinical-tab-history").click();true')
         await browser.until('document.body.textContent.includes("Receptionists can view authorized appointments only")',9000)
-        assert.equal(await browser.value('!!document.querySelector("[aria-label=\"Verified records history\"]")'),false)
+        assert.equal(await browser.value('!!document.querySelector(".clinical-chart-gateway .clinical-timeline")'),false)
         assert.equal(await browser.value('window.__cloudIntegrated.directWrites.length'),0)
       }
       // Administrator can inspect a branch but neither author a clinical
