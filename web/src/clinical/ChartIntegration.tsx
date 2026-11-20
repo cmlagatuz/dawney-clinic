@@ -11,7 +11,7 @@ type VerifiedPage=Extract<ChartResult,{kind:'ok'}>
 type FailKind='denied'|'unavailable'|'not_found'|'network'|'error'
 type View={kind:'loading'}|{kind:'ok';page:VerifiedPage}|{kind:FailKind}
 type Mode='overview'|'visits'|'history'|'encounter'
-type Props={accountId:string;branchId:string;petId:string;appointmentId:string;
+type Props={accountId:string;branchId:string;petId:string;ownerId:string;appointmentId:string;
   role:OpsRole;mode:Mode;port?:ClinicalChartPort;onDenied?:()=>void;
   /** Only a test-only fixture may pass true. Production never enables this. */
   syntheticSave?:boolean}
@@ -37,7 +37,7 @@ function combine(previous:VerifiedPage,other:VerifiedPage):VerifiedPage{
 const sectionFor=(mode:Mode)=>mode==='history'?'records':mode==='encounter'?'drafts':'appointments'
 
 /** Executable UI over an injected, strictly checked reader. Hosted clinical APIs remain unwired. */
-export function ChartIntegration({accountId,branchId,petId,appointmentId,role,mode,
+export function ChartIntegration({accountId,branchId,petId,ownerId,appointmentId,role,mode,
   port=unconnectedClinicalPort,onDenied,syntheticSave=false}:Props){
   const section=sectionFor(mode)
   const allowed=section==='appointments'||role!=='receptionist'
@@ -57,7 +57,7 @@ export function ChartIntegration({accountId,branchId,petId,appointmentId,role,mo
     setView({kind:'loading'})
     setPaging(false)
     if(!allowed)return ()=>{aborter.abort();generation.current++}
-    const request:ChartRequest={accountId,branchId,petId,section,cursor:null,limit:50}
+    const request:ChartRequest={accountId,branchId,petId,ownerId,section,cursor:null,limit:50}
     void port.read(request,aborter.signal).then(raw=>{
       if(aborter.signal.aborted||version!==generation.current)return
       const parsed=validateChartPage(raw,request)
@@ -73,7 +73,7 @@ export function ChartIntegration({accountId,branchId,petId,appointmentId,role,mo
       }
     })
     return ()=>{aborter.abort();generation.current++}
-  },[accountId,branchId,petId,section,port,attempt,allowed])
+  },[accountId,branchId,petId,ownerId,section,port,attempt,allowed])
   const loadMore=()=>{
     const previous=pageRef.current
     if(!previous?.hasMore||!previous.nextCursor||paging)return
@@ -81,7 +81,7 @@ export function ChartIntegration({accountId,branchId,petId,appointmentId,role,mo
     const aborter=controller.current
     if(!aborter||aborter.signal.aborted)return
     setPaging(true)
-    const request:ChartRequest={accountId,branchId,petId,section,
+    const request:ChartRequest={accountId,branchId,petId,ownerId,section,
       cursor:previous.nextCursor,limit:50}
     void port.read(request,aborter.signal).then(raw=>{
       if(aborter.signal.aborted||version!==generation.current)return
