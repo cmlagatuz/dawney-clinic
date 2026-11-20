@@ -71,7 +71,7 @@ function StaffClinicalWorkspace({user}:{user:User}){
     </div>}
     {scope.status==='ready'&&!branch&&<EmptyState icon="shield" title="Select an authorized clinic branch">
       No patient information will load before a verified branch selection.</EmptyState>}
-    {branch&&<ClinicalDay key={user.id+':'+branch.id} port={port} branch={branch}
+    {branch&&<ClinicalDay key={user.id+':'+branch.id} port={port} branch={branch} accountId={user.id}
       onDenied={denied}/>}
     <p className="clinical-boundary">Staff identity, branch access and appointment rows are checked against
       the backend on every read. Patient names, historical records, vaccines, prescriptions and
@@ -87,7 +87,7 @@ function ClinicFailure({kind,retry}:{kind:OpsErrorKind;retry:()=>void}){
       <Link to="/app/overview" className="button button-quiet">Return to overview</Link></div>
   </section>
 }
-function ClinicalDay({port,branch,onDenied}:{port:ClinicalReadPort;branch:OpsBranch;onDenied:()=>void}){
+function ClinicalDay({port,branch,accountId,onDenied}:{port:ClinicalReadPort;branch:OpsBranch;accountId:string;onDenied:()=>void}){
   const [day,setDay]=useState(()=>todayInZone(Date.now()))
   const [attempt,setAttempt]=useState(0)
   const readKey=branch.id+':'+day+':'+attempt
@@ -152,7 +152,9 @@ function ClinicalDay({port,branch,onDenied}:{port:ClinicalReadPort;branch:OpsBra
         <div className="clinical-detail">
           {selected
             ?<PatientChart key={branch.id+':'+readKey+':'+selected} petId={selected}
-              rows={rows} branchName={branch.name} role={branch.role}/>
+              rows={rows} branchName={branch.name} role={branch.role}
+              accountId={accountId} branchId={branch.id} appointmentId={rows.find(r=>r.pet_id===selected)?.id??''}
+              onDenied={onDenied}/>
             :<div className="card clinical-selection"><h2>Choose a patient appointment</h2>
               <p>No patient chart is loaded yet. Select a record from the authorized
                 branch queue. Historical records and clinical writes remain blocked.</p></div>}
