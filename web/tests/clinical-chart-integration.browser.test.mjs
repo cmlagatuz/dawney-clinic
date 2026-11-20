@@ -186,6 +186,10 @@ test('CLOUD synthetic encounter: two veterinarian attribution, CAS conflict and 
       }
       await browser.goto(fixture(origin,'write'))
       await setEdited()
+      await browser.value('document.querySelector(".clinical-encounter-editor button[type=button]").click();true')
+      await browser.until('document.querySelector("form[aria-label=\'Persisted encounter draft form\'] textarea")?.value==="Existing synthetic complaint"')
+      assert.equal(await browser.value('window.__clinicalQA.saves.length'),0,'discard never claims a network save')
+      await setEdited()
       await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
       await browser.until('document.body.textContent.includes("Server-acknowledged DRAFT saved")')
       assert.equal(await browser.value('window.__clinicalQA.saves.length'),1)
