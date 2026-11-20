@@ -13,7 +13,7 @@ export type ChartAppointment={id:string;branchId:string;petId:string;startsAt:st
 export type ChartRecord={id:string;branchId:string;petId:string;performedAt:string;
  procedure:string;temperatureC:number|null;weightKg:number|null;comments:string|null;authoredBy:string|null}
 export type EncounterDraft={id:string;appointmentId:string;branchId:string;petId:string;
- authorId:string;revision:number;status:'draft';complaint:string;examination:string;
+ authorId:string;editorId:string;revision:number;status:'draft';complaint:string;examination:string;
  assessment:string;plan:string;createdAt:string;updatedAt:string}
 export type ChartItem=ChartAppointment|ChartRecord|EncounterDraft
 export type PatientChartPage={kind:'ok';accountId:string;branchId:string;patient:ChartPatient;
@@ -22,13 +22,20 @@ export type PatientChartResult=PatientChartPage|{kind:'not_found'}|{kind:'denied
 export type DraftInput={branchId:string;petId:string;appointmentId:string;requestId:string;
  expectedRevision:number;complaint:string;examination:string;assessment:string;plan:string}
 export type SavedDraft={kind:'saved';id:string;branchId:string;petId:string;appointmentId:string;
- authorId:string;status:'draft';revision:number;updatedAt:string}
+ authorId:string;editorId:string;status:'draft';revision:number;updatedAt:string}
 export type DraftResult=SavedDraft|{kind:'denied'}|{kind:'unavailable'}|{kind:'conflict'}|{kind:'invalid'}
+export type ClinicalRecordInput={appointmentId:string;requestId:string;procedure:string;temperatureC?:number|null;weightKg?:number|null;comments?:string|null}
+export type SavedClinicalRecord={kind:'saved';id:string;appointmentId:string;branchId:string;petId:string;authorId:string;performedAt:string}
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
 const validId=(s:string)=>uuid.test(s)
 const obj=(x:unknown):x is Record<string,unknown>=>x!==null&&typeof x==='object'&&!Array.isArray(x)
 const str=(x:unknown):x is string=>typeof x==='string'
-const cursor=(x:unknown):x is ChartCursor=>obj(x)&&str(x.at)&&!Number.isNaN(Date.parse(x.at))&&str(x.id)&&validId(x.id)
+const timestamp=(x:unknown):x is string=>str(x)&&
+ /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(x)&&
+ Number.isFinite(Date.parse(x))
+const numeric=(x:unknown,min:number,max:number)=>x===null||
+ (typeof x==='number'&&Number.isFinite(x)&&x>=min&&x<=max)
+const cursor=(x:unknown):x is ChartCursor=>obj(x)&&timestamp(x.at)&&str(x.id)&&validId(x.id)
 function client(){if(!supabase)throw Error('Clinic database is not configured');return supabase}
 async function authenticate(user:User){
  const {data,error}=await client().auth.getUser()
@@ -41,7 +48,7 @@ function status(error:{code?:string}):'denied'|'unavailable'|'conflict'|'invalid
  if(error.code==='22023'||error.code==='23514')return 'invalid'
  return 'unavailable'
 }
-function parsePage(raw:unknown,section:ChartSection,branchId:string,accountId:string,limit:number):PatientChartPage{
+function parsePage(raw:unknown,section:ChartSection,branchId:string,petId:string,accountId:string,limit:number):PatientChartPage{
  if(!obj(raw)||raw.kind!=='ok'||raw.branchId!==branchId||raw.accountId!==accountId||
  raw.section!==section||!obj(raw.patient)||!str(raw.patient.id)||
  !str(raw.patient.ownerId)||!str(raw.patient.name)||!str(raw.patient.species)||
@@ -49,26 +56,27 @@ function parsePage(raw:unknown,section:ChartSection,branchId:string,accountId:st
  !(raw.nextCursor===null||cursor(raw.nextCursor))||
  (raw.hasMore&&raw.nextCursor===null))throw Error('Malformed clinical chart response')
  const p=raw.patient
- if(!str(p.id)||!str(p.ownerId)||!validId(p.id)||!validId(p.ownerId)||
+ if(!str(p.id)||!str(p.ownerId)||p.id!==petId||!validId(p.id)||!validId(p.ownerId)||
  !(p.breed===null||str(p.breed))||
  !['male','female','unknown'].includes(String(p.sex))||
- !(p.birthDate===null||str(p.birthDate))||typeof p.taxonomyReviewNeeded!=='boolean')
+ !(p.birthDate===null||(str(p.birthDate)&&/^\d{4}-\d\d-\d\d$/.test(p.birthDate)&&!Number.isNaN(Date.parse(p.birthDate))))||typeof p.taxonomyReviewNeeded!=='boolean')
  throw Error('Malformed clinical patient')
  for(const item of raw.items){
   if(!obj(item)||!str(item.id)||!validId(item.id)||
     item.branchId!==branchId||item.petId!==p.id)
    throw Error('Malformed scoped clinical entry')
-  if(section==='appointments'&&(!str(item.startsAt)||!str(item.endsAt)||
+  if(section==='appointments'&&(!timestamp(item.startsAt)||!timestamp(item.endsAt)||Date.parse(item.endsAt)<=Date.parse(item.startsAt)||
     !str(item.concern)||!['requested','confirmed','checked_in','completed','cancelled','no_show'].includes(String(item.status))))
    throw Error('Malformed appointment')
-  if(section==='records'&&(!str(item.performedAt)||!str(item.procedure)||
+  if(section==='records'&&(!timestamp(item.performedAt)||!str(item.procedure)||!numeric(item.temperatureC,0,60)||!numeric(item.weightKg,0,Number.MAX_VALUE)||
     !(item.comments===null||str(item.comments))||
-    !(item.authoredBy===null||str(item.authoredBy))))
+    !(item.authoredBy===null||(str(item.authoredBy)&&validId(item.authoredBy)))))
    throw Error('Malformed clinical record')
   if(section==='drafts'&&(!str(item.appointmentId)||!validId(item.appointmentId)||
     item.status!=='draft'||!Number.isSafeInteger(item.revision)||
     !str(item.complaint)||!str(item.examination)||!str(item.assessment)||!str(item.plan)||
-    !str(item.authorId)||!str(item.createdAt)||!str(item.updatedAt)))
+    !str(item.authorId)||!validId(item.authorId)||!str(item.editorId)||!validId(item.editorId)||
+    !timestamp(item.createdAt)||!timestamp(item.updatedAt)||Date.parse(item.updatedAt)<Date.parse(item.createdAt)))
    throw Error('Malformed clinical draft')
  }
  return raw as unknown as PatientChartPage
@@ -85,7 +93,7 @@ export async function readStaffPatientChart(user:User,branchId:string,petId:stri
  })
  if(error)return {kind:status(error)==='denied'?'denied':'unavailable'}
  if(obj(data)&&data.kind==='not_found')return {kind:'not_found'}
- return parsePage(data,section,branchId,user.id,limit)
+ return parsePage(data,section,branchId,petId,user.id,limit)
 }
 export async function saveStaffEncounterDraft(user:User,input:DraftInput):Promise<DraftResult>{
  const {branchId,petId,appointmentId,requestId,expectedRevision,complaint,examination,assessment,plan}=input
@@ -103,8 +111,37 @@ export async function saveStaffEncounterDraft(user:User,input:DraftInput):Promis
  if(error)return {kind:status(error)}
  if(!obj(data)||data.kind!=='saved'||data.status!=='draft'||
  !str(data.id)||!validId(data.id)||data.branchId!==branchId||data.petId!==petId||
- data.appointmentId!==appointmentId||data.authorId!==user.id||
+ data.appointmentId!==appointmentId||!str(data.authorId)||!validId(data.authorId)||
+ data.editorId!==user.id||
  !Number.isSafeInteger(data.revision)||Number(data.revision)<1||
- !str(data.updatedAt))throw Error('Malformed clinical draft acknowledgement')
+ !timestamp(data.updatedAt))throw Error('Malformed clinical draft acknowledgement')
  return data as SavedDraft
+}
+
+/** Only the server chooses the branch/pet/author/time from this exact appointment.
+ * Direct public.clinical_records inserts and branch_id are explicitly prohibited.
+ */
+export async function createStaffAppointmentClinicalRecord(user:User,input:ClinicalRecordInput):
+ Promise<SavedClinicalRecord|{kind:'denied'|'unavailable'|'conflict'|'invalid'}>{
+ if(!validId(input.appointmentId)||!validId(input.requestId)||
+  typeof input.procedure!=='string'||input.procedure.trim().length<1||
+  input.procedure.length>500||
+  !numeric(input.temperatureC??null,0,60)||
+  !numeric(input.weightKg??null,0,Number.MAX_VALUE)||
+  !(input.comments===undefined||input.comments===null||
+     (typeof input.comments==='string'&&input.comments.length<=8000)))return {kind:'invalid'}
+ await authenticate(user)
+ const {data,error}=await client().rpc('create_staff_appointment_clinical_record',{
+  p_appointment:input.appointmentId,p_request_id:input.requestId,
+  p_procedure:input.procedure,p_temperature_c:input.temperatureC??null,
+  p_weight_kg:input.weightKg??null,p_comments:input.comments??null
+ })
+ if(error)return {kind:status(error)}
+ if(!obj(data)||data.kind!=='saved'||!str(data.id)||!validId(data.id)||
+  data.appointmentId!==input.appointmentId||
+  !str(data.branchId)||!validId(data.branchId)||
+  !str(data.petId)||!validId(data.petId)||
+  data.authorId!==user.id||!timestamp(data.performedAt))
+  throw Error('Malformed clinical record acknowledgement')
+ return data as SavedClinicalRecord
 }

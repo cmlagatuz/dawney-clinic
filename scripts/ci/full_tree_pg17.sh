@@ -239,12 +239,40 @@ supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql
 supabase/tests/clinical_chart_encounter_pg17.sql
 web/src/lib/clinical-chart.ts
 CLINICAL16_ONLY
-) <(git diff --name-only e71f54a232198b8e2c0e3ba72aab76aab25dcd98 "$EXPECTED_HEAD_SHA") ||
- fail 'clinical child expanded beyond exact six authorized backend/test/CI paths'
+) <(git diff --name-only e71f54a232198b8e2c0e3ba72aab76aab25dcd98 eb030489626babb9bb0a61a387c2d49df2f71730) ||
+ fail 'frozen PR106 exact original six-path clinical delivery was modified'
+git fetch --no-tags origin 'refs/pull/106/head:refs/remotes/origin/frozen-pr106'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr106)" == eb030489626babb9bb0a61a387c2d49df2f71730 &&
+  "$(git rev-parse "eb030489626babb9bb0a61a387c2d49df2f71730:scripts/ci/full_tree_pg17.sh")" == 81ef5e907829ccd36f96a8bd78289c6d3443f1fe ]] ||
+ fail 'frozen SOL-reviewed PR106 changed'
+git merge-base --is-ancestor eb030489626babb9bb0a61a387c2d49df2f71730 "$EXPECTED_HEAD_SHA" ||
+ fail 'proposed security remediation missing frozen PR106 ancestry'
+diff -u <(cat <<'CLINICAL17_ONLY'
+.github/workflows/clinical-chart-pg17.yml
+docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md
+scripts/ci/full_tree_pg17.sh
+scripts/recovery/tests/clinical17-signed-restore.sh
+supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql
+supabase/tests/clinical_provenance_pagination_pg17.sql
+web/src/lib/clinical-chart.ts
+CLINICAL17_ONLY
+) <(git diff --name-only eb030489626babb9bb0a61a387c2d49df2f71730 "$EXPECTED_HEAD_SHA") ||
+ fail 'clinical remediation expanded outside seven authorized security/recovery paths'
+while read -r path sha;do
+ [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+   "$(git hash-object "$path")" == "$sha" ]] ||
+ fail "clinical17 reviewed source drift: $path"
+done <<'CLINICAL17_BLOBS'
+.github/workflows/clinical-chart-pg17.yml 290a0dd049de4d0006afa6d5739c1f030386e086
+docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 48069e896afc9f52ddea5eaaf5777eb835d802e7
+scripts/recovery/tests/clinical17-signed-restore.sh c879ee38563f9e47dfd7860eb30592583a70c8c0
+supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql c1018e711cc01055e4ef3269caf261c05036fd58
+supabase/tests/clinical_provenance_pagination_pg17.sql ee20ce8d21fdac11dfd2cf30e7e8f1209649fb84
+web/src/lib/clinical-chart.ts baa7b28eba264a271c636f947fa9f467c87b4c37
+CLINICAL17_BLOBS
 while read -r file sha; do
- [[ "$(git rev-parse "HEAD:$file")" == "$sha" &&
-    "$(git hash-object "$file")" == "$sha" ]] ||
- fail "clinical #16 reviewed source changed: $file"
+ [[ "$(git rev-parse "eb030489626babb9bb0a61a387c2d49df2f71730:$file")" == "$sha" ]] ||
+ fail "frozen PR106 #16 historical source changed: $file"
 done <<'CLINICAL16_BLOBS'
 .github/workflows/clinical-chart-pg17.yml 8a45eddfdd52110ab403f0a2bc32161d4a4d5b05
 docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 346b0a668391fd2efc59b1bc2525bb5a07b7c280
@@ -470,6 +498,9 @@ while IFS= read -r path; do
   docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md|\
   supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql|\
   supabase/tests/clinical_chart_encounter_pg17.sql|\
+  scripts/recovery/tests/clinical17-signed-restore.sh|\
+  supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql|\
+  supabase/tests/clinical_provenance_pagination_pg17.sql|\
   web/src/lib/clinical-chart.ts) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac

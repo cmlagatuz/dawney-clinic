@@ -5,6 +5,9 @@ on:
       - '.github/workflows/clinical-chart-pg17.yml'
       - 'supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql'
       - 'supabase/tests/clinical_chart_encounter_pg17.sql'
+      - 'supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql'
+      - 'supabase/tests/clinical_provenance_pagination_pg17.sql'
+      - 'scripts/recovery/tests/clinical17-signed-restore.sh'
       - 'web/src/lib/clinical-chart.ts'
       - 'docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md'
       - 'scripts/ci/full_tree_pg17.sh'
@@ -53,8 +56,11 @@ jobs:
           done <<'SOURCE'
           supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql a017d6f11819fcd7dba743cf37e4533342d8a5a5
           supabase/tests/clinical_chart_encounter_pg17.sql d223db9503a5145372b0603445d05e645dd079fa
-          web/src/lib/clinical-chart.ts 62221ba4c8a854456da99f044ca1ddb36acbed03
-          docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 346b0a668391fd2efc59b1bc2525bb5a07b7c280
+          supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql c1018e711cc01055e4ef3269caf261c05036fd58
+          supabase/tests/clinical_provenance_pagination_pg17.sql ee20ce8d21fdac11dfd2cf30e7e8f1209649fb84
+          scripts/recovery/tests/clinical17-signed-restore.sh c879ee38563f9e47dfd7860eb30592583a70c8c0
+          web/src/lib/clinical-chart.ts baa7b28eba264a271c636f947fa9f467c87b4c37
+          docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 48069e896afc9f52ddea5eaaf5777eb835d802e7
           SOURCE
           while read -r file sha; do
             test "$(git hash-object "$file")" = "$sha"
@@ -125,7 +131,9 @@ jobs:
           pg supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql
           pg supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql
           pg supabase/tests/clinical_chart_encounter_pg17.sql
-          echo 'PASS: isolated PG17 clinical drafts, scoped charts 50/51, audit, revision, role and history'
+          pg supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql
+          pg supabase/tests/clinical_provenance_pagination_pg17.sql
+          echo 'PASS: isolated PG17 clinical #16 + #17 provenance, immutable draft cursor, cross-vet audit, RLS and history'
 
       - name: Genuine two-client concurrent clinician edit race (same appointment)
         shell: bash
@@ -176,3 +184,9 @@ jobs:
           test "$(psql -XAt -c "select count(*) from clinic_private.clinical_draft_audit")" = 1
           test "$(psql -XAt -c "select count(*) from clinic_private.clinical_draft_requests")" = 1
           echo 'PASS: real concurrent PG17 writes serialized, one committed, one stale-version conflict; audit exactly once'
+
+      - name: Ephemeral signed and encrypted PostgreSQL17 clinical recovery
+        shell: bash
+        run: |
+          bash -n scripts/recovery/tests/clinical17-signed-restore.sh
+          bash scripts/recovery/tests/clinical17-signed-restore.sh
