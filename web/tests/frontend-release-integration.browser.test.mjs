@@ -266,7 +266,12 @@ test('CLOUD integrated owner request to staff queue/clinical chart/pharmacy with
           await browser.value('document.querySelector("input[name=slot]").click();true')
           await browser.value('document.querySelector("form[aria-label=\'Appointment request\'] input[placeholder]").focus();true')
           await browser.send('Input.insertText',{text:'Synthetic cross-module appointment'})
-          await browser.until('document.querySelector("form[aria-label=\'Appointment request\'] button[type=submit]")?.disabled===false')
+          try {
+            await browser.until('document.querySelector("form[aria-label=\'Appointment request\'] button[type=submit]")?.disabled===false',5000)
+          } catch {
+            const fields=await browser.value('(()=>{const f=document.querySelector("form[aria-label=\'Appointment request\']");return {selects:[...f.querySelectorAll("select")].map(x=>({value:x.value,options:x.options.length})),chosen:!!f.querySelector("input[name=slot]:checked"),reason:f.querySelector("input[placeholder]")?.value,disabled:f.querySelector("button[type=submit]")?.disabled,warnings:[...f.querySelectorAll("[role=alert],[role=status]")].map(x=>x.textContent)}})()')
+            assert.fail('Owner form remains blocked by current frontend eligibility: '+JSON.stringify(fields))
+          }
           await browser.value('(()=>{const b=document.querySelector("form[aria-label=\'Appointment request\'] button[type=submit]");b.click();b.click();return true})()')
           await browser.until('document.querySelector("form[aria-label=\'Appointment request\'] [role=alert]")?.textContent.includes("We could not save")',9000)
           await browser.value('(()=>{const b=document.querySelector("form[aria-label=\'Appointment request\'] button[type=submit]");b.click();b.click();return true})()')
