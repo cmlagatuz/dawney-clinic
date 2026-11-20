@@ -13,7 +13,7 @@ function syntheticPublicSession() {
   const theme = new URL(location.href).searchParams.get('theme') === 'dark' ? 'dark' : 'light'
   const failure = new URL(location.href).searchParams.get('case') === 'failure'
   localStorage.setItem('dawney-theme', theme)
-  window.__cloudAcceptance = { writes: [], unexpected: [], failures: 0 }
+  window.__cloudAcceptance = { writes: [], unexpected: [], reads: [], failures: 0 }
   const original = window.fetch.bind(window)
   const reply = (value, status = 200) => new Response(JSON.stringify(value), {
     status, headers: { 'content-type': 'application/json' }
@@ -30,6 +30,7 @@ function syntheticPublicSession() {
       window.__cloudAcceptance.writes.push(request.method)
       return reply({ message: 'Synthetic reads only' }, 403)
     }
+    window.__cloudAcceptance.reads.push(url.pathname)
     if (url.pathname === '/auth/v1/user') return reply({ message: 'No synthetic session' }, 401)
     if (url.pathname === '/rest/v1/clinic_branches') {
       const id = url.searchParams.get('id')?.replace(/^eq\./, '')
@@ -119,7 +120,18 @@ test('CLOUD: public routes, Naga/Cavite, two themes and three widths, fail close
       // Backend outage is distinguishable from a deliberately unapproved
       // service policy; pressing Try again must never submit any request.
       await browser.goto(origin + '/book?case=failure&theme=light')
-      await browser.until('!!document.querySelector("#main-content [role=alert] button")')
+      try {
+        await browser.until('!!document.querySelector("#main-content [role=alert] button")', 5000)
+      } catch {
+        const snapshot = await browser.value(`({
+          messages: [...document.querySelectorAll('#main-content [role=alert],#main-content [role=status]')]
+            .map(el => el.textContent?.trim().slice(0, 120)),
+          reads: window.__cloudAcceptance?.reads,
+          policyFailures: window.__cloudAcceptance?.failures,
+          pending: !!document.querySelector('#main-content .spinner')
+        })`)
+        assert.fail('Synthetic backend failure was not announced: ' + JSON.stringify(snapshot))
+      }
       assert.equal(await browser.value('document.querySelector("#main-content form") === null'), true)
       await browser.value('document.querySelector("#main-content [role=alert] button").click(); true')
       await browser.until('document.querySelector("#main-content [role=status]")?.textContent.includes("not open yet")')
