@@ -34,6 +34,7 @@
 .clinical-chart-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:start;gap:.75rem;
   padding:1.2rem;border-bottom:1px solid var(--border)}
 .clinical-chart-head h2{font-size:1.3rem}
+.clinical-chart-head h2:focus{outline:2px solid var(--focus);outline-offset:3px;border-radius:3px}
 .clinical-chart-head p{margin:.4rem 0;max-width:75ch}
 .clinical-tabs{display:flex;gap:.2rem;overflow-x:auto;scrollbar-width:thin;
   border-bottom:1px solid var(--border);padding:.55rem .65rem}
