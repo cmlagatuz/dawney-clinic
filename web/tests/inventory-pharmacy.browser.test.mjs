@@ -231,6 +231,7 @@ test('CLOUD Issue78: real Chromium pharmacy isolation, FEFO, statuses, keyboard 
           await browser.value('document.querySelector(".pharmacy-medicine").click();true')
           await browser.until('!!document.querySelector(".pharmacy-detail")')
           await browser.until('document.activeElement===document.querySelector(".pharmacy-detail-head h2")')
+          await browser.until('!!document.querySelector(".pharmacy-batches")')
           // One code has available 12, a separate configured code has true out-of-stock;
           // unconfigured third catalog item never gets a fabricated zero balance.
           const ctx=await browser.value(`({
