@@ -136,7 +136,9 @@ export function ChartIntegration({accountId,branchId,petId,ownerId,appointmentId
           disabled={paging} onClick={loadMore}>{paging?'Loading older entries…':'Load older entries (up to 50)'}</button>
       </div>}
       {!view.page.hasMore&&<p className="clinical-muted">End of verified {section} history · {view.page.items.length} entries loaded.</p>}
-      {mode==='encounter'&&<EncounterEditor key={appointmentId} accountId={accountId}
+      {mode==='encounter'&&<EncounterEditor
+        key={appointmentId+':'+(view.page.items.find(item=>'appointmentId' in item&&item.appointmentId===appointmentId)?.id??'none')}
+        accountId={accountId}
         branchId={branchId} petId={petId} appointmentId={appointmentId} role={role}
         page={view.page} port={port} syntheticSave={syntheticSave}
         onDenied={onDenied} onReload={retry}/>}
