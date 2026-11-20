@@ -38,10 +38,10 @@ function install(){
     calls.reads.push({account,branch,pet,owner,section,cursor,limit})
     if(scenario==='expired'||scenario==='revoked'||account!==id(1))return reply({code:'42501'},403)
     if(scenario==='missing')return reply({code:'PGRST202'},404)
-    if(scenario==='network')throw new TypeError('Failed to fetch fixture')
+    if(scenario==='network'||(scenario==='page-fail'&&cursor))throw new TypeError('Failed to fetch fixture')
     if(scenario==='not-found'||pet!==id(3))return reply({kind:'not_found'})
     if(scenario==='late'&&branch===id(2))await new Promise(resolve=>setTimeout(resolve,220))
-    const count=scenario==='pages'?51:section==='drafts'?1:2
+    const count=scenario==='pages'||scenario==='page-fail'?51:section==='drafts'?1:2
     const all=Array.from({length:count},(_,n)=>{
       const base={id:id(100+n),petId:id(3),branchId:branch}
       if(section==='appointments')return {...base,startsAt:stamp(n),
@@ -130,6 +130,14 @@ test('CLOUD chart: live Chromium synthetic 50/51, responsive theme, denied, stal
         }
       }
       assert.equal(await browser.value('window.__clinicalQA.reads.every(r=>r.limit==="50")'),true)
+      await browser.goto(fixture(origin,'page-fail'))
+      await browser.until('document.querySelectorAll(".clinical-visit").length===50')
+      await browser.value('document.querySelector(".clinical-chart-pagination button").click();true')
+      await browser.until('document.body.textContent.includes("Network interruption")')
+      assert.equal(await browser.value('document.querySelectorAll(".clinical-visit").length'),0,
+        'a failed next page invalidates previously visible sensitive chart data')
+      await browser.value('[...document.querySelectorAll("button")].find(b=>b.textContent.includes("Retry secure chart read")).click();true')
+      await browser.until('document.querySelectorAll(".clinical-visit").length===50')
       await browser.goto(origin+'/tests/fixtures/clinical-chart-fixture.html?case=ok&role=receptionist')
       await browser.until('!!document.querySelector(".clinical-verified-demographics")')
       await browser.value(pick('history'))
