@@ -6,6 +6,7 @@
  * never called as a standalone bypass of its pre-request durable journal.
  */
 import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 import {ensure,sha256,isUuid,verifyOwnerGate} from './guards.mjs';
@@ -116,27 +117,65 @@ function checkRequest(req,runId){
  * The call is not a standalone execution path: real HTTP must be wired into the
  * original, signed, journal-first acceptance runner in a future separate approval.
  */
-export function prepareStagingRequest({request,approval,trust,staging,now=Date.now()}={}){
- const gate=verifyOwnerGate({approval,trust,staging,now});
+// The only authoritative body is a PRIVATE immutable copy of validated bytes.
+// Never expose the original Buffer or a mutable JSON object as canonical state.
+// Each read yields a fresh copy; a future journal-bound sender MUST call
+// materializeValidatedStagingBody() at the actual outbound consumption boundary.
+const validatedBodies=new WeakMap();
+const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
+export function materializeValidatedStagingBody(plan){
+ const canonical=validatedBodies.get(plan);
+ ensure(canonical!==undefined,'unvalidated_request_plan');
+ ensure(plan.bodySha256===canonical.sha256&&plan.bodyEncoding===canonical.encoding&&
+  digest(Buffer.from(canonical.base64,'base64'))===canonical.sha256,
+  'staging_body_integrity');
+ const copy=Buffer.from(canonical.base64,'base64');
+ if(canonical.encoding==='json-utf8'){
+  try{return JSON.parse(copy.toString('utf8'));}
+  catch{throw Error('HOSTED_ACCEPTANCE_BLOCKED:staging_body_integrity');}
+ }
+ return copy;
+}
+/**
+ * OFFLINE only, never sends. Clock is ALWAYS internally sourced.
+ * A future sender must consume materializeValidatedStagingBody(plan) ONLY from
+ * the existing journal-first runHostedAcceptance boundary. Never trust a
+ * caller's previous .body copy or editable arbitrary descriptor.
+ */
+export function prepareStagingRequest(options={}){
+ ensure(plain(options)&&!Object.hasOwn(options,'now'),
+  'caller_time_forbidden');
+ const {request,approval,trust,staging}=options;
+ const gate=verifyOwnerGate({approval,trust,staging,now:Date.now()});
  ensure(staging.ref===STAGING_REF&&gate.origin===STAGING_ORIGIN&&
   staging.productionRef==='lgimhirgvresvbsdugac','adapter_staging_only');
  ensure(approval.claims.stagingPlanSha256===stagingPlanSha256(),
   'staging_plan_content_not_approved');
  const kind=checkRequest(request,gate.runId);
- // Preserve caller's immutable logical request; never inject ambient credentials,
- // cookies, service-role keys, custom hosts or automatic redirection.
- const data=Object.hasOwn(request,'body') ?
-  {body:Buffer.isBuffer(request.body)?Buffer.from(request.body):structuredClone(request.body)} : {};
- return Object.freeze({
-  origin:STAGING_ORIGIN,
-  url:STAGING_ORIGIN+request.path,
-  method:request.method,
-  responseKind:kind,
-  redirectPolicy:'error',
-  credentialsPolicy:'omit',
-  headers:Object.freeze({...request.headers}),
-  ...data
- });
+ const hasBody=Object.hasOwn(request,'body');
+ // JSON bytes are serialized from exact-key validated fields, so no extra
+ // field can enter the snapshot; PDF bytes are copied, never shared.
+ const bytes=hasBody?(Buffer.isBuffer(request.body)?
+  Buffer.from(request.body):Buffer.from(JSON.stringify(request.body),'utf8')):null;
+ const canonical=hasBody?Object.freeze({
+  encoding:Buffer.isBuffer(request.body)?'pdf-bytes':'json-utf8',
+  base64:bytes.toString('base64'),sha256:digest(bytes)
+ }):null;
+ const descriptor={
+  origin:STAGING_ORIGIN,url:STAGING_ORIGIN+request.path,method:request.method,
+  responseKind:kind,redirectPolicy:'error',credentialsPolicy:'omit',
+  headers:Object.freeze({...request.headers})
+ };
+ if(canonical){
+  Object.defineProperties(descriptor,{
+   bodySha256:{value:canonical.sha256,enumerable:true},
+   bodyEncoding:{value:canonical.encoding,enumerable:true},
+   body:{enumerable:true,get(){return materializeValidatedStagingBody(descriptor);}}
+  });
+ }
+ const plan=Object.freeze(descriptor);
+ if(canonical)validatedBodies.set(plan,canonical);
+ return plan;
 }
 
 // Direct execution is permanently inert, regardless of environment variables.

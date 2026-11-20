@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {generateKeyPairSync,createPublicKey,sign as signBytes} from 'node:crypto';
+import {generateKeyPairSync,createPublicKey,sign as signBytes,createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {harnessHashes,sha256,BACKEND_SOURCE_SHA} from '../guards.mjs';
-import {prepareStagingRequest,stagingPlanSha256,STAGING_ORIGIN,STAGING_REF} from '../staging-request-plan.mjs';
+import {prepareStagingRequest,materializeValidatedStagingBody,stagingPlanSha256,STAGING_ORIGIN,STAGING_REF} from '../staging-request-plan.mjs';
 
 // Disposable signing key and synthetic JWT-like token: never a hosted secret.
 const {privateKey,publicKey}=generateKeyPairSync('rsa',{modulusLength:2048});
@@ -34,7 +34,6 @@ function approvalFor(changes={}){
   approval:{claims,signature},
   trust:{publicKey:pub,pinnedSha256:pinned},
   staging:{ref:STAGING_REF,origin:STAGING_ORIGIN,productionRef:'lgimhirgvresvbsdugac'},
-  now
  };
 }
 const req=(actor,method,path,body,extra={})=>({
@@ -224,4 +223,78 @@ test('direct CLI execution is inert with an approval-like env flag',()=>{
  assert.equal(child.stderr.trim(),
   'HOSTED_ACCEPTANCE_BLOCKED:staging_plan_no_network_sender');
  assert.equal(child.stdout,'');
+});
+
+test('P2-01 JSON snapshot excludes mutations and added unapproved fields after validation',()=>{
+ const data=booking();
+ const request=req('ownerA','POST','/rest/v1/rpc/request_service_appointment',data,
+  {'Content-Type':'application/json'});
+ const p=plan(request);
+ const original=JSON.stringify(data);
+ const expectedHash=createHash('sha256').update(original).digest('hex');
+ assert.equal(p.bodyEncoding,'json-utf8');
+ assert.equal(p.bodySha256,expectedHash);
+ data.p_details='REAL_PATIENT_DATA';
+ data.p_unreviewed='a forged field';
+ request.body.p_concern='medical record';
+ const copy=p.body;
+ copy.p_details='REAL_PATIENT_DATA';
+ copy.p_unreviewed='shadow';
+ const good=materializeValidatedStagingBody(p);
+ assert.equal(good.p_details,marker);
+ assert.equal(good.p_concern,marker);
+ assert.deepEqual(Object.keys(good).sort(),Object.keys(booking()).sort());
+ assert.equal(JSON.stringify(good),original);
+ assert.notStrictEqual(p.body,p.body);
+ assert.throws(()=>{p.body={...good,p_unreviewed:'unsafe'};},TypeError);
+ assert.throws(()=>{p.bodySha256='0'.repeat(64);},TypeError);
+});
+test('P2-01 binary PDF snapshot is byte-perfect, defensive and digest-bound',()=>{
+ const raw=pdf();
+ const expected=Buffer.from(raw);
+ const request=req('ownerA','POST','/storage/v1/object/clinical-attachments/'+key,
+  raw,{'Content-Type':'application/pdf','x-upsert':'false'});
+ const p=plan(request);
+ assert.equal(p.bodyEncoding,'pdf-bytes');
+ assert.equal(p.bodySha256,createHash('sha256').update(expected).digest('hex'));
+ raw[0]=0;
+ request.body[1]=0;
+ const copy=p.body;
+ copy[2]=0;
+ const verified=materializeValidatedStagingBody(p);
+ assert.equal(verified.equals(expected),true);
+ assert.equal(p.body.equals(expected),true);
+ assert.notStrictEqual(p.body,p.body);
+ assert.equal(createHash('sha256').update(verified).digest('hex'),p.bodySha256);
+ assert.throws(()=>materializeValidatedStagingBody({...p}),{
+  message:'HOSTED_ACCEPTANCE_BLOCKED:unvalidated_request_plan'
+ });
+ assert.throws(()=>Object.defineProperty(p,'body',{value:raw}),TypeError);
+});
+test('P2-02 caller cannot revive a validly signed EXPIRED approval with past time',()=>{
+ const past=Date.now()-7200000;
+ const ctx=approvalFor({notBefore:past-1000,expiresAt:past+60000});
+ const r=req('anonymous','GET','/auth/v1/.well-known/jwks.json');
+ assert.throws(()=>prepareStagingRequest({...ctx,request:r,now:past}),{
+  message:'HOSTED_ACCEPTANCE_BLOCKED:caller_time_forbidden'
+ });
+ denied(r,'approval_expired',ctx);
+});
+test('forged owner, invalid signatures and wrong signed source/host are rejected',()=>{
+ const r=req('anonymous','GET','/auth/v1/.well-known/jwks.json');
+ denied(r,'owner_approval_scope',approvalFor({ownerApproved:false}));
+ denied(r,'backend_source_not_approved',approvalFor({backendSourceSha:'a'.repeat(40)}));
+ denied(r,'staging_plan_content_not_approved',
+  approvalFor({stagingPlanSha256:'b'.repeat(64)}));
+ denied(r,'staging_origin_mismatch',approvalFor({origin:'https://not-staging.example.invalid'}));
+});
+test('inert planner exports no networking credential or trusted post-plan mutation path',()=>{
+ const module=readFileSync(new URL('../staging-request-plan.mjs',import.meta.url),'utf8');
+ assert.doesNotMatch(module,/fetch\s*\(|WebSocket|XMLHttpRequest/);
+ assert.doesNotMatch(module,/from\s+['"](?:node:)?(?:https?|net|tls|undici|@supabase)/);
+ const read=plan(req('anonymous','GET','/auth/v1/.well-known/jwks.json'));
+ assert.equal(Object.hasOwn(read,'body'),false);
+ assert.throws(()=>materializeValidatedStagingBody(read),{
+  message:'HOSTED_ACCEPTANCE_BLOCKED:unvalidated_request_plan'
+ });
 });
