@@ -80,3 +80,27 @@
   .clinical-actions button{width:100%}
 }
 @media(prefers-reduced-motion:reduce){.clinical-workspace *{scroll-behavior:auto;transition:none!important;animation:none!important}}
+
+
+/* Verified chart RPC preview: no global CSS or unbounded sideways scroll. */
+.clinical-chart-gateway{min-width:0;max-width:100%;display:grid;gap:.85rem;margin:1rem 0}
+.clinical-verified-demographics,.clinical-encounter-editor,.clinical-chart-context{background:var(--surface-2);
+  border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;min-width:0}
+.clinical-verified-demographics dl,.clinical-attribution{display:grid;grid-template-columns:minmax(110px,1fr) minmax(0,2fr);
+  gap:.5rem .8rem;margin:0 0 .8rem}
+.clinical-verified-demographics dt,.clinical-attribution dt{color:var(--muted);font-weight:650}
+.clinical-verified-demographics dd,.clinical-attribution dd{margin:0;overflow-wrap:anywhere}
+.clinical-chart-pagination{padding:.85rem;border:1px solid var(--border);border-radius:var(--radius-sm)}
+.clinical-chart-pagination p{margin:0 0 .7rem}
+.clinical-chart-context .clinical-actions{align-items:stretch}
+.clinical-chart-context a{min-width:0;white-space:normal}
+.clinical-encounter-editor textarea{resize:vertical;min-height:6.5rem}
+.clinical-encounter-editor .clinical-feedback{overflow-wrap:anywhere}
+.clinical-encounter-editor button:disabled{cursor:not-allowed;opacity:.67}
+.clinical-chart-gateway .clinical-visit{overflow-wrap:anywhere}
+@media(max-width:600px){
+  .clinical-verified-demographics dl,.clinical-attribution{grid-template-columns:1fr}
+  .clinical-chart-pagination button{width:100%}
+  .clinical-chart-context a{width:100%}
+  .clinical-encounter-editor,.clinical-verified-demographics,.clinical-chart-context{padding:.7rem}
+}
