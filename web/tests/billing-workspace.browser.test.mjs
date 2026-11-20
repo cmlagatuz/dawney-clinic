@@ -16,7 +16,9 @@ function installBillingFixture(){
  const theme=params.get('theme')==='dark'?'dark':'light'
  localStorage.setItem('dawney-theme',theme)
  // The standalone test-only fixture lacks production index.html theme-init.js.
- document.documentElement.setAttribute('data-theme',theme)
+ if(document.documentElement)document.documentElement.setAttribute('data-theme',theme)
+ else document.addEventListener('DOMContentLoaded',
+   ()=>document.documentElement?.setAttribute('data-theme',theme),{once:true})
  const user={id:actor==='staff'?ids.staff:ids.owner,
    aud:'authenticated',role:'authenticated',email:'qa-billing@example.test',
    email_confirmed_at:'2025-01-01T00:00:00Z',created_at:'2025-01-01T00:00:00Z',
@@ -138,7 +140,11 @@ test('CLOUD billing: protected production routes never invent owner/staff financ
      await browser.send('Page.addScriptToEvaluateOnNewDocument',
        {source:'('+installBillingFixture.toString()+')()'})
      await browser.goto(base+'/app/invoices?actor=owner&theme=light')
-     await browser.until('document.querySelector("#main-content")?.textContent.includes("Owner billing records are not available yet")',9000)
+     try { await browser.until('document.querySelector("#main-content")?.textContent.includes("Owner billing records are not available yet")',7000) }
+     catch {
+       const state=await browser.value('({path:location.pathname,body:document.body?.textContent.slice(0,650),root:!!document.getElementById("root"),storage:!!localStorage.getItem("dawney.auth.v1"),calls:window.__qaBilling?.calls})')
+       assert.fail('Owner route has not shown safe unavailability: '+JSON.stringify(state))
+     }
      assert.equal(await browser.value('!!document.querySelector(\'a[href="/app/billing"]\')'),false)
      assert.equal(await browser.value('window.__qaBilling.calls.some(x=>x.includes("/invoice")||x.includes("/payment")||x.includes("/receipt"))'),false)
      await browser.goto(base+'/app/billing?actor=staff&theme=light')
@@ -178,7 +184,11 @@ test('CLOUD billing: synthetic branch invoice/detail/payment/receipt UI, respons
          {width,height:900,deviceScaleFactor:1,mobile:false})
        for(const theme of ['light','dark']){
          await browser.goto(base+fixtures+'?actor=staff&case=multi&theme='+theme)
-         await browser.until('!!document.querySelector("#billing-branch")',9000)
+         try { await browser.until('!!document.querySelector("#billing-branch")',7000) }
+         catch {
+           const state=await browser.value('({body:document.body?.textContent.slice(0,600),root:!!document.getElementById("root"),calls:window.__qaBilling?.calls})')
+           assert.fail('Synthetic BillingStaffWorkspace not mounted: '+JSON.stringify(state))
+         }
          assert.equal(await browser.value('document.querySelectorAll(".billing-invoice").length'),0,
            'two branches must require explicit choice')
          await selectNative(browser,'#billing-branch',naga)
