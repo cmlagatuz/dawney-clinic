@@ -306,7 +306,8 @@ test('CLOUD Issue78: real Chromium pharmacy isolation, FEFO, statuses, keyboard 
       })`)
       assert.equal(branch.text.includes('LOT-C-45'),true,'Cavite separate lot')
       assert.equal(branch.text.includes('LOT-N-20'),false,'no Naga lot in Cavite')
-      assert.equal(branch.text.includes('2 vial available'),true,'branch-specific available units')
+      assert.equal(await browser.value('document.querySelector(".pharmacy-medicine").textContent.includes("2 vial available")'),
+        true,'branch-specific quantity is shown on the authorized catalog result')
       assert.deepEqual(branch.mutations,[])
       assert.deepEqual(branch.blocked,[])
       // Branch and account revocation cannot display previous records.
