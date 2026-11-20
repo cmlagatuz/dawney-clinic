@@ -101,6 +101,23 @@ while IFS= read -r path; do
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
+# Frozen SOL-reviewed parent PR75 must be unchanged. This child can only
+# repair its offline staging planner, tests, docs and THIS source guard.
+git fetch --no-tags origin 'refs/pull/75/head:refs/remotes/origin/frozen-pr75'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr75)" == c9995b0e44469408eaa5f46261f2702d3590fc12 &&
+   "$(git rev-parse "c9995b0e44469408eaa5f46261f2702d3590fc12:scripts/hosted-acceptance/staging-request-plan.mjs")" == 2654049c6221efea7a1b9c138c7c88442d99961e &&
+   "$(git rev-parse "c9995b0e44469408eaa5f46261f2702d3590fc12:scripts/hosted-acceptance/tests/staging-request-plan.test.mjs")" == 6287fd01a8b51b254083058a33643280d47496db ]] ||
+ fail 'PR75 reviewed transport planner parent/source moved'
+git merge-base --is-ancestor c9995b0e44469408eaa5f46261f2702d3590fc12 "$EXPECTED_HEAD_SHA" ||
+ fail 'offline remediation is not descended from reviewed PR75'
+diff -u <(cat <<'P2_REMEDIATION_ONLY'
+docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md
+scripts/ci/full_tree_pg17.sh
+scripts/hosted-acceptance/staging-request-plan.mjs
+scripts/hosted-acceptance/tests/staging-request-plan.test.mjs
+P2_REMEDIATION_ONLY
+) <(git diff --name-only c9995b0e44469408eaa5f46261f2702d3590fc12 "$EXPECTED_HEAD_SHA") ||
+ fail 'staging planner remediation expanded outside four authorized paths'
 # Offline-only PR75 staging transport plan and mock coverage: strict blob pins.
 # Grok-reviewed PR68 acceptance/guard source remains byte-identical to PR68.
 while read -r path sha; do
@@ -108,9 +125,9 @@ while read -r path sha; do
     "$(git hash-object "$path")" == "$sha" ]] ||
   fail "unreviewed staging transport-preparation source drift: $path"
 done <<'STAGING_PREP_BLOBS'
-scripts/hosted-acceptance/staging-request-plan.mjs 2654049c6221efea7a1b9c138c7c88442d99961e
-scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 6287fd01a8b51b254083058a33643280d47496db
-docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 5c61c7182d98cd48e519f8091859a69d59f0ab9c
+scripts/hosted-acceptance/staging-request-plan.mjs bc23dae4ba238b74c6e52522e6e95d46d9729826
+scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 15d53a4d931218becc3a4c2641323f4ce5c7e6a3
+docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 2dc5cc7e3deb4951468d6875daa5c49f015b4cc8
 .github/workflows/staging-acceptance-plan-offline.yml 2c04fb85121b4d714b7dc319c39da4e82727566f
 STAGING_PREP_BLOBS
 while read -r path sha; do
