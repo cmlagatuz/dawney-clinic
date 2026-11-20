@@ -263,13 +263,18 @@ test('CLOUD integrated owner request to staff queue/clinical chart/pharmacy with
           await browser.value('localStorage.setItem("cloud.integrated.day",'+JSON.stringify(date)+');true')
           await browser.value('(()=>{const el=document.querySelectorAll("form[aria-label=\'Appointment request\'] select")[2];el.value='+JSON.stringify(date)+';el.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
           await browser.until('!!document.querySelector("input[name=slot]")')
-          await browser.value('document.querySelector("input[name=slot]").click();true')
+          await browser.value('document.querySelector("input[name=slot]").focus();true')
+          await browser.send('Input.dispatchKeyEvent',
+            {type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32,text:' ',unmodifiedText:' '})
+          await browser.send('Input.dispatchKeyEvent',
+            {type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32})
+          await browser.until('!!document.querySelector("input[name=slot]:checked")')
           await browser.value('document.querySelector("form[aria-label=\'Appointment request\'] input[placeholder]").focus();true')
           await browser.send('Input.insertText',{text:'Synthetic cross-module appointment'})
           try {
             await browser.until('document.querySelector("form[aria-label=\'Appointment request\'] button[type=submit]")?.disabled===false',5000)
           } catch {
-            const fields=await browser.value('(()=>{const f=document.querySelector("form[aria-label=\'Appointment request\']");return {selects:[...f.querySelectorAll("select")].map(x=>({value:x.value,options:x.options.length})),chosen:!!f.querySelector("input[name=slot]:checked"),reason:f.querySelector("input[placeholder]")?.value,disabled:f.querySelector("button[type=submit]")?.disabled,warnings:[...f.querySelectorAll("[role=alert],[role=status]")].map(x=>x.textContent)}})()')
+            const fields=await browser.value('(()=>{const f=document.querySelector("form[aria-label=\'Appointment request\']");return {selects:[...f.querySelectorAll("select")].map(x=>({value:x.value,options:x.options.length})),chosen:!!f.querySelector("input[name=slot]:checked"),reason:f.querySelector("input[placeholder]")?.value,disabled:f.querySelector("button[type=submit]")?.disabled,patientDisabled:f.querySelector("select")?.selectedOptions[0]?.disabled,radio:[...f.querySelectorAll("input[name=slot]")].map(x=>({value:x.value,checked:x.checked})),warnings:[...f.querySelectorAll("[role=alert],[role=status]")].map(x=>x.textContent),requests:JSON.parse(localStorage.getItem("cloud.integrated.syntheticAudit")||"[]").map(x=>x.path)}})()')
             assert.fail('Owner form remains blocked by current frontend eligibility: '+JSON.stringify(fields))
           }
           await browser.value('(()=>{const b=document.querySelector("form[aria-label=\'Appointment request\'] button[type=submit]");b.click();b.click();return true})()')
