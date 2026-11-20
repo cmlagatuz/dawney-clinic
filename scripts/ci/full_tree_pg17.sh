@@ -224,8 +224,34 @@ diff -u <(cat <<'ASTRA_CI_ONLY'
 .github/workflows/phase3-recovery.yml
 scripts/ci/full_tree_pg17.sh
 ASTRA_CI_ONLY
-) <(git diff --name-only c1f2751740792b069ca2a3da38efa7ce538f7489 "$EXPECTED_HEAD_SHA") ||
- fail 'ASTRA child changed outside two authorized CI paths'
+) <(git diff --name-only c1f2751740792b069ca2a3da38efa7ce538f7489 e71f54a232198b8e2c0e3ba72aab76aab25dcd98) ||
+ fail 'frozen PR101 expanded outside its original two CI paths'
+git fetch --no-tags origin 'refs/pull/101/head:refs/remotes/origin/frozen-pr101'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr101)" == e71f54a232198b8e2c0e3ba72aab76aab25dcd98 ]] ||
+ fail 'frozen parent PR101 moved'
+git merge-base --is-ancestor e71f54a232198b8e2c0e3ba72aab76aab25dcd98 "$EXPECTED_HEAD_SHA" ||
+ fail 'clinical candidate missing exact PR101 ancestor'
+diff -u <(cat <<'CLINICAL16_ONLY'
+.github/workflows/clinical-chart-pg17.yml
+docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md
+scripts/ci/full_tree_pg17.sh
+supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql
+supabase/tests/clinical_chart_encounter_pg17.sql
+web/src/lib/clinical-chart.ts
+CLINICAL16_ONLY
+) <(git diff --name-only e71f54a232198b8e2c0e3ba72aab76aab25dcd98 "$EXPECTED_HEAD_SHA") ||
+ fail 'clinical child expanded beyond exact six authorized backend/test/CI paths'
+while read -r file sha; do
+ [[ "$(git rev-parse "HEAD:$file")" == "$sha" &&
+    "$(git hash-object "$file")" == "$sha" ]] ||
+ fail "clinical #16 reviewed source changed: $file"
+done <<'CLINICAL16_BLOBS'
+.github/workflows/clinical-chart-pg17.yml 8a45eddfdd52110ab403f0a2bc32161d4a4d5b05
+docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 346b0a668391fd2efc59b1bc2525bb5a07b7c280
+supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql a017d6f11819fcd7dba743cf37e4533342d8a5a5
+supabase/tests/clinical_chart_encounter_pg17.sql d223db9503a5145372b0603445d05e645dd079fa
+web/src/lib/clinical-chart.ts 62221ba4c8a854456da99f044ca1ddb36acbed03
+CLINICAL16_BLOBS
 while read -r path sha; do
  [[ "$(git rev-parse "c1f2751740792b069ca2a3da38efa7ce538f7489:$path")" == "$sha" &&
     "$(git rev-parse "HEAD:$path")" == "$sha" &&
@@ -439,7 +465,12 @@ while IFS= read -r path; do
   scripts/recovery/tests/phase3-to-15-history-snapshot.sql|\
   scripts/recovery/tests/synthetic-phase3-phase4-positive.sh|\
   scripts/ci/pr88_frontend_pins.sh|\
-  web/tests/public-owner-journeys.test.mjs) ;;
+  web/tests/public-owner-journeys.test.mjs|\
+  .github/workflows/clinical-chart-pg17.yml|\
+  docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md|\
+  supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql|\
+  supabase/tests/clinical_chart_encounter_pg17.sql|\
+  web/src/lib/clinical-chart.ts) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")

@@ -1,0 +1,178 @@
+name: Clinical chart DRAFT — disposable PostgreSQL17
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/clinical-chart-pg17.yml'
+      - 'supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql'
+      - 'supabase/tests/clinical_chart_encounter_pg17.sql'
+      - 'web/src/lib/clinical-chart.ts'
+      - 'docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md'
+      - 'scripts/ci/full_tree_pg17.sh'
+permissions:
+  contents: read
+jobs:
+  clinical-chart-pg17:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: clinical16-ci-only
+          POSTGRES_DB: clinical16_ci
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clinical16_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: clinical16-ci-only
+      PGDATABASE: clinical16_ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact frozen ancestry and immutable clinical migration blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          git merge-base --is-ancestor e71f54a232198b8e2c0e3ba72aab76aab25dcd98 HEAD
+          test "$(git rev-parse e71f54a232198b8e2c0e3ba72aab76aab25dcd98:scripts/ci/full_tree_pg17.sh)" = b31c4d690483844fe3a28fae55b3a4694edfe912
+          while read -r file hash; do
+            test "$(git rev-parse "HEAD:$file")" = "$hash"
+            test "$(git hash-object "$file")" = "$hash"
+          done <<'SOURCE'
+          supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql a017d6f11819fcd7dba743cf37e4533342d8a5a5
+          supabase/tests/clinical_chart_encounter_pg17.sql d223db9503a5145372b0603445d05e645dd079fa
+          web/src/lib/clinical-chart.ts 62221ba4c8a854456da99f044ca1ddb36acbed03
+          docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 346b0a668391fd2efc59b1bc2525bb5a07b7c280
+          SOURCE
+          while read -r file sha; do
+            test "$(git hash-object "$file")" = "$sha"
+          done <<'MIGRATIONS'
+          supabase/migrations/20261113070302_phase2_core_data_security.sql cf329269e3f38a5ac320d0b60fe82b6165e218d6
+          supabase/migrations/20261113070834_phase2_index_and_policy_tuning.sql d7f8922de9251bb777430ce4163d2ca501b290f5
+          supabase/migrations/20261113074938_phase2_verified_auth_and_staff_bootstrap.sql 218b612c15944c811708f4908825d0a969064692
+          supabase/migrations/20261113095318_phase3_appointment_lifecycle.sql f12c39c4b75462aa9597d38065c70216e872c478
+          supabase/migrations/20261113100958_phase3_clinical_storage_policies.sql b47363bfdc3af3081a2af2f422be44a40c967e54
+          supabase/migrations/20261113101626_phase3_staff_membership_audit.sql 0fc85dd437eac7d8d89fe69025df917ab79d3e0e
+          supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql 4296a5dcf84324cd83eea226e6054b0cd4f56658
+          supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql cc03606d3d47b0d573f431a1a1161ba243a314d3
+          supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql 028cbdcfb96e15d297a9458322e1108c46a8b035
+          supabase/migrations/20261114090000_phase4_public_booking_contract.sql 929f327141d9e5bb2be220d5685c6ce3f28c253c
+          supabase/migrations/20261116002500_phase3_storage_outer_object_path_rls_fix.sql 4d78cb2aef1104379d6fd29797705a6188c4c6dc
+          supabase/migrations/20261117233500_issue77_four_branch_foundation.sql 4732b815cff45850d2f01cdeb93c527dac0e22a0
+          supabase/migrations/20261118203500_issue51_branch_booking_security.sql f58ca0e0bcb36d3a320060db7bf9bbeffe7f35f3
+          supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql c889477348d9505d54f54b1d08532c2f648992a9
+          supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql 908f881bfc541ab4265912e0a9e55525ea8275a5
+          MIGRATIONS
+          bash -n scripts/ci/full_tree_pg17.sh
+          echo 'PASS: immutable 11+12–15 and proposed #16 exact source pins'
+      - name: Prepare isolated PostgreSQL17 client
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+      - name: Apply synthetic 11 + 12–15 + 16 and execute real PG17 security
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
+          pg supabase/tests/phase5a_staff_pg17_bootstrap.sql
+          pg supabase/tests/phase4_combined_provider_upgrade.sql
+          for file in \
+            20261113070302_phase2_core_data_security.sql \
+            20261113070834_phase2_index_and_policy_tuning.sql \
+            20261113074938_phase2_verified_auth_and_staff_bootstrap.sql \
+            20261113095318_phase3_appointment_lifecycle.sql \
+            20261113100958_phase3_clinical_storage_policies.sql \
+            20261113101626_phase3_staff_membership_audit.sql \
+            20261113211600_phase4_taxonomy_attachments.sql \
+            20261113211700_phase4_animal_catalog_seed.sql \
+            20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql \
+            20261114090000_phase4_public_booking_contract.sql \
+            20261116002500_phase3_storage_outer_object_path_rls_fix.sql; do
+              pg "supabase/migrations/$file"
+          done
+          pg supabase/tests/phase3_storage_outer_path_synthetic_records.sql
+          psql -X -v ON_ERROR_STOP=1 -q <<'PRE12'
+          create table clinic_ci.issue77_original_pets as select id,to_jsonb(p) old_row from public.pets p;
+          create table clinic_ci.issue77_original_appointments as select id,to_jsonb(a) old_row from public.appointments a;
+          -- Do not disturb the inherited Issue77 test's exact two-record fixture.
+          PRE12
+          pg supabase/migrations/20261117233500_issue77_four_branch_foundation.sql
+          pg supabase/tests/issue77_four_branch_pg17_denials.sql
+          # Synthetic-only recreation of a pre-branch historical NULL record.
+          # SUPERUSER CI temporarily bypasses only the insert branch guard;
+          # re-enable it immediately. Never used in an applied migration.
+          psql -X -v ON_ERROR_STOP=1 -q <<'LEGACY_UNKNOWN'
+          alter table public.clinical_records disable trigger clinical_branch_guard;
+          insert into public.clinical_records(pet_id,branch_id,procedure,authored_by)
+          values('33333333-3333-4333-8333-333333333333',
+           null,'CLINICAL16 old unknown branch record',
+           'dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+          alter table public.clinical_records enable trigger clinical_branch_guard;
+          LEGACY_UNKNOWN
+          pg supabase/tests/issue58_staff_branch_queue_fixture.sql
+          pg supabase/migrations/20261118203500_issue51_branch_booking_security.sql
+          pg supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql
+          pg supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql
+          pg supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql
+          pg supabase/tests/clinical_chart_encounter_pg17.sql
+          echo 'PASS: isolated PG17 clinical drafts, scoped charts 50/51, audit, revision, role and history'
+
+      - name: Genuine two-client concurrent clinician edit race (same appointment)
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          psql -XAt -v ON_ERROR_STOP=1 > "$tmp/blocker" 2>&1 <<'BLOCKER' &
+          begin;
+          select pg_advisory_xact_lock(hashtextextended(
+           'dawney-clinical-encounter:aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',0));
+          select pg_sleep(5);
+          commit;
+          BLOCKER
+          holder=$!
+          acquired=0
+          for try in {1..35}; do
+            n="$(psql -XAt -v ON_ERROR_STOP=1 -c "select count(*) from pg_locks where locktype='advisory' and granted;")"
+            if [ "$n" -gt 0 ]; then acquired=1; break; fi
+            sleep 0.1
+          done
+          test "$acquired" -eq 1
+          actor(){
+            psql -XAt -v ON_ERROR_STOP=1 -c "set role authenticated;
+              set request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+              set request.jwt.claims='{\"role\":\"authenticated\",\"is_anonymous\":false}';
+              select public.save_staff_clinical_encounter_draft(
+              '11111111-0000-4000-8000-000000000077',
+              '33333333-3333-4333-8333-333333333333',
+              'aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',
+              '$1',0,'$2','','','');"
+          }
+          actor 'a1616161-1111-4111-8111-111111111111' 'Concurrent A' > "$tmp/a" 2>&1 &
+          a=$!
+          actor 'b1616161-1111-4111-8111-111111111111' 'Concurrent B' > "$tmp/b" 2>&1 &
+          b=$!
+          if wait "$a"; then a_result=0; else a_result=$?; fi
+          if wait "$b"; then b_result=0; else b_result=$?; fi
+          wait "$holder"
+          if [ "$a_result" -eq 0 ] && [ "$b_result" -ne 0 ]; then
+            grep -q 'Clinical revision conflict' "$tmp/b"
+          elif [ "$b_result" -eq 0 ] && [ "$a_result" -ne 0 ]; then
+            grep -q 'Clinical revision conflict' "$tmp/a"
+          else
+            echo 'FAIL: two concurrent clinical edits were not serializable'; exit 1
+          fi
+          test "$(psql -XAt -c "select count(*) from public.clinical_encounter_drafts where appointment_id='aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa' and revision=1")" = 1
+          test "$(psql -XAt -c "select count(*) from clinic_private.clinical_draft_audit")" = 1
+          test "$(psql -XAt -c "select count(*) from clinic_private.clinical_draft_requests")" = 1
+          echo 'PASS: real concurrent PG17 writes serialized, one committed, one stale-version conflict; audit exactly once'
