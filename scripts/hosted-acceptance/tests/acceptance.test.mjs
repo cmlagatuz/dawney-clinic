@@ -558,3 +558,168 @@ test('SOL P2 rejects JWT identity/expiry/anonymous/revoked role mismatch indepen
   assert.ok(state.calls.every(call=>call.path.startsWith('/auth/v1/')));
  }
 });
+
+
+test('SOL P2 fifth-read owner identity substitution is rejected before first getter, journal or request',async()=>{
+ const original=structuredClone(fixtures);
+ const malicious=structuredClone(original);
+ const reads={ownerA:{ownerId:0,petId:0},ownerB:{ownerId:0,petId:0}};
+ for(const owner of ['ownerA','ownerB']){
+  for(const key of ['ownerId','petId']){
+   Object.defineProperty(malicious[owner],key,{enumerable:true,configurable:true,get(){
+    const n=++reads[owner][key];
+    return n<=4?original[owner][key]:
+      owner==='ownerA'?'99999999-9999-4999-8999-999999999999':
+        '88888888-8888-4888-8888-888888888888';
+   }});
+  }
+ }
+ const {transport,state}=fakeTransport({leakOwner:true});
+ const input={...base(),fixtures:malicious,transport};
+ const {readdirSync}=await import('node:fs');
+ await assert.rejects(runHostedAcceptance(input),/fixture_data_only/);
+ assert.deepEqual(reads,{ownerA:{ownerId:0,petId:0},ownerB:{ownerId:0,petId:0}});
+ assert.equal(state.calls.length,0,'no request can be authorized by fifth-read identity');
+ assert.deepEqual(readdirSync(input.journalDir),[],'no replay/journal before fixture validation');
+});
+
+test('SOL P2 every nested Proxy and root Proxy rejected without ANY trap execution',async()=>{
+ const {transport,state}=fakeTransport();
+ const trap=()=>{
+  const calls={get:0,getPrototypeOf:0,ownKeys:0,getOwnPropertyDescriptor:0};
+  const proxy=new Proxy({...fixtures.ownerA},{
+   get(){calls.get++;throw Error('unsafe nested get');},
+   getPrototypeOf(){calls.getPrototypeOf++;throw Error('unsafe nested prototype');},
+   ownKeys(){calls.ownKeys++;throw Error('unsafe nested keys');},
+   getOwnPropertyDescriptor(){calls.getOwnPropertyDescriptor++;throw Error('unsafe nested descriptor');}
+  });
+  return {proxy,calls};
+ };
+ for(const field of ['root','ownerA','ownerB','staff','revoked','anonymousAuth']){
+  const {proxy,calls}=trap();
+  const input={...base(),transport,
+   fixtures:field==='root'?new Proxy(structuredClone(fixtures),{
+    get(){calls.get++;throw Error('unsafe root get');},
+    getPrototypeOf(){calls.getPrototypeOf++;throw Error('unsafe root prototype');},
+    ownKeys(){calls.ownKeys++;throw Error('unsafe root keys');},
+    getOwnPropertyDescriptor(){calls.getOwnPropertyDescriptor++;throw Error('unsafe root descriptor');}
+   }):{...fixtures,[field]:proxy}};
+  await assert.rejects(runHostedAcceptance(input),/fixture_data_only/);
+  assert.deepEqual(calls,{get:0,getPrototypeOf:0,ownKeys:0,getOwnPropertyDescriptor:0});
+  assert.equal(state.calls.length,0);
+  const {readdirSync}=await import('node:fs');
+  assert.deepEqual(readdirSync(input.journalDir),[]);
+ }
+});
+
+test('SOL P2 strict fixture schema blocks hidden, inherited, symbol, extra, missing and exotic fields',async()=>{
+ const {transport,state}=fakeTransport();
+ const original=structuredClone(fixtures);
+ const bad=[
+  Object.assign(Object.create({unknown:'inherited'}),original),
+  Object.assign(Object.create(null),original,{unexpected:'extra'}),
+  Object.defineProperty({...original},'hidden',{value:uid.ownerA,enumerable:false}),
+  Object.defineProperty({...original},Symbol('stray'),{value:uid.ownerA,enumerable:true}),
+  Object.fromEntries(Object.entries(original).filter(([name])=>name!=='slotB')),
+  {...original,ownerA:Object.assign(Object.create({userId:uid.ownerA}),
+     {ownerId:original.ownerA.ownerId,petId:original.ownerA.petId})},
+  {...original,ownerB:Object.defineProperty({...original.ownerB},'petId',
+     {value:original.ownerB.petId,enumerable:false})},
+  {...original,staff:{...original.staff,unexpectedRole:'administrator'}},
+  {...original,revoked:{...original.revoked,expectedRole:'receptionist'}},
+  {...original,anonymousAuth:{...original.anonymousAuth,hidden:'owner'}},
+  {...original,serviceId:original.ownerA.ownerId},
+  {...original,resourceId:original.ownerB.petId},
+  {...original,ownerA:{...original.ownerA,petId:original.ownerB.petId}},
+  {...original,ownerB:{...original.ownerB,ownerId:original.ownerA.ownerId}},
+  {...original,slotA:'2026-12-07T02:00:00+01:00'},
+  {...original,slotA:'invalid-date'},
+  {...original,slotB:original.slotA}
+ ];
+ for(const fixturesCandidate of bad){
+  const input={...base(),transport,fixtures:fixturesCandidate};
+  await assert.rejects(runHostedAcceptance(input),/HOSTED_ACCEPTANCE_BLOCKED/);
+  const {readdirSync}=await import('node:fs');
+  assert.deepEqual(readdirSync(input.journalDir),[]);
+ }
+ assert.equal(state.calls.length,0);
+});
+
+test('SOL P2 caller fixture changes after authorization never redirect tests, booking or storage',async()=>{
+ const owned=structuredClone(fixtures),caller=structuredClone(fixtures);
+ const {transport,state}=fakeTransport();
+ const observed=[];
+ let mutated=false;
+ const input={...base(),fixtures:caller};
+ input.transport={async request(req){
+  // This callback occurs AFTER the first JWKS request is authorized. The
+  // original caller objects are modified repeatedly during successful checks.
+  if(req.path==='/auth/v1/user'&&req.actor==='ownerA'){
+   mutated=true;
+   caller.ownerA.userId=uid.ownerB;caller.ownerA.ownerId='99999999-9999-4999-8999-999999999999';
+   caller.ownerA.petId='99999999-1111-4111-8111-999999999999';
+   caller.ownerB.userId=uid.ownerA;caller.ownerB.ownerId='88888888-8888-4888-8888-888888888888';
+   caller.ownerB.petId='88888888-2222-4222-8222-888888888888';
+   caller.staff.userId=uid.revoked;caller.staff.expectedRole='administrator';
+   caller.revoked.userId=uid.staff;caller.revoked.expectedRole='administrator';
+   caller.anonymousAuth.userId=uid.staff;
+   caller.serviceId=uid.ownerA;caller.resourceId=uid.ownerB;
+   caller.slotA='2030-01-01T02:00:00.000Z';caller.slotB='2031-01-01T03:00:00.000Z';
+  }
+  observed.push({actor:req.actor,path:req.path,body:req.body});
+  return transport.request(req);
+ }};
+ const result=await runHostedAcceptance(input);
+ assert.equal(result.cleanup.status,'passed');
+ assert.equal(mutated,true);
+ const has=(actor,table,column,id)=>observed.some(x=>x.actor===actor&&
+  x.path.includes('/rest/v1/'+table+'?')&&x.path.includes(column+'=eq.'+id));
+ // Both the owner positives and the owner negatives must probe existing
+ // fixture rows — never the substituted nonexistent UUIDs.
+ for(const [actor,foreign] of [['ownerA',owned.ownerB],['ownerB',owned.ownerA]]){
+  assert.ok(has(actor,'owners','id',foreign.ownerId));
+  assert.ok(has(actor,'pets','id',foreign.petId));
+ }
+ for(const [actor,own] of [['ownerA',owned.ownerA],['ownerB',owned.ownerB]]){
+  assert.ok(has(actor,'owners','user_id',own.userId));
+  assert.ok(has(actor,'pets','id',own.petId));
+  assert.ok(observed.some(x=>x.actor===actor&&
+   x.path==='/rest/v1/rpc/request_service_appointment'&&
+   x.body.p_pet_id===own.petId&&x.body.p_service_id===owned.serviceId&&
+   x.body.p_resource_id===owned.resourceId&&
+   x.body.p_starts_at===(actor==='ownerA'?owned.slotA:owned.slotB)));
+  assert.ok(result.cleanup.objectKeys.some(k=>
+   k.startsWith('pets/'+own.petId+'/owners/'+own.userId+'/')));
+ }
+ assert.ok(has('staff','staff_memberships','user_id',owned.staff.userId));
+ assert.ok(has('revoked','staff_memberships','user_id',owned.revoked.userId));
+ assert.ok(result.cleanup.objectKeys.some(k=>
+  k.startsWith('pets/'+owned.ownerA.petId+'/clinic/')));
+ assert.equal(state.appointments.length,2);
+});
+
+test('SOL P2 cross-owner leaked existing synthetic rows cannot hide behind post-validation mutation',async()=>{
+ const caller=structuredClone(fixtures);
+ const original=structuredClone(caller);
+ const {transport,state}=fakeTransport({leakOwner:true});
+ const paths=[];
+ const input={...base(),fixtures:caller};
+ input.transport={async request(req){
+  paths.push(req.path);
+  // After legitimate owner positive reads, change both foreign IDs to missing
+  // UUIDs. Correct source still checks existing ownerB under ownerA bearer.
+  if(req.path.includes('/rest/v1/pets?')&&req.actor==='ownerB'){
+   caller.ownerB.ownerId='88888888-8888-4888-8888-888888888888';
+   caller.ownerB.petId='88888888-1111-4111-8111-888888888888';
+   caller.ownerA.ownerId='99999999-9999-4999-8999-999999999999';
+   caller.ownerA.petId='99999999-1111-4111-8111-999999999999';
+  }
+  return transport.request(req);
+ }};
+ await assert.rejects(runHostedAcceptance(input),/cross_owner_profile_leak/);
+ assert.ok(paths.some(p=>p.includes('id=eq.'+original.ownerB.ownerId)));
+ assert.ok(!paths.some(p=>p.includes('id=eq.'+caller.ownerB.ownerId)));
+ assert.ok(state.calls.some(c=>c.actor==='ownerA'&&c.path.includes(
+  'id=eq.'+original.ownerB.ownerId)));
+ assert.equal(state.appointments.length,0,'failed RLS gate must precede booking writes');
+});

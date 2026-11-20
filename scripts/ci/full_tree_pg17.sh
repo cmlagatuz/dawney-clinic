@@ -100,6 +100,7 @@ while IFS= read -r path; do
  web/tests/ops-port.test.mjs|\
   docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md|\
   .github/workflows/staging-acceptance-plan-offline.yml|\
+  .github/workflows/phase4-repository-security.yml|\
   .github/workflows/phase3-recovery.yml|\
   scripts/hosted-acceptance/staging-request-plan.mjs|\
   scripts/hosted-acceptance/tests/staging-request-plan.test.mjs) ;;
@@ -156,12 +157,34 @@ scripts/ci/full_tree_pg17.sh
 scripts/hosted-acceptance/acceptance.mjs
 scripts/hosted-acceptance/tests/acceptance.test.mjs
 ACTOR_BOUNDARY_CHILD
-) <(git diff --name-only c8bddb28fca73856a7917a8ffc70de56f38f8e2e "$EXPECTED_HEAD_SHA") ||
- fail 'actor credential child expanded beyond four reviewed runner/test/CI paths'
-while read -r path sha; do
+) <(git diff --name-only c8bddb28fca73856a7917a8ffc70de56f38f8e2e 8dd43037ba830a3b2a63d4c55c8cf710b9ab5d2b) ||
+ fail 'frozen PR107 four-path actor correction moved'
+git fetch --no-tags origin 'refs/pull/107/head:refs/remotes/origin/frozen-pr107'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr107)" == 8dd43037ba830a3b2a63d4c55c8cf710b9ab5d2b &&
+   "$(git rev-parse "8dd43037ba830a3b2a63d4c55c8cf710b9ab5d2b:scripts/ci/full_tree_pg17.sh")" == 1c987c3f39746756878738cf208c005625d990be ]] ||
+ fail 'frozen SOL-reviewed PR107 head or CI source moved'
+git merge-base --is-ancestor 8dd43037ba830a3b2a63d4c55c8cf710b9ab5d2b "$EXPECTED_HEAD_SHA" ||
+ fail 'fixture-security child is not descended from frozen PR107'
+diff -u <(cat <<'FIXTURE_BOUNDARY_CHILD'
+.github/workflows/phase4-repository-security.yml
+scripts/ci/full_tree_pg17.sh
+scripts/hosted-acceptance/acceptance.mjs
+scripts/hosted-acceptance/tests/acceptance.test.mjs
+FIXTURE_BOUNDARY_CHILD
+) <(git diff --name-only 8dd43037ba830a3b2a63d4c55c8cf710b9ab5d2b "$EXPECTED_HEAD_SHA") ||
+ fail 'fixture boundary security child changed outside exactly three authorized source paths'
+while read -r path sha;do
  [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
     "$(git hash-object "$path")" == "$sha" ]] ||
- fail "actor credential child source blob drift: $path"
+ fail "fixture snapshot child exact blob drift: $path"
+done <<'FIXTURE_SNAPSHOT_BLOBS'
+.github/workflows/phase4-repository-security.yml 20d50851b4b0842bb880591aeadcb78842f6c8e0
+scripts/hosted-acceptance/acceptance.mjs 21846505972dc3f6d68df16113f379fd1762817b
+scripts/hosted-acceptance/tests/acceptance.test.mjs 12e373d7ecf10c8d36b806a870a628715942b07c
+FIXTURE_SNAPSHOT_BLOBS
+while read -r path sha; do
+ [[ "$(git rev-parse "8dd43037ba830a3b2a63d4c55c8cf710b9ab5d2b:$path")" == "$sha" ]] ||
+ fail "frozen PR107 actor security source moved: $path"
 done <<'ACTOR_BOUNDARY_BLOBS'
 .github/workflows/staging-acceptance-plan-offline.yml f00971f2ff8f2eaf8b19f55e1765a33880d312db
 scripts/hosted-acceptance/acceptance.mjs e28531d440f9c9f6ca736565d03f167403ec21c5
@@ -173,9 +196,8 @@ ACTOR_BOUNDARY_BLOBS
  fail 'unchanged signed recovery workflow expanded beyond reviewed PR trigger'
 while read -r path parent current; do
  [[ "$(git rev-parse "0a8ac3ca914676189272ee5e736bf40e22f36a17:$path")" == "$parent" &&
-    "$(git rev-parse "HEAD:$path")" == "$current" &&
-    "$(git hash-object "$path")" == "$current" ]] ||
- fail "unreviewed source drift on runner remediation: $path"
+    "$(git rev-parse "8dd43037ba830a3b2a63d4c55c8cf710b9ab5d2b:$path")" == "$current" ]] ||
+ fail "frozen PR107 runner remediation ancestor changed: $path"
 done <<'RUNNER_SECURITY_BLOBS'
 scripts/hosted-acceptance/acceptance.mjs ab77c3cb5cad7e3d52f39e418e4c01fb595c9afe e28531d440f9c9f6ca736565d03f167403ec21c5
 scripts/hosted-acceptance/guards.mjs dd17dd88beba2f17db771632591577b14e84fee0 58d5fd6e2444ecd018c21f76b770269ac6ac04a9

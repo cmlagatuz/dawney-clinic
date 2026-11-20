@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'scripts/security/**'
+      # Hosted fixture/actor trust-boundary changes must run real secret guard.
+      - 'scripts/hosted-acceptance/**'
       - 'web/package.json'
       - 'web/package-lock.json'
       - '.github/workflows/**'
