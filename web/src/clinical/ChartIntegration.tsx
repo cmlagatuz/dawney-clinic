@@ -5,6 +5,7 @@ import {classifyChartError,draftSnapshot,prepareSaveTicket,
 import type {ChartCursor,ChartDraft,ChartItem,ChartPatient,ChartRequest,
   ChartResult,DraftContent,DraftSaveRequest,SaveTicket} from './chart-model.mjs'
 import {unconnectedClinicalPort,type ClinicalChartPort} from './chart-port'
+import {OPS_UI_ENABLED} from '../ops/flag'
 import type {OpsRole} from '../ops/ops-model.mjs'
 
 type VerifiedPage=Extract<ChartResult,{kind:'ok'}>
@@ -151,9 +152,15 @@ export function ChartIntegration({accountId,branchId,petId,ownerId,appointmentId
       <p>Read-only navigation. Opening these areas never changes a booking,
         stock, medication, invoice or encounter.</p>
       <div className="clinical-actions">
-        <Link to="/app/ops" className="button button-secondary button-small">Staff operations</Link>
-        <Link to="/app/pharmacy" className="button button-secondary button-small">Pharmacy context</Link>
-        <Link to="/app/billing" className="button button-secondary button-small">Billing context</Link>
+        {OPS_UI_ENABLED
+          ?<Link to="/app/ops" className="button button-secondary button-small">Staff operations</Link>
+          :<span className="button button-secondary button-small" aria-disabled="true">Operations unavailable</span>}
+        {import.meta.env.VITE_PHASE5B_PHARMACY_UI==='true'
+          ?<Link to="/app/pharmacy" className="button button-secondary button-small">Pharmacy context</Link>
+          :<span className="button button-secondary button-small" aria-disabled="true">Pharmacy unavailable</span>}
+        {import.meta.env.VITE_PHASE5C_BILLING_UI==='true'
+          ?<Link to="/app/billing" className="button button-secondary button-small">Billing context</Link>
+          :<span className="button button-secondary button-small" aria-disabled="true">Billing unavailable</span>}
       </div>
       <p className="clinical-muted">Related modules remain subject to their own OFF-by-default flags and authorization.</p>
     </div>}
