@@ -274,3 +274,119 @@ test('CLOUD RELEASE: real public discovery, 360/768/1440 light/dark and PII-free
     delete process.env.VITE_SUPABASE_PUBLISHABLE_KEY
   }
 })
+
+
+test('CLOUD RELEASE: chart 50/51, creator versus editor, safe draft CAS and role privacy',
+  {timeout:180000},async()=>{
+  process.env.VITE_SUPABASE_URL='https://issue51-fixtures.supabase.co'
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY='sb_publishable_issue51_offline'
+  const vite=await createServer({root:fileURLToPath(new URL('../',import.meta.url)),
+    server:{host:'127.0.0.1',port:0,strictPort:false}})
+  try{
+    await vite.listen()
+    const origin='http://127.0.0.1:'+vite.httpServer.address().port
+    await withChromium(async browser=>{
+      await browser.send('Page.addScriptToEvaluateOnNewDocument',
+        {source:'('+releaseClinicFixture.toString()+')()'})
+      const fixture='/tests/fixtures/clinical-chart-fixture.html?case='
+      const choose=async(mode)=>{
+        await browser.value('(()=>{const el=document.querySelector("#qa-mode");el.value="'+mode+'";el.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
+      }
+      // All three longitudinal sections use immutable 50-item cursor pages.
+      for(const [section,mode] of [['appointments','visits'],['records','history'],['drafts','encounter']]){
+        await browser.goto(origin+fixture+'pages')
+        await choose(mode)
+        await browser.until('document.querySelectorAll(".clinical-visit").length===50',9000)
+        const first=await browser.value('window.__cloudIntegrated.clinicalReads')
+        assert.equal(first.length,1)
+        assert.equal(first[0].section,section)
+        assert.equal(first[0].scope.ownerId,'20000000-0000-4000-8000-000000000004')
+        if(section==='drafts')assert.equal(await browser.value('!!document.querySelector(".clinical-attribution")'),false,
+          'page-one absence does not mean no draft exists for the appointment')
+        await browser.value('document.querySelector(".clinical-chart-pagination button").click();true')
+        await browser.until('document.querySelectorAll(".clinical-visit").length===51',9000)
+        const result=await browser.value('({reads:window.__cloudIntegrated.clinicalReads,localWrites:window.__cloudIntegrated.clinicalWrites,overflow:document.documentElement.scrollWidth>innerWidth})')
+        assert.equal(result.reads.length,2)
+        assert.ok(result.reads[1].cursor,'second page uses server cursor, never offset guessing')
+        assert.equal(result.localWrites.length,0)
+        assert.equal(result.overflow,false)
+        if(section==='drafts'){
+          await browser.until('!!document.querySelector(".clinical-attribution")',9000)
+          assert.equal(await browser.value('document.querySelector(".clinical-attribution").textContent.includes("Created by")&&document.querySelector(".clinical-attribution").textContent.includes("Last edited by")'),true)
+        }
+      }
+      // Receptionist must never request protected notes or drafts in any branch.
+      await browser.goto(origin+fixture+'pages&role=receptionist')
+      await browser.until('!!document.querySelector(".clinical-verified-demographics")')
+      await choose('history')
+      await browser.until('document.body.textContent.includes("Receptionists can view authorized appointments only")')
+      await choose('encounter')
+      await browser.until('document.body.textContent.includes("Receptionists can view authorized appointments only")')
+      assert.equal(await browser.value('window.__cloudIntegrated.clinicalReads.every(x=>x.section==="appointments")'),true)
+      assert.equal(await browser.value('window.__cloudIntegrated.clinicalWrites.length'),0)
+      for(const [caseName,notice] of [
+        ['not-found','Patient context not found'],
+        ['missing','Secure chart unavailable'],
+        ['network','Network interruption'],
+        ['wrong-owner','Invalid clinical response'],
+        ['wrong-branch','Invalid clinical response'],
+        ['wrong-patient','Invalid clinical response'],
+        ['malformed','Invalid clinical response']
+      ]){
+        await browser.goto(origin+fixture+caseName)
+        await browser.until('document.body.textContent.includes("'+notice+'")',9000)
+        assert.equal(await browser.value('!!document.querySelector(".clinical-verified-demographics")'),false,
+          'unverified chart cannot display demographics '+caseName)
+      }
+      await browser.goto(origin+fixture+'empty')
+      await browser.until('document.body.textContent.includes("Verified empty appointments history")',9000)
+      // Account and patient switches fully clear identity and stale rendered data.
+      await browser.goto(origin+fixture+'pages')
+      await browser.until('document.body.textContent.includes("Synthetic Chart Patient")',9000)
+      await browser.value('document.querySelector("#qa-account").click();true')
+      await browser.until('document.body.textContent.includes("Access revoked")',9000)
+      assert.equal(await browser.value('document.body.textContent.includes("Synthetic Chart Patient")'),false)
+      await browser.goto(origin+fixture+'pages')
+      await browser.until('document.body.textContent.includes("Synthetic Chart Patient")',9000)
+      await browser.value('document.querySelector("#qa-patient").click();true')
+      await browser.until('document.body.textContent.includes("Access revoked")',9000)
+      assert.equal(await browser.value('document.body.textContent.includes("Synthetic Chart Patient")'),false)
+      await browser.goto(origin+fixture+'late')
+      await browser.until('window.__cloudIntegrated.clinicalReads.length>0',9000)
+      await browser.value('document.querySelector("#qa-branch").click();true')
+      await browser.until('document.body.textContent.includes("Synthetic Other Branch Patient")',9000)
+      await browser.value('new Promise(resolve=>setTimeout(resolve,340))')
+      assert.equal(await browser.value('document.body.textContent.includes("Synthetic Chart Patient")'),false,
+        'delayed old-branch response cannot restore stale patient identity')
+      // All fake CAS acknowledgements are localhost; production chart Save stays OFF.
+      await browser.goto(origin+fixture+'conflict')
+      await choose('encounter')
+      await browser.until('!!document.querySelector(".clinical-attribution")',9000)
+      await browser.value('document.querySelector("form[aria-label=\"Persisted encounter draft form\"] textarea").focus();true')
+      await browser.send('Input.insertText',{text:' fake second veterinarian revision'})
+      await browser.until('document.querySelector(".clinical-encounter-editor button[type=submit]")?.disabled===false')
+      await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
+      await browser.until('document.body.textContent.includes("Revision or request-ID conflict")',9000)
+      assert.equal(await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").disabled'),true)
+      assert.equal(await browser.value('window.__cloudIntegrated.clinicalWrites.length'),1)
+      await browser.goto(origin+fixture+'uncertain')
+      await choose('encounter')
+      await browser.until('!!document.querySelector(".clinical-attribution")',9000)
+      await browser.value('document.querySelector("form[aria-label=\"Persisted encounter draft form\"] textarea").focus();true')
+      await browser.send('Input.insertText',{text:' uncertain localhost draft'})
+      await browser.until('document.querySelector(".clinical-encounter-editor button[type=submit]")?.disabled===false')
+      await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
+      await browser.until('document.body.textContent.includes("Save was not verified")',9000)
+      await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
+      await browser.until('document.body.textContent.includes("Server-acknowledged DRAFT saved")',9000)
+      const tickets=await browser.value('window.__cloudIntegrated.clinicalWrites')
+      assert.equal(tickets.length,2)
+      assert.equal(tickets[0].requestId,tickets[1].requestId,'same request UUID on uncertain unchanged retry')
+      assert.equal(tickets.every(x=>x.localOnly),true,'no remotely persisted medical data')
+    })
+  }finally{
+    await vite.close()
+    delete process.env.VITE_SUPABASE_URL
+    delete process.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  }
+})
