@@ -87,9 +87,13 @@ function openRunJournal(directory,gate){
  return {manifest,save};
 }
 
-export async function runHostedAcceptance({
- transport,approval,trust,staging,actors,fixtures,publishableKey,journalDir,now=Date.now()
-}={}){
+export async function runHostedAcceptance(options={}){
+ // Public runtime never accepts any caller-supplied authorization clock. Offline
+ // tests control Date.now only inside their own Node test process.
+ ensure(options!==null&&typeof options==='object'&&!Object.hasOwn(options,'now'),
+   'caller_time_forbidden');
+ const {transport,approval,trust,staging,actors,fixtures,publishableKey,journalDir}=options;
+ const now=Date.now();
  // No invocation of an injected transport may occur until every safety gate succeeds.
  ensure(transport&&typeof transport.request==='function','no_transport_injected');
  const gate=verifyOwnerGate({approval,trust,staging,now});

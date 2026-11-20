@@ -440,3 +440,35 @@ test('SOL P2-02 verified claims preserve valid signatures and deny post-sign mut
  original.backendSourceSha='0'.repeat(40);
  denied(r,'owner_signature_invalid',ctx);
 });
+
+test('SOL Proxy-first inspection never invokes getPrototypeOf or getters',()=>{
+ const readings={get:0,proto:0};
+ const raw=new Proxy(req('ownerA','GET','/auth/v1/user'),{
+  get(){readings.get++;throw Error('get trap called');},
+  getPrototypeOf(){readings.proto++;throw Error('prototype trap called');}
+ });
+ denied(raw,'request_data_only');
+ assert.deepEqual(readings,{get:0,proto:0});
+ const bodyProxy=new Proxy(booking(),{
+  get(){readings.get++;throw Error('body get called');},
+  getPrototypeOf(){readings.proto++;throw Error('body prototype called');}
+ });
+ denied(req('ownerA','POST','/rest/v1/rpc/request_service_appointment',
+  bodyProxy,{'Content-Type':'application/json'}),'request_body_data_only');
+ assert.deepEqual(readings,{get:0,proto:0});
+});
+test('SOL Buffer valueOf accessor cannot substitute a synthetic PDF before validation',()=>{
+ const bad=pdf();
+ let getterReads=0;
+ Object.defineProperty(bad,'valueOf',{get(){getterReads++;
+  return ()=>pdf();}});
+ denied(req('ownerA','POST','/storage/v1/object/clinical-attachments/'+key,
+  bad,{'Content-Type':'application/pdf','x-upsert':'false'}),'request_body_data_only');
+ assert.equal(getterReads,0);
+ const good=pdf();
+ const p=plan(req('ownerA','POST','/storage/v1/object/clinical-attachments/'+key,
+  good,{'Content-Type':'application/pdf','x-upsert':'false'}));
+ assert.equal(materializeValidatedStagingBody(p).equals(good),true);
+ good.fill(0);
+ assert.equal(materializeValidatedStagingBody(p).equals(pdf()),true);
+});

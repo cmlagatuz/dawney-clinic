@@ -3,6 +3,9 @@ name: Phase 3 recovery scripts
 on:
   pull_request:
     paths:
+      # Rerun the unchanged signed restore against every hosted boundary correction.
+      - 'scripts/hosted-acceptance/**'
+      - 'scripts/ci/full_tree_pg17.sh'
       - 'scripts/recovery/**'
       - '.github/workflows/phase3-recovery.yml'
   push:

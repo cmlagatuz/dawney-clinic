@@ -1,4 +1,4 @@
-import {test} from 'node:test';
+import {test,mock} from 'node:test';
 import assert from 'node:assert/strict';
 import {generateKeyPairSync,createHash,sign as signBytes,sign as cryptoSign,randomUUID} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
@@ -10,6 +10,9 @@ import {runHostedAcceptance} from '../acceptance.mjs';
 import {BACKEND_SOURCE_SHA,PROTECTED_PROJECT_REF,harnessHashes,verifyOwnerGate,verifySignedJwt,storageKey} from '../guards.mjs';
 
 const now=Date.parse('2026-11-17T12:00:00.000Z');
+// Test-process-only deterministic clock: NO exported runner time injection.
+// This file is executed by node --test in an isolated worker process.
+mock.method(Date,'now',()=>now);
 const stagingRef='zzzzzzzzzzzzzzzzzzzz';
 const staging={ref:stagingRef,origin:'https://'+stagingRef+'.supabase.co',productionRef:PROTECTED_PROJECT_REF};
 const {privateKey,publicKey}=generateKeyPairSync('rsa',{modulusLength:2048});
@@ -61,7 +64,7 @@ const base=()=>({
  transport:{async request(){throw Error('should never be called');}},
  approval:signedApproval({...claims,runId:'TEST_'+randomUUID().replace(/-/g,'').slice(0,20).toUpperCase()}),
  trust,staging,actors,fixtures,journalDir:mkdtempSync(join(tmpdir(),'dawney-journal-')),
- publishableKey:'sb_publishable_synthetic_dummy',now
+ publishableKey:'sb_publishable_synthetic_dummy'
 });
 
 function fakeTransport({
@@ -381,4 +384,70 @@ test('malformed JWKS, duplicate kid and private key fields fail closed',()=>{
   assert.throws(()=>verifySignedJwt(actors.ownerA,invalid,input),
    /HOSTED_ACCEPTANCE_BLOCKED/);
  }
+});
+
+test('SOL P2 runner rejects caller-supplied historical time before transport or journal',async()=>{
+ const {transport,state}=fakeTransport();
+ const expired=signedApproval({...claims,notBefore:now-7200000,expiresAt:now-7140000});
+ const input={...base(),transport,approval:expired};
+ const historical=now-7199000;
+ await assert.rejects(runHostedAcceptance({...input,now:historical}),
+  /caller_time_forbidden/);
+ await assert.rejects(runHostedAcceptance(input),/approval_expired/);
+ assert.equal(state.calls.length,0);
+ const {readdirSync}=await import('node:fs');
+ assert.deepEqual(readdirSync(input.journalDir),[],'no journal or writes on stale consent');
+});
+test('SOL P2 owned staging cannot substitute signed origin through getter or Proxy traps',async()=>{
+ const {transport,state}=fakeTransport();
+ const valid=base();
+ const broken={...staging};
+ let getterCalls=0;
+ Object.defineProperty(broken,'origin',{enumerable:true,get(){
+  getterCalls++;
+  return getterCalls<3?staging.origin:'https://evil.example.invalid';
+ }});
+ await assert.rejects(runHostedAcceptance({...valid,staging:broken,transport}),
+  /staging_data_only/);
+ assert.equal(getterCalls,0);
+ const orig=base(),reads={get:0,proto:0,keys:0};
+ const malicious=new Proxy(staging,{
+  get(){reads.get++;throw Error('proxy getter reached');},
+  getPrototypeOf(){reads.proto++;throw Error('proxy proto reached');},
+  ownKeys(){reads.keys++;throw Error('proxy keys reached');}
+ });
+ await assert.rejects(runHostedAcceptance({...orig,staging:malicious,transport}),
+  /staging_data_only/);
+ assert.deepEqual(reads,{get:0,proto:0,keys:0});
+ assert.equal(state.calls.length,0);
+});
+test('SOL P2 signed, validated origin survives later mutation after journal-before-request',async()=>{
+ const {transport,state}=fakeTransport();
+ const input={...base(),transport:null,staging:{...staging}};
+ const origins=[];
+ input.transport={async request(req){
+  origins.push(req.origin);
+  input.staging.origin='https://evil.example.invalid';
+  return transport.request(req);
+ }};
+ const result=await runHostedAcceptance(input);
+ assert.equal(result.cleanup.status,'passed');
+ assert.ok(origins.length>20);
+ assert.ok(origins.every(origin=>origin===staging.origin));
+ assert.equal(result.cleanup.origin,staging.origin);
+ assert.equal(state.calls.length,origins.length);
+});
+test('SOL P2 guard rejects inherited, nonenumerable and extra staging claims',()=>{
+ const context=base();
+ const root={...staging};
+ const invalids=[
+  Object.create(root),
+  Object.defineProperty({...staging},'origin',{value:staging.origin,enumerable:false}),
+  {...staging,unreviewed:'https://evil.example.invalid'}
+ ];
+ for(const target of invalids)assert.throws(()=>
+  verifyOwnerGate({approval:context.approval,trust,staging:target,now}),
+  /staging_data_only/);
+ const valid=verifyOwnerGate({approval:context.approval,trust,staging,now});
+ assert.equal(valid.origin,staging.origin);
 });

@@ -52,7 +52,7 @@ web/src/public-site/usePatientEligibility.ts
 web/src/public-site/useServiceSpecies.ts
 web/tests/owner-booking-view.test.mjs
 CLAUDE
-# Grok-reviewed PR68 journal runner, workflow, docs and tests remain unchanged.
+# PR68 original runner and tests remain anchored at the frozen PR100 commit.
 # The single guard exception below is explicitly anchored to PR98's frozen
 # previously reviewed blob, then separately pinned to this child's correction.
 while IFS= read -r path; do
@@ -61,9 +61,10 @@ while IFS= read -r path; do
 done <<'GROK'
 .github/workflows/hosted-security-acceptance-source.yml
 docs/HOSTED_SECURITY_ACCEPTANCE.md
-scripts/hosted-acceptance/acceptance.mjs
-scripts/hosted-acceptance/tests/acceptance.test.mjs
 GROK
+[[ "$(git rev-parse "0a8ac3ca914676189272ee5e736bf40e22f36a17:scripts/hosted-acceptance/acceptance.mjs")" == ab77c3cb5cad7e3d52f39e418e4c01fb595c9afe &&
+   "$(git rev-parse "0a8ac3ca914676189272ee5e736bf40e22f36a17:scripts/hosted-acceptance/tests/acceptance.test.mjs")" == c5d2dd61e4fecd0f65b8f57fd30cfc240f0131ea ]] ||
+ fail 'reviewed original PR68 runner/tests drifted in frozen PR100'
 [[ "$(git rev-parse "51ae2c4cfaa92f9126925ab9b9632f8fe77ad1a7:scripts/hosted-acceptance/guards.mjs")" == c6361ee848c1c78370fc5e771d8765090c367708 ]] ||
  fail 'PR98 signed-owner guard ancestor changed'
 # Reviewed #71 staff UI files must match the immutable source commit and
@@ -99,6 +100,7 @@ while IFS= read -r path; do
  web/tests/ops-port.test.mjs|\
   docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md|\
   .github/workflows/staging-acceptance-plan-offline.yml|\
+  .github/workflows/phase3-recovery.yml|\
   scripts/hosted-acceptance/staging-request-plan.mjs|\
   scripts/hosted-acceptance/tests/staging-request-plan.test.mjs) ;;
  *) fail "unexpected source change against PR69: $path";;
@@ -121,8 +123,41 @@ scripts/hosted-acceptance/guards.mjs
 scripts/hosted-acceptance/staging-request-plan.mjs
 scripts/hosted-acceptance/tests/staging-request-plan.test.mjs
 P2_REMEDIATION_ONLY
-) <(git diff --name-only c9995b0e44469408eaa5f46261f2702d3590fc12 "$EXPECTED_HEAD_SHA") ||
- fail 'staging remediation expanded outside six explicitly authorized paths'
+) <(git diff --name-only c9995b0e44469408eaa5f46261f2702d3590fc12 0a8ac3ca914676189272ee5e736bf40e22f36a17) ||
+ fail 'frozen PR100 six-path remediation invariant violated'
+# The PR100 ancestor's exact reviewed six-path change remains frozen.
+git fetch --no-tags origin 'refs/pull/100/head:refs/remotes/origin/frozen-pr100'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr100)" == 0a8ac3ca914676189272ee5e736bf40e22f36a17 ]] ||
+ fail 'frozen SOL-reviewed PR100 head moved'
+git merge-base --is-ancestor 0a8ac3ca914676189272ee5e736bf40e22f36a17 "$EXPECTED_HEAD_SHA" ||
+ fail 'runner child missing frozen PR100 ancestry'
+diff -u <(cat <<'RUNNER_CHILD_ONLY'
+.github/workflows/phase3-recovery.yml
+scripts/ci/full_tree_pg17.sh
+scripts/hosted-acceptance/acceptance.mjs
+scripts/hosted-acceptance/guards.mjs
+scripts/hosted-acceptance/staging-request-plan.mjs
+scripts/hosted-acceptance/tests/acceptance.test.mjs
+scripts/hosted-acceptance/tests/staging-request-plan.test.mjs
+RUNNER_CHILD_ONLY
+) <(git diff --name-only 0a8ac3ca914676189272ee5e736bf40e22f36a17 "$EXPECTED_HEAD_SHA") ||
+ fail 'runner remediation changed files outside seven authorized paths'
+[[ "$(git rev-parse "0a8ac3ca914676189272ee5e736bf40e22f36a17:.github/workflows/phase3-recovery.yml")" == 5c81e8bbc82497157c71842560f3400f7e581ab5 &&
+   "$(git rev-parse "HEAD:.github/workflows/phase3-recovery.yml")" == c8cd61ac2b896a56251f4068d7b1d07fcc5fd488 &&
+   "$(git hash-object .github/workflows/phase3-recovery.yml)" == c8cd61ac2b896a56251f4068d7b1d07fcc5fd488 ]] ||
+ fail 'unchanged signed recovery workflow expanded beyond reviewed PR trigger'
+while read -r path parent current; do
+ [[ "$(git rev-parse "0a8ac3ca914676189272ee5e736bf40e22f36a17:$path")" == "$parent" &&
+    "$(git rev-parse "HEAD:$path")" == "$current" &&
+    "$(git hash-object "$path")" == "$current" ]] ||
+ fail "unreviewed source drift on runner remediation: $path"
+done <<'RUNNER_SECURITY_BLOBS'
+scripts/hosted-acceptance/acceptance.mjs ab77c3cb5cad7e3d52f39e418e4c01fb595c9afe 9817e02eef60e55aec896ef84faece7464813e68
+scripts/hosted-acceptance/guards.mjs dd17dd88beba2f17db771632591577b14e84fee0 58d5fd6e2444ecd018c21f76b770269ac6ac04a9
+scripts/hosted-acceptance/staging-request-plan.mjs f45250d8bf49b4efef9093d7b4fbd358421b8020 d96da92c8e7db950df891b13a1ac4b856aabade3
+scripts/hosted-acceptance/tests/acceptance.test.mjs c5d2dd61e4fecd0f65b8f57fd30cfc240f0131ea ad4d8d4672c563929988e1a20672a4cedd5fb547
+scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 6687c5e2da23acc5c05426339265073d98001ba8 75ee84cbfa8f830b0429d509a4cef4646bf96614
+RUNNER_SECURITY_BLOBS
 # Offline-only PR75 staging transport plan and mock coverage: strict blob pins.
 # Only the hardened guard differs from the original PR68 guard source; the
 # PR68 journal-first acceptance runner and inherited source tests stay pinned.
@@ -131,9 +166,9 @@ while read -r path sha; do
     "$(git hash-object "$path")" == "$sha" ]] ||
   fail "unreviewed staging transport-preparation source drift: $path"
 done <<'STAGING_PREP_BLOBS'
-scripts/hosted-acceptance/guards.mjs dd17dd88beba2f17db771632591577b14e84fee0
-scripts/hosted-acceptance/staging-request-plan.mjs f45250d8bf49b4efef9093d7b4fbd358421b8020
-scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 6687c5e2da23acc5c05426339265073d98001ba8
+scripts/hosted-acceptance/guards.mjs 58d5fd6e2444ecd018c21f76b770269ac6ac04a9
+scripts/hosted-acceptance/staging-request-plan.mjs d96da92c8e7db950df891b13a1ac4b856aabade3
+scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 75ee84cbfa8f830b0429d509a4cef4646bf96614
 docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 487cfe380f4d5eb6353f7a54bed109640be7f6e2
 .github/workflows/staging-acceptance-plan-offline.yml 24983ec1cec9b34f21e0fb1443b078e327eeb793
 STAGING_PREP_BLOBS
