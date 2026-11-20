@@ -11,7 +11,7 @@ const id=(n:number)=>'20000000-0000-4000-8000-'+String(n).padStart(12,'0')
 const read=async(request:ChartRequest)=>{
   const response=await fetch('/__qa_clinical/read',{headers:{
     'x-qa-account':request.accountId,'x-qa-branch':request.branchId,
-    'x-qa-pet':request.petId,'x-qa-section':request.section,
+    'x-qa-pet':request.petId,'x-qa-owner':request.ownerId,'x-qa-section':request.section,
     'x-qa-cursor':request.cursor?.id??'','x-qa-limit':String(request.limit)}})
   const body:unknown=await response.json()
   if(!response.ok)throw Object.assign(new Error('Synthetic clinical denied'),
@@ -56,7 +56,7 @@ function Fixture(){
     </div>
     {denied?<p role="alert">Access revoked. All chart content cleared.</p>:
       <ChartIntegration key={account+':'+branch+':'+pet+':'+mode}
-        accountId={account} branchId={branch} petId={pet} appointmentId={id(5)}
+        accountId={account} branchId={branch} petId={pet} ownerId={id(4)} appointmentId={id(5)}
         role={role} mode={mode} port={port} syntheticSave={syntheticSave}
         onDenied={()=>setDenied(true)}/>}
   </main>
