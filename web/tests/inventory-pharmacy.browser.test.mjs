@@ -229,6 +229,17 @@ test('CLOUD Issue78: real Chromium pharmacy isolation, FEFO, statuses, keyboard 
           assert.equal(facts.costs,false)
           assert.ok(facts.assertions>0,'branch was checked by server')
           assert.ok(facts.contrast>=4.5,'WCAG AA body contrast at '+width+'/'+theme)
+          await browser.value('document.querySelector(".pharmacy-medicine").focus();true')
+          await browser.send('Input.dispatchKeyEvent',
+            {type:'keyDown',key:'ArrowDown',code:'ArrowDown',windowsVirtualKeyCode:40})
+          await browser.send('Input.dispatchKeyEvent',
+            {type:'keyUp',key:'ArrowDown',code:'ArrowDown',windowsVirtualKeyCode:40})
+          await browser.until('document.activeElement===document.querySelectorAll(".pharmacy-medicine")[1]')
+          await browser.send('Input.dispatchKeyEvent',
+            {type:'keyDown',key:'Home',code:'Home',windowsVirtualKeyCode:36})
+          await browser.send('Input.dispatchKeyEvent',
+            {type:'keyUp',key:'Home',code:'Home',windowsVirtualKeyCode:36})
+          await browser.until('document.activeElement===document.querySelectorAll(".pharmacy-medicine")[0]')
           await browser.value('document.querySelector(".pharmacy-medicine").click();true')
           await browser.until('!!document.querySelector(".pharmacy-detail")')
           await browser.until('document.activeElement===document.querySelector(".pharmacy-detail-head h2")')
