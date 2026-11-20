@@ -196,6 +196,36 @@ test('CLOUD RELEASE: full clinic owner-to-operator route acceptance with source-
       await browser.value('window.__cloudIntegrated.denied=true;[...document.querySelectorAll("button")].find(x=>x.textContent==="Refresh branch data").click();true')
       await browser.until('!!document.querySelector(".ops-failure")',9000)
       assert.equal(await browser.value('!!document.querySelector(".ops-visit")'),false,'revocation clears row and appointment context')
+      // Both a receptionist assignment and a stricter global receptionist
+      // assignment must deny records/drafts even when branch metadata claims vet.
+      for(const roleMode of ['receptionist','role-mismatch']){
+        await browser.goto(url+'/app/clinical?actor=staff&case='+roleMode)
+        await browser.until('!!document.querySelector("#clinical-day")',9000)
+        await browser.value('(()=>{const e=document.querySelector("#clinical-day");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,localStorage.getItem("cloud.integrated.day"));e.dispatchEvent(new Event("input",{bubbles:true}));e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
+        await browser.until('!!document.querySelector(".clinical-patient")',9000)
+        await browser.value('document.querySelector(".clinical-patient").click();true')
+        await browser.until('!!document.querySelector("#clinical-tab-history")')
+        await browser.value('document.querySelector("#clinical-tab-history").click();true')
+        await browser.until('document.body.textContent.includes("Receptionists can view authorized appointments only")',9000)
+        assert.equal(await browser.value('!!document.querySelector("[aria-label=\"Verified records history\"]")'),false)
+        assert.equal(await browser.value('window.__cloudIntegrated.directWrites.length'),0)
+      }
+      // Administrator can inspect a branch but neither author a clinical
+      // encounter nor create financial records while endpoints are unapproved.
+      await browser.goto(url+'/app/clinical?actor=staff&case=administrator')
+      await browser.until('!!document.querySelector("#clinical-day")',9000)
+      await browser.value('(()=>{const e=document.querySelector("#clinical-day");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,localStorage.getItem("cloud.integrated.day"));e.dispatchEvent(new Event("input",{bubbles:true}));e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
+      await browser.until('!!document.querySelector(".clinical-patient")',9000)
+      await browser.value('document.querySelector(".clinical-patient").click();true')
+      await browser.until('!!document.querySelector("#clinical-tab-encounter")')
+      await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
+      assert.equal(await browser.value('[...document.querySelectorAll("button")].some(b=>b.textContent.includes("Save to patient chart")&&!b.disabled)'),false)
+      await browser.goto(url+'/app/billing?actor=staff&case=administrator')
+      await browser.until('document.body.textContent.includes("Billing read service not integrated")',9000)
+      assert.equal(await browser.value('document.querySelectorAll(".billing-invoice").length'),0)
+      await browser.goto(url+'/app/ops?actor=visitor')
+      await browser.until('location.pathname==="/auth/signin"',9000)
+
       await browser.goto(url+'/app/ops?actor=staff&case=expired')
       await browser.until('location.pathname==="/auth/signin"',9000)
       assert.equal(await browser.value('!!document.querySelector(".ops-visit")'),false)
