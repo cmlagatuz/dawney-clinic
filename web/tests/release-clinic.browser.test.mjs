@@ -139,6 +139,16 @@ test('CLOUD RELEASE: full clinic owner-to-operator route acceptance with source-
         }
       }
       // No memberships -> denial, not an empty verified queue; staff shortcuts hidden.
+      // Owner B has their own synthetic patient; Owner A's requested booking
+      // must never appear in Owner B's owner portal or staff workspace.
+      await browser.goto(url+'/app/pets?actor=other')
+      await browser.until('document.body.textContent.includes("Synthetic B Patient")',9000)
+      assert.equal(await browser.value('document.body.textContent.includes("Synthetic Patient")'),false,
+        'owner B cannot see owner A pet')
+      await browser.goto(url+'/app/appointments?actor=other')
+      await browser.until('!!document.querySelector("#main-content")',9000)
+      assert.equal(await browser.value('document.body.textContent.includes("Synthetic cross-module appointment")'),false,
+        'owner B cannot see owner A requested appointment')
       await browser.goto(url+'/app/ops?actor=other')
       await browser.until('!!document.querySelector(".ops-failure")',9000)
       assert.equal(await browser.value('!!document.querySelector(".ops-visit")'),false)
