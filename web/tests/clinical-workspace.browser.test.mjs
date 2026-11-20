@@ -9,7 +9,7 @@ import {withChromium} from '../../scripts/browser/cdp.mjs'
 function installClinicalFixture(){
   const uuid=n=>'20000000-0000-4000-8000-'+String(n).padStart(12,'0')
   const ids={naga:uuid(1),cavite:uuid(2),pet:uuid(3),owner:uuid(4),
-    appointment:uuid(5),resource:uuid(6),user:uuid(9)}
+    appointment:uuid(5),resource:uuid(6),secondPet:uuid(7),secondAppointment:uuid(8),user:uuid(9)}
   const remote='https://issue51-fixtures.supabase.co'
   const RealDate=Date,now=Date.parse('2026-11-20T01:00:00Z')
   class FixedDate extends RealDate{
@@ -58,10 +58,10 @@ function installClinicalFixture(){
       return mode==='expired'?reply({message:'JWT expired'},401):reply(user)
     if(url.pathname==='/rest/v1/staff_memberships'){
       if(mode==='denied')return reply([])
-      return reply([{user_id:ids.user,role:'veterinarian',is_active:true}])
+      return reply([{user_id:ids.user,role:mode==='reception'?'receptionist':'veterinarian',is_active:true}])
     }
     if(url.pathname==='/rest/v1/staff_branch_memberships'){
-      const rows=[{user_id:ids.user,branch_id:ids.naga,role:'veterinarian',is_active:true}]
+      const rows=[{user_id:ids.user,branch_id:ids.naga,role:mode==='reception'?'receptionist':'veterinarian',is_active:true}]
       if(mode==='two')rows.push({user_id:ids.user,branch_id:ids.cavite,role:'veterinarian',is_active:true})
       return reply(rows)
     }
@@ -71,12 +71,19 @@ function installClinicalFixture(){
     if(url.pathname==='/rest/v1/appointments'){
       if(mode==='network')throw Error('Failed to fetch clinic appointments')
       if(filter('branch_id')!==ids.naga)return reply([])
-      return reply([{
+      const rows=[{
         id:ids.appointment,pet_id:ids.pet,owner_id:ids.owner,
         resource_id:ids.resource,branch_id:ids.naga,
         starts_at:'2026-11-20T02:00:00Z',ends_at:'2026-11-20T02:30:00Z',
         status:'confirmed',concern:'Synthetic fixture concern'
-      }])
+      }]
+      if(mode==='patient-switch')rows.push({
+        id:ids.secondAppointment,pet_id:ids.secondPet,owner_id:ids.owner,
+        resource_id:ids.resource,branch_id:ids.naga,
+        starts_at:'2026-11-20T03:00:00Z',ends_at:'2026-11-20T03:30:00Z',
+        status:'requested',concern:'Second synthetic fixture concern'
+      })
+      return reply(rows)
     }
     window.__clinicalCalls.unexpected.push(url.pathname)
     return reply({message:'No synthetic endpoint implemented'},404)
@@ -145,6 +152,35 @@ test('CLOUD clinical browser: staff-scoped chart, themes/widths, keyboard, no wr
             'even invalid local review never sends writes')
         }
       }
+      // The local scratchpad must be physically unmounted when patient identity changes.
+      await browser.goto(origin+'/app/clinical?case=patient-switch')
+      await browser.until('document.querySelectorAll(".clinical-patient").length===2')
+      await browser.value('document.querySelectorAll(".clinical-patient")[0].click();true')
+      await browser.until('!!document.querySelector(".clinical-chart")')
+      await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
+      await browser.until('!!document.querySelector("form[aria-label=\'encounter local working draft\'] input")')
+      await browser.value('document.querySelector("form[aria-label=\'encounter local working draft\'] input").focus();true')
+      await browser.send('Input.insertText',{text:'Unsaved fixture notes'})
+      await browser.until('document.querySelector("form[aria-label=\'encounter local working draft\'] input")?.value==="Unsaved fixture notes"')
+      await browser.value('document.querySelectorAll(".clinical-patient")[1].click();true')
+      await browser.until('document.querySelector("#clinical-tab-overview")?.getAttribute("aria-selected")==="true"')
+      await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
+      await browser.until('!!document.querySelector("form[aria-label=\'encounter local working draft\'] input")')
+      assert.equal(await browser.value('document.querySelector("form[aria-label=\'encounter local working draft\'] input").value'),
+        '','switching patients discards previous local draft')
+      assert.equal(await browser.value('window.__clinicalCalls.mutations.length'),0)
+
+      // Receptionist can read an authorized appointment but cannot draft medical orders.
+      await browser.goto(origin+'/app/clinical?case=reception')
+      await browser.until('!!document.querySelector(".clinical-patient")')
+      await browser.value('document.querySelector(".clinical-patient").click();true')
+      await browser.until('!!document.querySelector(".clinical-chart")')
+      await browser.value('document.querySelector("#clinical-tab-prescriptions").click();true')
+      await browser.until('!!document.querySelector("form[aria-label=\'prescriptions local working draft\']")')
+      assert.equal(await browser.value('[...document.querySelectorAll("form[aria-label=\'prescriptions local working draft\'] input")].every(i=>i.disabled)'),true)
+      assert.equal(await browser.value('[...document.querySelectorAll("form[aria-label=\'prescriptions local working draft\'] button")].every(b=>b.disabled)'),true)
+      assert.deepEqual(await browser.value('window.__clinicalCalls.mutations'),[])
+
       // The route is protected by verified active staff RLS membership.
       await browser.goto(origin+'/app/clinical?case=denied')
       await browser.until('!!document.querySelector(".clinical-failure")')
