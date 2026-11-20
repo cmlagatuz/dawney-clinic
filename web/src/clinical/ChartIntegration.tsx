@@ -239,7 +239,10 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
         'An earlier version was acknowledged. Newer unsaved edits remain in this browser.')
     }catch(error){
       const kind=classifyChartError(error)
-      if(kind==='denied'){setForm(blank());setBaseline(draftSnapshot(blank()));onDenied?.()}
+      if(error&&typeof error==='object'&&'code' in error&&
+        (error.code==='40001'||error.code==='23505')){
+        setConflict(true);setNotice('Revision or request-ID conflict. Reload authoritative history; no overwrite was attempted.')
+      }else if(kind==='denied'){setForm(blank());setBaseline(draftSnapshot(blank()));onDenied?.()}
       else if(kind==='unavailable')setNotice('Draft backend unavailable. Save not verified; retry is possible.')
       else setNotice('Save was not verified. Retry unchanged text with the same request ID.')
     }finally{busy.current=false;setSaving(false)}
