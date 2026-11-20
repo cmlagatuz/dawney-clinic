@@ -125,7 +125,7 @@ test('CLOUD RELEASE: full clinic owner-to-operator route acceptance with source-
           // invoices, balances, paid statuses, receipts or payment requests.
           await browser.goto(url+'/app/billing?actor=staff&theme='+theme)
           await browser.until('document.querySelector(".billing-workspace")?.textContent.includes("Billing read service not integrated")',9000)
-          const finance=await browser.value('({title:document.querySelector("#billing-title")?.textContent,actions:[...document.querySelectorAll("[aria-label=\"Unavailable finance workflows\"] button")].map(x=>x.disabled),cards:document.querySelectorAll(".billing-invoice").length,overflow:document.documentElement.scrollWidth>innerWidth})')
+          const finance=await browser.value('({title:document.querySelector("#billing-title")?.textContent,actions:[...document.querySelectorAll(".billing-actions button")].map(x=>x.disabled),cards:document.querySelectorAll(".billing-invoice").length,overflow:document.documentElement.scrollWidth>innerWidth})')
           assert.match(finance.title,/Billing & invoices/)
           assert.equal(finance.cards,0,'no fake invoice row')
           assert.equal(finance.actions.length>0,true)
