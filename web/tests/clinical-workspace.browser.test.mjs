@@ -129,6 +129,7 @@ test('CLOUD clinical browser: staff-scoped chart, themes/widths, keyboard, no wr
           assert.ok(facts.assertions.length>0,'backend branch assertion executed')
           await browser.value('document.querySelector(".clinical-patient").click();true')
           await browser.until('!!document.querySelector(".clinical-chart")')
+          await browser.until('document.activeElement === document.querySelector(".clinical-chart-head h2")')
           await browser.value('document.querySelector("#clinical-tab-overview").focus();true')
           await browser.send('Input.dispatchKeyEvent',
             {type:'keyDown',key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39})
