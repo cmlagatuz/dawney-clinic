@@ -10,7 +10,7 @@ const CONTROL=/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)
 const str=x=>typeof x==='string'
 const id=x=>str(x)&&UUID.test(x)
-const time=x=>str(x)&&ISO.test(x)&&Number.isFinite(Date.parse(x))
+const time=x=>str(x)&&ISO.test(x)&&Number.isFinite(Date.parse(x))&&date(x.slice(0,10))
 const date=x=>x===null||(str(x)&&DATE.test(x)&&Number.isFinite(Date.parse(x+'T00:00:00Z'))&&new Date(x+'T00:00:00Z').toISOString().slice(0,10)===x)
 const value=(x,max,empty=true)=>str(x)&&x.length<=max&&(empty||!!x.trim())&&!CONTROL.test(x)
 const number=(x,min,max)=>x===null||(typeof x==='number'&&Number.isFinite(x)&&x>=min&&x<=max)
