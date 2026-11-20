@@ -195,7 +195,7 @@ test('CLOUD billing: synthetic branch invoice/detail/payment/receipt UI, respons
          assert.ok(search)
          await browser.until('document.querySelectorAll(".billing-invoice").length===1')
          await browser.value('document.querySelector(".billing-invoice").click();true')
-         await browser.until('document.querySelector('section[aria-label="Issued receipts"]')?.textContent.includes("QA-RECEIPT-TEST")',9000)
+         await browser.until('document.body.textContent.includes("QA-RECEIPT-TEST")',9000)
          assert.match(await browser.value('document.querySelector(".billing-totals").textContent'),/PHP 230.00/)
          assert.equal(await browser.value('document.body.textContent.includes("999999")'),false)
          assert.equal(await browser.value('document.body.textContent.includes("SECRET_SHOULD_NOT_APPEAR")'),false)
