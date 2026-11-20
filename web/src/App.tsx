@@ -17,6 +17,7 @@ import { configured } from './lib/supabase'
 import { OPS_UI_ENABLED } from './ops/flag'
 import { OpsPage } from './pages/staff/OpsPage'
 import { ClinicalWorkspacePage } from './pages/staff/ClinicalWorkspacePage'
+import { PharmacyPage } from './pages/staff/PharmacyPage'
 
 function Guard() {
   const { checking, user, error, refresh } = useAuth()
@@ -28,6 +29,8 @@ function Guard() {
 const phase4PatientForm = import.meta.env.VITE_PHASE4_PATIENT_FORM === 'true'
 /** Clinical preview is OFF by default until secure patient+branch contracts and owner approval. */
 const clinicalWorkspacePreview = import.meta.env.VITE_CLINICAL_WORKSPACE_UI === 'true'
+/** Inventory migration #15 is NOT applied. Staff pharmacy UI stays OFF unless explicitly enabled. */
+const pharmacyPreview = import.meta.env.VITE_PHASE5B_PHARMACY_UI === 'true'
 
 export function App() {
   if(!configured) return <main className="config-error"><h1>Clinic setup required</h1>
@@ -44,6 +47,7 @@ export function App() {
       <Route path="/app/pets" element={phase4PatientForm?<PetsPageCatalog/>:<PetsPage/>}/>
       <Route path="/app/appointments" element={<AppointmentsPage/>}/>
       {OPS_UI_ENABLED && <Route path="/app/ops" element={<OpsPage/>}/>}
-      {clinicalWorkspacePreview && <Route path="/app/clinical" element={<ClinicalWorkspacePage/>}/>}</Route></Route>
+      {clinicalWorkspacePreview && <Route path="/app/clinical" element={<ClinicalWorkspacePage/>}/>}
+      {pharmacyPreview && <Route path="/app/pharmacy" element={<PharmacyPage/>}/>}</Route></Route>
 </Routes></AuthProvider></BrowserRouter>
 }
