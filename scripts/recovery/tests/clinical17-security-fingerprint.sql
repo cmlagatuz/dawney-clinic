@@ -106,7 +106,7 @@ WITH
  FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
  JOIN namespaces n ON n.oid=c.relnamespace WHERE NOT t.tgisinternal
  UNION ALL
- SELECT 'default_acl',n.nspname||'.'||pg_get_userbyid(d.defaclrole)||'.'||d.defaclobjtype,
+ SELECT 'default_acl',n.nspname||'.'||pg_get_userbyid(d.defaclrole)||'.'||d.defaclobjtype::text,
  jsonb_build_object('acl',coalesce((SELECT jsonb_agg(jsonb_build_array(
   case when a.grantee=0 then 'PUBLIC' else pg_get_userbyid(a.grantee) end,
   pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable)
