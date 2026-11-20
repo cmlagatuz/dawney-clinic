@@ -132,6 +132,7 @@ git fetch --no-tags origin 'refs/pull/100/head:refs/remotes/origin/frozen-pr100'
 git merge-base --is-ancestor 0a8ac3ca914676189272ee5e736bf40e22f36a17 "$EXPECTED_HEAD_SHA" ||
  fail 'runner child missing frozen PR100 ancestry'
 diff -u <(cat <<'RUNNER_CHILD_ONLY'
+.github/workflows/full-tree-pg17-security.yml
 .github/workflows/phase3-recovery.yml
 scripts/ci/full_tree_pg17.sh
 scripts/hosted-acceptance/acceptance.mjs
@@ -141,7 +142,7 @@ scripts/hosted-acceptance/tests/acceptance.test.mjs
 scripts/hosted-acceptance/tests/staging-request-plan.test.mjs
 RUNNER_CHILD_ONLY
 ) <(git diff --name-only 0a8ac3ca914676189272ee5e736bf40e22f36a17 "$EXPECTED_HEAD_SHA") ||
- fail 'runner remediation changed files outside seven authorized paths'
+ fail 'runner remediation changed files outside eight authorized security and CI paths'
 [[ "$(git rev-parse "0a8ac3ca914676189272ee5e736bf40e22f36a17:.github/workflows/phase3-recovery.yml")" == 5c81e8bbc82497157c71842560f3400f7e581ab5 &&
    "$(git rev-parse "HEAD:.github/workflows/phase3-recovery.yml")" == c8cd61ac2b896a56251f4068d7b1d07fcc5fd488 &&
    "$(git hash-object .github/workflows/phase3-recovery.yml)" == c8cd61ac2b896a56251f4068d7b1d07fcc5fd488 ]] ||
@@ -158,6 +159,12 @@ scripts/hosted-acceptance/staging-request-plan.mjs f45250d8bf49b4efef9093d7b4fbd
 scripts/hosted-acceptance/tests/acceptance.test.mjs c5d2dd61e4fecd0f65b8f57fd30cfc240f0131ea ad4d8d4672c563929988e1a20672a4cedd5fb547
 scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 6687c5e2da23acc5c05426339265073d98001ba8 75ee84cbfa8f830b0429d509a4cef4646bf96614
 RUNNER_SECURITY_BLOBS
+# Preserve the exact PR100 workflow and pin ONLY the added networkless
+# Chromium/Playwright localhost smoke step in this CI-only child.
+[[ "$(git rev-parse "0a8ac3ca914676189272ee5e736bf40e22f36a17:.github/workflows/full-tree-pg17-security.yml")" == 7d73f726bb7ce7079bba3506f35fba9bc5ce24d0 &&
+   "$(git rev-parse "HEAD:.github/workflows/full-tree-pg17-security.yml")" == e822c6af58cf45754c26064a2acf99ecb23d9318 &&
+   "$(git hash-object .github/workflows/full-tree-pg17-security.yml)" == e822c6af58cf45754c26064a2acf99ecb23d9318 ]] ||
+ fail 'unreviewed full-tree Playwright CI workflow drift'
 # Offline-only PR75 staging transport plan and mock coverage: strict blob pins.
 # Only the hardened guard differs from the original PR68 guard source; the
 # PR68 journal-first acceptance runner and inherited source tests stay pinned.
