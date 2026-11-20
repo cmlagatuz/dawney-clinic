@@ -14,6 +14,7 @@ import type {OpsWindow} from '../ops/ops-model.mjs'
  *
  * Clinical note/medication/vaccine persistence is NOT wired. No write method.
  */
+const roleRank={receptionist:0,veterinarian:1,administrator:2} as const
 export interface ClinicalReadPort {
   loadBranches():Promise<OpsBranch[]>
   readDay(branchId:string,clinicDay:string):Promise<OpsWindow>
@@ -25,7 +26,12 @@ export function createClinicalReadPort(user:User):ClinicalReadPort {
       const member=await verifiedStaffSession(user)
       if(!member||member.userId!==accountId||member.isActive!==true)throw Error('Clinic staff access is not approved')
       const [memberships,branches]=await Promise.all([listOwnBranchMemberships(user),listClinicBranches()])
-      return deriveBranches(memberships,branches,accountId).branches
+      // A branch cannot escalate a less privileged global staff assignment.
+      // This is presentation only; the backend must independently authorize writes.
+      return deriveBranches(memberships,branches,accountId).branches.map(branch=>({
+        ...branch,
+        role:roleRank[branch.role]>roleRank[member.role]?member.role:branch.role
+      }))
     },
     async readDay(branchId,clinicDay){
       if(!isBranchId(branchId))throw Object.assign(Error('Branch access not authorized'),{code:'42501'})
