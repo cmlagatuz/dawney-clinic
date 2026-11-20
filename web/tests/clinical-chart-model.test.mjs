@@ -4,7 +4,7 @@ import {classifyChartError,validateChartPage,validateDraftAcknowledgement,
   prepareSaveTicket,validateEncounter,CLINICAL_PAGE_LIMIT} from '../src/clinical/chart-model.mjs'
 
 const id=n=>'20000000-0000-4000-8000-'+String(n).padStart(12,'0')
-const context={accountId:id(1),branchId:id(2),petId:id(3),section:'appointments',cursor:null,limit:50}
+const context={accountId:id(1),branchId:id(2),petId:id(3),ownerId:id(4),section:'appointments',cursor:null,limit:50}
 const patient={id:id(3),ownerId:id(4),name:'Synthetic Patient',species:'Dog',breed:'Chow Chow',
   sex:'unknown',birthDate:'2021-01-01',taxonomyReviewNeeded:false}
 const stamp=n=>new Date(Date.parse('2026-11-20T12:00:00Z')-n*60000).toISOString()
