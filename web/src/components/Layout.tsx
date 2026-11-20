@@ -39,7 +39,7 @@ const nav = [
   { to: '/app/appointments', label: 'Appointments', icon: 'calendar' },
   { to: '/app/profile', label: 'My profile', icon: 'user' },
 ] as const
-/** Feature-OFF staff preview link: only present when VITE_PHASE5A_OPS_UI=true at build time. */
+/** All staff shortcuts require *current server-verified* active branch membership. */
 const staffNav = OPS_UI_ENABLED ? [{ to: '/app/ops', label: 'Clinic operations', icon: 'pulse' }] as const : []
 const clinicalPreview = import.meta.env.VITE_CLINICAL_WORKSPACE_UI === 'true'
 const pharmacyPreview = import.meta.env.VITE_PHASE5B_PHARMACY_UI === 'true'
@@ -56,16 +56,17 @@ function ClinicalStaffNavigation(){
   useEffect(()=>{
     let live=true
     setAccess({account,allowed:false})
-    if(!user||!account||(!clinicalPreview&&!pharmacyPreview))return ()=>{live=false}
+    if(!user||!account||(!OPS_UI_ENABLED&&!clinicalPreview&&!pharmacyPreview))return ()=>{live=false}
     const port=createClinicalReadPort(user)
     void port.loadBranches().then(branches=>{
       if(live)setAccess({account,allowed:branches.length>0})
     },()=>{if(live)setAccess({account,allowed:false})})
     return ()=>{live=false}
   },[account])
-  if((!clinicalPreview&&!pharmacyPreview)||!account||access.account!==account||!access.allowed)return null
+  if((!OPS_UI_ENABLED&&!clinicalPreview&&!pharmacyPreview)||!account||access.account!==account||!access.allowed)return null
   return <nav className="main-nav" aria-label="Clinic staff workspaces">
     <p className="nav-label">Clinic staff · preview</p>
+    {OPS_UI_ENABLED&&<NavLink to="/app/ops"><Icon name="calendar"/>Clinic operations</NavLink>}
     {clinicalPreview&&<NavLink to="/app/clinical"><Icon name="pulse"/>Patient charts & encounters</NavLink>}
     {pharmacyPreview&&<NavLink to="/app/pharmacy"><Icon name="shield"/>Veterinary pharmacy</NavLink>}
   </nav>
@@ -124,10 +125,6 @@ export function AppLayout() {
         <p className="nav-label">Pet owner portal</p>
         {nav.map(n => <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>)}
       </nav>
-      {staffNav.length > 0 && <nav className="main-nav" aria-label="Clinic staff preview">
-        <p className="nav-label">Clinic staff (preview)</p>
-        {staffNav.map(n => <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>)}
-      </nav>}
       <ClinicalStaffNavigation/>
       <div className="sidebar-bottom"><small>Signed in as</small><span className="truncate">{email}</span>
         <button type="button" className="button button-secondary" disabled={leaving} onClick={() => void signOut()}>{leaving ? 'Signing out…' : 'Sign out'}</button>
