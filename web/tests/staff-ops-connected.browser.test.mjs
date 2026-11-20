@@ -298,7 +298,7 @@ test('CLOUD: owner requested booking enters branch-only Operations, clinical con
           // Real route and actual typed branch reader: no mock props mounted into React.
           await browser.goto(url+'/app/ops?actor=staff&theme='+theme)
           await browser.until('!!document.querySelector(".ops-toolbar input[type=date]")',9000)
-          await browser.value('(()=>{const e=document.querySelector(".ops-toolbar input[type=date]");e.value=localStorage.getItem("cloud.integrated.day");e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
+          await browser.value('(()=>{const e=document.querySelector(".ops-toolbar input[type=date]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,localStorage.getItem("cloud.integrated.day"));e.dispatchEvent(new Event("input",{bubbles:true}));e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
           try { await browser.until('!!document.querySelector(".ops-visit")',6500) }
           catch {
             const state=await browser.value('({main:document.querySelector("#main-content")?.textContent.slice(0,950),day:document.querySelector(".ops-toolbar input[type=date]")?.value,alerts:[...document.querySelectorAll("[role=alert]")].map(e=>e.textContent.slice(0,250)),audit:JSON.parse(localStorage.getItem("cloud.integrated.syntheticAudit")||"[]").slice(-24),unexpected:window.__cloudIntegrated?.unexpected})')
@@ -342,7 +342,7 @@ test('CLOUD: owner requested booking enters branch-only Operations, clinical con
           // Verify a staff user can navigate, but chart independently revalidates the same branch.
           await browser.value('document.querySelector(\'a[href="/app/clinical"]\').click();true')
           await browser.until('!!document.querySelector("#clinical-day")',9000)
-          await browser.value('(()=>{const e=document.querySelector("#clinical-day");e.value=localStorage.getItem("cloud.integrated.day");e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
+          await browser.value('(()=>{const e=document.querySelector("#clinical-day");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,localStorage.getItem("cloud.integrated.day"));e.dispatchEvent(new Event("input",{bubbles:true}));e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
           await browser.until('!!document.querySelector(".clinical-patient")',9000)
           await browser.value('document.querySelector(".clinical-patient").click();true')
           await browser.until('document.querySelectorAll("[role=tab]").length===7',9000)
@@ -398,7 +398,7 @@ test('CLOUD: owner requested booking enters branch-only Operations, clinical con
       assert.equal(before.branch,'40000000-0000-4000-8000-000000000002')
       await browser.value('(()=>{const e=document.querySelector(\'[aria-label="Branch selection"] select\');e.value="40000000-0000-4000-8000-000000000001";e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
       await browser.until('!!document.querySelector(".ops-toolbar input[type=date]")',9000)
-      await browser.value('(()=>{const e=document.querySelector(".ops-toolbar input[type=date]");e.value=localStorage.getItem("cloud.integrated.day");e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
+      await browser.value('(()=>{const e=document.querySelector(".ops-toolbar input[type=date]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,localStorage.getItem("cloud.integrated.day"));e.dispatchEvent(new Event("input",{bubbles:true}));e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
       await browser.until('!!document.querySelector(".ops-visit")',9000)
       await browser.value('window.__cloudIntegrated.denied=true;[...document.querySelectorAll("button")].find(x=>x.textContent==="Refresh branch data").click();true')
       await browser.until('!!document.querySelector(".ops-failure")',9000)
