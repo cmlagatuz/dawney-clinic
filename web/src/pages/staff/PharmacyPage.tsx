@@ -82,7 +82,7 @@ function PharmacyAccount({user}:{user:User}){
       port={port} onDenied={revoked}/>}
     <p className="pharmacy-muted pharmacy-footer-note">
       The 15th inventory migration is a proposed, unapplied backend contract.
-      When the read service is absent this preview shows an error, never demonstration stock.
+      When the read service is absent this preview shows an error, never invented stock quantities.
       Clinic-live activation requires ASTRA security review and owner approval.</p>
   </div>
 }
