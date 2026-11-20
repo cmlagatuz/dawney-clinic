@@ -98,7 +98,15 @@ test('CLOUD: public routes, Naga/Cavite, two themes and three widths, fail close
       await browser.goto(origin + '/?theme=dark')
       await browser.until('!!document.querySelector("button.site-menu")')
       await browser.value('document.querySelector("button.site-menu").focus(); true')
-      await browser.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+      assert.equal(await browser.value('document.activeElement === document.querySelector("button.site-menu")'),
+        true, 'mobile menu toggle receives keyboard focus')
+      // CDP keyDown without the Enter text produces trusted keydown/keyup but
+      // no keypress/native button click in headless Chromium. Send the actual
+      // carriage return so the browser (not a synthetic DOM click) activates it.
+      await browser.send('Input.dispatchKeyEvent', {
+        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        text: '\\r', unmodifiedText: '\\r'
+      })
       await browser.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
       await browser.until('document.querySelector("#site-nav").classList.contains("is-open")')
       await browser.until('document.activeElement === document.querySelector("#site-nav a")', 3500)
