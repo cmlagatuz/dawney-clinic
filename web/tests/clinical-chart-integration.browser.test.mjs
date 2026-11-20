@@ -50,7 +50,8 @@ function install(){
       if(section==='records')return {...base,performedAt:stamp(n),
         procedure:'Synthetic examination',temperatureC:38.4,weightKg:10,
         comments:'Test only',authoredBy:id(1)}
-      return {...base,appointmentId:id(5),authorId:id(5),editorId:id(6),status:'draft',
+      return {...base,appointmentId:scenario==='pages'&&n<50?id(500+n):id(5),
+        authorId:id(5),editorId:id(6),status:'draft',
         revision:1,complaint:'Existing synthetic complaint',examination:'Prior exam',
         assessment:'Prior assessment',plan:'Prior plan',createdAt:stamp(n),
         updatedAt:new Date(Date.parse(stamp(n))+1000).toISOString()}
