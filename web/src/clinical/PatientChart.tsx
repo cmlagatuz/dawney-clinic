@@ -13,6 +13,7 @@ type Props={
   branchName:string
   role:OpsRole
   accountId?:string
+  ownerId?:string
   branchId?:string
   appointmentId?:string
   chartPort?:ClinicalChartPort
@@ -27,7 +28,7 @@ function emptyDrafts():Drafts{
     vaccinations:newDraft('vaccinations'),prescriptions:newDraft('prescriptions')}
 }
 
-export function PatientChart({petId,rows,branchName,role,accountId,branchId,appointmentId,chartPort,onDenied,syntheticSave=false}:Props){
+export function PatientChart({petId,rows,branchName,role,accountId,ownerId,branchId,appointmentId,chartPort,onDenied,syntheticSave=false}:Props){
   const [section,setSection]=useState<ClinicalSectionId>('overview')
   const tabs=useRef<Array<HTMLButtonElement|null>>([])
   const headingRef=useRef<HTMLHeadingElement>(null)
@@ -95,11 +96,11 @@ export function PatientChart({petId,rows,branchName,role,accountId,branchId,appo
     <section className="clinical-panel" role="tabpanel" id={'clinical-panel-'+section}
       aria-labelledby={'clinical-tab-'+section} tabIndex={0}>
       <h3>{current?.label}</h3>
-      {accountId&&branchId&&appointmentId&&
+      {accountId&&ownerId&&branchId&&appointmentId&&
         (section==='overview'||section==='visits'||section==='history'||section==='encounter')&&
         <ChartIntegration key={accountId+':'+branchId+':'+petId+':'+appointmentId+':'+section}
           mode={section==='overview'?'overview':section==='visits'?'visits':section==='history'?'history':'encounter'}
-          accountId={accountId} branchId={branchId} petId={petId} appointmentId={appointmentId}
+          accountId={accountId} ownerId={ownerId} branchId={branchId} petId={petId} appointmentId={appointmentId}
           role={role} port={chartPort} onDenied={onDenied} syntheticSave={syntheticSave}/>}
 
       {section==='overview'&&<div className="clinical-two">
