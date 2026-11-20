@@ -104,12 +104,21 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -q <<'PRE12'
           create table clinic_ci.issue77_original_pets as select id,to_jsonb(p) old_row from public.pets p;
           create table clinic_ci.issue77_original_appointments as select id,to_jsonb(a) old_row from public.appointments a;
-          insert into public.clinical_records(pet_id,procedure,authored_by)
-          values('33333333-3333-4333-8333-333333333333',
-           'CLINICAL16 old unknown branch record','dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+          -- Do not disturb the inherited Issue77 test's exact two-record fixture.
           PRE12
           pg supabase/migrations/20261117233500_issue77_four_branch_foundation.sql
           pg supabase/tests/issue77_four_branch_pg17_denials.sql
+          # Synthetic-only recreation of a pre-branch historical NULL record.
+          # SUPERUSER CI temporarily bypasses only the insert branch guard;
+          # re-enable it immediately. Never used in an applied migration.
+          psql -X -v ON_ERROR_STOP=1 -q <<'LEGACY_UNKNOWN'
+          alter table public.clinical_records disable trigger clinical_branch_guard;
+          insert into public.clinical_records(pet_id,branch_id,procedure,authored_by)
+          values('33333333-3333-4333-8333-333333333333',
+           null,'CLINICAL16 old unknown branch record',
+           'dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+          alter table public.clinical_records enable trigger clinical_branch_guard;
+          LEGACY_UNKNOWN
           pg supabase/tests/issue58_staff_branch_queue_fixture.sql
           pg supabase/migrations/20261118203500_issue51_branch_booking_security.sql
           pg supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql

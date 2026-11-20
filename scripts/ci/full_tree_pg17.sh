@@ -246,7 +246,7 @@ while read -r file sha; do
     "$(git hash-object "$file")" == "$sha" ]] ||
  fail "clinical #16 reviewed source changed: $file"
 done <<'CLINICAL16_BLOBS'
-.github/workflows/clinical-chart-pg17.yml 013b62a5d5268c7e5a07450e2b2942b8239d41a9
+.github/workflows/clinical-chart-pg17.yml 4845cf794e5647661a93b58ee07d652b6a501674
 docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 346b0a668391fd2efc59b1bc2525bb5a07b7c280
 supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql f3deb43948de798ddd58cd5bce58c1e69c0d2f01
 supabase/tests/clinical_chart_encounter_pg17.sql bfc931abc74f2ef8ac694dcfac34866d5ed52846
