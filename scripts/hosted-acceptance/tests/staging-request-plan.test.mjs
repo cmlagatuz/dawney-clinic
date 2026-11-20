@@ -290,8 +290,8 @@ test('forged owner, invalid signatures and wrong signed source/host are rejected
 });
 test('inert planner exports no networking credential or trusted post-plan mutation path',()=>{
  const module=readFileSync(new URL('../staging-request-plan.mjs',import.meta.url),'utf8');
- assert.doesNotMatch(module,/\\bfetch\\s*\\(|\\bWebSocket\\b|\\bXMLHttpRequest\\b/);
- assert.doesNotMatch(module,/from\\s+['"](?:node:)?(?:https?|net|tls|undici|@supabase)/);
+ assert.doesNotMatch(module,/fetch\s*\(|WebSocket|XMLHttpRequest/);
+ assert.doesNotMatch(module,/from\s+['"](?:node:)?(?:https?|net|tls|undici|@supabase)/);
  const read=plan(req('anonymous','GET','/auth/v1/.well-known/jwks.json'));
  assert.equal(Object.hasOwn(read,'body'),false);
  assert.throws(()=>materializeValidatedStagingBody(read),{

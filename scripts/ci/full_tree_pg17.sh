@@ -126,7 +126,7 @@ while read -r path sha; do
   fail "unreviewed staging transport-preparation source drift: $path"
 done <<'STAGING_PREP_BLOBS'
 scripts/hosted-acceptance/staging-request-plan.mjs bc23dae4ba238b74c6e52522e6e95d46d9729826
-scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 15d53a4d931218becc3a4c2641323f4ce5c7e6a3
+scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 71c948c30df0419532b44c1d544c7861a37e014b
 docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 2dc5cc7e3deb4951468d6875daa5c49f015b4cc8
 .github/workflows/staging-acceptance-plan-offline.yml 2c04fb85121b4d714b7dc319c39da4e82727566f
 STAGING_PREP_BLOBS
