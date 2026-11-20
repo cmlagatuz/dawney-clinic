@@ -176,3 +176,54 @@ jobs:
           done
           curl --silent --fail http://127.0.0.1:4173/ >/dev/null
           node scripts/browser/anonymous.mjs http://127.0.0.1:4173
+
+      - name: Run pinned real Playwright against localhost with all provider traffic blocked
+        shell: bash
+        timeout-minutes: 6
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/dawney-playwright" --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          export PLAYWRIGHT_MODULE="$RUNNER_TEMP/dawney-playwright/node_modules/playwright/index.mjs"
+          test -f "$PLAYWRIGHT_MODULE"
+          (cd web && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort) > "$RUNNER_TEMP/playwright-preview.log" 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:4173/ >/dev/null
+          node --input-type=module <<'PLAYWRIGHT_LOCAL_ONLY'
+          import assert from 'node:assert/strict';
+          import {discoverChromium} from './scripts/browser/chromium-binary.mjs';
+          const {chromium}=await import(process.env.PLAYWRIGHT_MODULE);
+          const binaries=await discoverChromium();
+          const browser=await chromium.launch({executablePath:binaries[0],headless:true,
+           args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+           const origin='http://127.0.0.1:4173';
+           for(const width of [360,1280]){
+            const ctx=await browser.newContext({viewport:{width,height:850}});
+            await ctx.route('**/*',route=>{
+             const target=new URL(route.request().url());
+             if(target.origin===origin)return route.continue();
+             return route.fulfill({status:403,contentType:'application/json',body:'{}'});
+            });
+            const page=await ctx.newPage();
+            await page.goto(origin+'/',{waitUntil:'domcontentloaded'});
+            await page.locator('#main-content h1').first().waitFor();
+            assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+            await page.goto(origin+'/book',{waitUntil:'domcontentloaded'});
+            await page.locator('#main-content h1').first().waitFor();
+            assert.equal(await page.locator('input[name="slot"]').count(),0,
+             'no approved booking slots when provider reads are blocked');
+            await page.goto(origin+'/app/profile',{waitUntil:'domcontentloaded'});
+            await page.waitForURL('**/auth/signin',{timeout:15000});
+            assert.equal(new URL(page.url()).pathname,'/auth/signin');
+            await ctx.close();
+           }
+           console.log('PASS: Playwright Chromium 360/1280 local public/book/owner auth; no external provider traffic or writes');
+          } finally {await browser.close();}
+          PLAYWRIGHT_LOCAL_ONLY

@@ -4,6 +4,7 @@
  */
 import {createHash, createPublicKey, verify as verifySignature} from 'node:crypto';
 import {readFileSync} from 'node:fs';
+import {isProxy} from 'node:util/types';
 
 export const BACKEND_SOURCE_SHA='2bbcbde08f3a73aa222bec2c8f3332f23b09eba2';
 export const PROTECTED_PROJECT_REF='lgimhirgvresvbsdugac';
@@ -24,6 +25,24 @@ export function harnessHashes(){
   return Object.fromEntries(['guards.mjs','acceptance.mjs'].map(file=>
    [file,sha256(readFileSync(new URL('./'+file,import.meta.url)))]));
  }catch{throw new Error('HOSTED_ACCEPTANCE_BLOCKED:harness_unreadable');}
+}
+
+/**
+ * Snapshots external staging identity BEFORE any authorization checks.
+ * A Proxy is rejected BEFORE inspection (no getPrototypeOf/get traps).
+ * Own enumerable value descriptors only; no inherited, accessor or extra data.
+ */
+function ownedStaging(staging){
+ ensure(!isProxy(staging)&&object(staging),'staging_data_only');
+ const proto=Object.getPrototypeOf(staging);
+ ensure(proto===Object.prototype||proto===null,'staging_data_only');
+ const entries=Object.getOwnPropertyDescriptors(staging);
+ const keys=Reflect.ownKeys(entries);
+ ensure(keys.length===3&&keys.every(key=>typeof key==='string'&&
+  ['ref','origin','productionRef'].includes(key)&&
+  entries[key].enumerable&&Object.hasOwn(entries[key],'value')&&
+  typeof entries[key].value==='string'),'staging_data_only');
+ return Object.freeze(Object.fromEntries(keys.map(key=>[key,entries[key].value])));
 }
 
 /** A separately pinned SHA-256 public-key fingerprint, not a key from the approval itself. */
@@ -56,15 +75,17 @@ export function verifyOwnerGate({approval,trust,staging,now=Date.now()}={}){
  ensure(Number.isSafeInteger(verified.notBefore)&&Number.isSafeInteger(verified.expiresAt)&&
    verified.expiresAt-verified.notBefore>0&&verified.expiresAt-verified.notBefore<=3600000&&
    now>=verified.notBefore&&now<verified.expiresAt,'approval_expired');
- ensure(object(staging)&&typeof staging.ref==='string'&&/^[a-z0-9]{20}$/.test(staging.ref) &&
-   staging.ref!==PROTECTED_PROJECT_REF&&staging.ref!==staging.productionRef &&
-   staging.productionRef===PROTECTED_PROJECT_REF,'staging_not_separate');
- ensure(staging.origin===`https://${staging.ref}.supabase.co` &&
-   verified.projectRef===staging.ref&&verified.origin===staging.origin,'staging_origin_mismatch');
+ // One owned, accessor-free representation controls all project and host checks.
+ const target=ownedStaging(staging);
+ ensure(/^[a-z0-9]{20}$/.test(target.ref) &&
+   target.ref!==PROTECTED_PROJECT_REF&&target.ref!==target.productionRef &&
+   target.productionRef===PROTECTED_PROJECT_REF,'staging_not_separate');
+ ensure(target.origin===`https://${target.ref}.supabase.co` &&
+   verified.projectRef===target.ref&&verified.origin===target.origin,'staging_origin_mismatch');
  // Optional additive digest is returned *from the verified bytes*, not the
  // mutable approval.claims object. Existing PR68 callers keep their contract.
  return {
-  runId:verified.runId,origin:staging.origin,
+  runId:verified.runId,origin:verified.origin,
   ...(Object.hasOwn(verified,'stagingPlanSha256')?
    {stagingPlanSha256:verified.stagingPlanSha256}:{})
  };

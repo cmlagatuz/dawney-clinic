@@ -36,7 +36,7 @@ const exactKeys=(value,keys)=>plain(value)&&Object.keys(value).length===keys.len
 const dataPrimitive=v=>v===null||typeof v==='string'||typeof v==='boolean'||
  (typeof v==='number'&&Number.isFinite(v));
 function ownedRecord(value,code,allowed=null,nested=[]){
- ensure(plain(value)&&!isProxy(value)&&
+ ensure(!isProxy(value)&&plain(value)&&
   (Object.getPrototypeOf(value)===Object.prototype||
    Object.getPrototypeOf(value)===null),code);
  const descriptors=Object.getOwnPropertyDescriptors(value);
@@ -55,9 +55,14 @@ function ownedRequest(raw){
  request.headers=ownedRecord(request.headers,'request_headers_data_only');
  if(Object.hasOwn(request,'body')){
   const body=request.body;
+  ensure(!isProxy(body),'request_body_data_only');
   if(Buffer.isBuffer(body)){
-   ensure(!isProxy(body),'request_body_data_only');
-   request.body=Buffer.from(body);
+   // A Buffer is a typed byte array, not a JSON object. Reject custom own
+   // accessors/valueOf hooks before copying, then bypass coercion entirely.
+   ensure(Object.getPrototypeOf(body)===Buffer.prototype&&
+    Reflect.ownKeys(body).every(key=>typeof key==='string'&&
+     /^(0|[1-9][0-9]*)$/.test(key)),'request_body_data_only');
+   request.body=Buffer.copyBytesFrom(body);
   }else request.body=ownedRecord(body,'request_body_data_only');
  }
  return request;
