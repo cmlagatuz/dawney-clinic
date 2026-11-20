@@ -47,11 +47,15 @@ export function SiteLayout() {
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
   const toggle = useRef<HTMLButtonElement>(null)
+  const navRef = useRef<HTMLElement>(null)
   const first = useRef(true)
   const main = useRef<HTMLElement>(null)
   useEffect(() => { setOpen(false); if (first.current) { first.current = false; return } main.current?.focus() }, [pathname])
   useEffect(() => {
     if (!open) return
+    // On narrow screens the menu precedes its toggle in DOM order. Move
+    // keyboard focus into the opened links; Escape returns it to the toggle.
+    navRef.current?.querySelector<HTMLAnchorElement>('a')?.focus()
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); toggle.current?.focus() } }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -59,7 +63,7 @@ export function SiteLayout() {
   return <div className="site">
     <header className="site-header">
       <Link to="/" className="brand-link" aria-label="Dawney Animal Clinic, Naga Branch — home"><Brand compact /></Link>
-      <nav id="site-nav" className={open ? 'site-nav is-open' : 'site-nav'} aria-label="Main">
+      <nav ref={navRef} id="site-nav" className={open ? 'site-nav is-open' : 'site-nav'} aria-label="Main">
         {links.map(l => <NavLink key={l.to} to={l.to} end={'end' in l}>{l.label}</NavLink>)}
         <NavLink to="/book" className="button button-primary button-small nav-book">Book an appointment</NavLink>
       </nav>
