@@ -254,7 +254,7 @@ test('CLOUD integrated owner request to staff queue/clinical chart/pharmacy with
           const source=await browser.value('document.querySelector("form[aria-label=\'Appointment request\']").textContent')
           assert.match(source,/Patient/)
           assert.equal(await browser.value('document.querySelector("form select").value'),
-            '40000000-0000-4000-8000-000000000009','owner's real eligible patient selected')
+            '40000000-0000-4000-8000-000000000009',"owner eligible patient selected")
           await browser.value('(()=>{const el=document.querySelectorAll("form[aria-label=\'Appointment request\'] select")[1];el.value="40000000-0000-4000-8000-000000000003";el.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
           await browser.until('!!document.querySelector("form[aria-label=\'Appointment request\'] select option[value]:not([value=\'\'])")')
           await browser.until('document.querySelectorAll("form[aria-label=\'Appointment request\'] select").length>=3')
