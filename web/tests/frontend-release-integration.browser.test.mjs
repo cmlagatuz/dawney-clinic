@@ -197,7 +197,9 @@ function sharedJourneyFixture(){
     }
     if(path==='/rest/v1/staff_memberships'){
       const role=actor==='staff'&&mode!=='denied'?'veterinarian':null
-      return response(singular?(role?{user_id:ids.staffUser,role,is_active:true}:null):[])
+      // PostgREST maybeSingle GET in this client version normalizes a JSON array.
+      // The browser's existing staff fixture likewise supplies [row] or [].
+      return response(role?[{user_id:ids.staffUser,role,is_active:true}]:[])
     }
     if(path==='/rest/v1/staff_branch_memberships')
       return response(actor==='staff'&&mode!=='denied'
