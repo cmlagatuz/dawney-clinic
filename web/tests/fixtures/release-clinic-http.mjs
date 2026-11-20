@@ -107,6 +107,11 @@ export function releaseClinicFixture(){
       const id=n=>'20000000-0000-4000-8000-'+String(n).padStart(12,'0')
       const section=field('section'),cursor=field('cursor'),branch=field('branch')
       const scope={accountId:field('account'),branchId:branch,petId:field('pet'),ownerId:field('owner')}
+      if(mode==='late'&&branch===id(2))await new Promise(resolve=>setTimeout(resolve,250))
+      if(mode==='missing')return response({code:'PGRST202',message:'Migration missing'},404)
+      if(mode==='denied'||mode==='revoked')return response({code:'42501',message:'Permission revoked'},403)
+      if(mode==='network')throw new TypeError('Synthetic chart network disconnected')
+      if(mode==='not-found')return response({kind:'not_found'})
       window.__cloudIntegrated.clinicalReads.push({section,cursor,scope})
       if(scope.accountId!==id(1)||scope.ownerId!==id(4)||scope.petId!==id(3))
         return response({code:'42501',message:'Wrong chart scope'},403)
@@ -129,10 +134,17 @@ export function releaseClinicFixture(){
       const items=cursor?all.slice(50):all.slice(0,50)
       const more=count>50&&!cursor,last=items.at(-1)
       const at=section==='appointments'?last?.startsAt:section==='records'?last?.performedAt:last?.createdAt
-      return response({kind:'ok',accountId:scope.accountId,branchId:branch,section,
-        patient:{id:id(3),ownerId:id(4),name:'Synthetic Chart Patient',
+      const packet={kind:'ok',accountId:scope.accountId,branchId:branch,section,
+        patient:{id:id(3),ownerId:id(4),name:branch===id(7)?'Synthetic Other Branch Patient':'Synthetic Chart Patient',
           species:'Dog',breed:'Chow Chow',sex:'unknown',birthDate:'2021-11-01',taxonomyReviewNeeded:false},
-        items,hasMore:more,nextCursor:more?{at,id:last.id}:null})
+        items,hasMore:more,nextCursor:more?{at,id:last.id}:null}
+      if(mode==='wrong-owner')packet.patient.ownerId=id(99)
+      if(mode==='wrong-branch')packet.branchId=id(99)
+      if(mode==='wrong-patient'&&packet.items[0])packet.items[0].petId=id(99)
+      if(mode==='malformed'&&packet.items[0])packet.items[0].id='bad-id'
+      if(mode==='bad-date'&&packet.items[0])packet.items[0].performedAt='not-a-timestamp'
+      if(mode==='empty'){packet.items=[];packet.hasMore=false;packet.nextCursor=null}
+      return response(packet)
     }
     if(url.origin===location.origin)return originalFetch(input,init)
     if(url.origin!==remote){
