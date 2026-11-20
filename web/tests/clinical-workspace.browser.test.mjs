@@ -58,7 +58,7 @@ function installClinicalFixture(){
       return mode==='expired'?reply({message:'JWT expired'},401):reply(user)
     if(url.pathname==='/rest/v1/staff_memberships'){
       if(mode==='denied')return reply([])
-      return reply([{user_id:ids.user,role:mode==='reception'?'receptionist':'veterinarian',is_active:true}])
+      return reply([{user_id:ids.user,role:mode==='reception'||mode==='role-mismatch'?'receptionist':'veterinarian',is_active:true}])
     }
     if(url.pathname==='/rest/v1/staff_branch_memberships'){
       const rows=[{user_id:ids.user,branch_id:ids.naga,role:mode==='reception'?'receptionist':'veterinarian',is_active:true}]
@@ -179,7 +179,10 @@ test('CLOUD clinical browser: staff-scoped chart, themes/widths, keyboard, no wr
       assert.equal(await browser.value('window.__clinicalCalls.mutations.length'),0)
 
       // Receptionist can read an authorized appointment but cannot draft medical orders.
-      await browser.goto(origin+'/app/clinical?case=reception')
+      for(const roleCase of ['reception','role-mismatch']){
+        // role-mismatch: global receptionist, branch claims veterinarian.
+        // UI must apply the stricter role, not trust the branch alone.
+        await browser.goto(origin+'/app/clinical?case='+roleCase)
       await browser.until('!!document.querySelector(".clinical-patient")')
       await browser.value('document.querySelector(".clinical-patient").click();true')
       await browser.until('!!document.querySelector(".clinical-chart")')
@@ -188,6 +191,7 @@ test('CLOUD clinical browser: staff-scoped chart, themes/widths, keyboard, no wr
       assert.equal(await browser.value('[...document.querySelectorAll("form[aria-label=\'prescriptions local working draft\'] input,form[aria-label=\'prescriptions local working draft\'] textarea")].every(i=>i.disabled)'),true)
       assert.equal(await browser.value('[...document.querySelectorAll("form[aria-label=\'prescriptions local working draft\'] button")].every(b=>b.disabled)'),true)
       assert.deepEqual(await browser.value('window.__clinicalCalls.mutations'),[])
+      }
 
       // The route is protected by verified active staff RLS membership.
       await browser.goto(origin+'/app/clinical?case=denied')
