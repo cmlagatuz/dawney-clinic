@@ -87,8 +87,20 @@ export function releaseClinicFixture(){
     if(url.origin===location.origin&&url.pathname.startsWith('/__qa_clinical/')){
       // Isolated localhost-only chart fixture. No actual clinical provider RPC.
       if(url.pathname==='/__qa_clinical/save'){
-        window.__cloudIntegrated.clinicalWrites.push('synthetic-local')
-        return response({code:'42501',message:'Clinical persistence disabled'},403)
+        // ONLY localhost test fixture. Never forward to Supabase or a provider.
+        const input=await req.json()
+        window.__cloudIntegrated.clinicalWrites.push({
+          localOnly:true,requestId:input.requestId,revision:input.expectedRevision})
+        if(!['write','conflict','uncertain'].includes(mode))
+          return response({code:'42501',message:'Clinical persistence disabled'},403)
+        if(mode==='conflict')return response({code:'40001',message:'Synthetic version conflict'},409)
+        if(mode==='uncertain'&&window.__cloudIntegrated.clinicalWrites.length===1)
+          return response({code:'08006',message:'Synthetic uncertain acknowledgement'},503)
+        return response({kind:'saved',id:'20000000-0000-4000-8000-000000000100',
+          appointmentId:input.appointmentId,branchId:input.branchId,
+          petId:input.petId,authorId:'20000000-0000-4000-8000-000000000005',
+          editorId:'20000000-0000-4000-8000-000000000001',
+          status:'draft',revision:input.expectedRevision+1,updatedAt:'2026-11-21T12:00:00Z'})
       }
       if(url.pathname!=='/__qa_clinical/read')return response({code:'404'},404)
       const field=name=>req.headers.get('x-qa-'+name)
