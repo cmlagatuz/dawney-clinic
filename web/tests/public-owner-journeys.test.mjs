@@ -45,7 +45,7 @@ function syntheticPublicSession() {
       // the outage until the explicit user retry, regardless of call count.
       if (failure && !window.__cloudAcceptance.policyRecovered) {
         window.__cloudAcceptance.failures += 1
-        return reply({ code: '08006', message: 'Synthetic policy read failure' }, 503)
+        return reply({ code: '42501', message: 'Synthetic policy read denied' }, 403)
       }
       return reply([]) // No owner-approved booking policy. Never fabricate slots.
     }
@@ -120,8 +120,8 @@ test('CLOUD: public routes, Naga/Cavite, two themes and three widths, fail close
       await browser.until('document.querySelector("button.site-menu") === document.activeElement')
       assert.equal(await browser.value('document.querySelector("#site-nav").classList.contains("is-open")'), false, 'Escape closes menu')
 
-      // Backend outage is distinguishable from a deliberately unapproved
-      // service policy; pressing Try again must never submit any request.
+      // A denied policy read differs from an intentionally unapproved policy.
+      // Both must block booking; keyboard retry must never submit a request.
       await browser.goto(origin + '/book?case=failure&theme=light')
       try {
         await browser.until('!!document.querySelector("#main-content [role=alert] button")', 5000)
