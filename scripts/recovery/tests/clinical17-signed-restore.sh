@@ -19,6 +19,28 @@ PROVENANCE
 for table in public.clinical_encounter_drafts clinic_private.clinical_draft_audit clinic_private.clinical_draft_requests clinic_private.clinical_record_provenance;do
  test "$(psql -XAt -c "select count(*) from $table")" = 1
 done
+# Capture EFFECTIVE ACL and object-policy matrix from the source before dump.
+# Roles are shared cluster metadata, not owned by a PostgreSQL database dump:
+# verify the target cluster has both browser roles before pg_restore.
+required_roles(){
+ local role
+ for role in "$@";do
+  test "$(psql -XqAt -d clinical16_ci -c \
+   "select count(*) from pg_roles where rolname='$role'")" = 1 || return 1
+ done
+}
+required_roles anon authenticated || { echo 'FAIL: missing original browser roles';exit 1; }
+if required_roles anon synthetic_missing_role_abcdef;then
+ echo 'FAIL: missing role preflight returned success';exit 1
+fi
+echo 'PASS: required-role preflight refuses missing role'
+fingerprint(){ psql -XqAt -v ON_ERROR_STOP=1 -d "$1" \
+ -f scripts/recovery/tests/clinical17-security-fingerprint.sql; }
+authz(){ psql -XqAt -v ON_ERROR_STOP=1 -d "$1" \
+ -f scripts/recovery/tests/clinical17-restored-authz.sql; }
+fingerprint clinical16_ci > "$tmp/source.authority"
+test -s "$tmp/source.authority"
+authz clinical16_ci > "$tmp/source.authz"
 docker exec "$container" pg_dump -U postgres -Fc -d clinical16_ci > "$tmp/source.dump"
 test -s "$tmp/source.dump"
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$tmp/ephemeral.key" >/dev/null 2>&1
@@ -40,9 +62,56 @@ fi
 gpg --batch --yes --pinentry-mode loopback --passphrase 'ci-only-clinical17-no-provider' \
  --decrypt --output "$tmp/restored.dump" "$tmp/signed.encrypted" >/dev/null 2>&1
 cmp "$tmp/source.dump" "$tmp/restored.dump"
+# CRITICAL: restore ACL statements; --no-acl falsely widens default
+# function EXECUTE and may erase required positive privileges.
+# Owner is intentionally the same postgres CI role on both databases.
 docker exec "$container" createdb -U postgres clinical16_restored
+docker exec -i "$container" pg_restore -U postgres --no-owner \
+ --exit-on-error --single-transaction -d clinical16_restored < "$tmp/restored.dump"
+fingerprint clinical16_restored > "$tmp/restored.authority"
+if ! cmp -s "$tmp/source.authority" "$tmp/restored.authority";then
+ diff -u "$tmp/source.authority" "$tmp/restored.authority" | head -100 || true
+ echo 'FAIL: source/restored schema/table/column/routine ACL, RLS or trigger drift';exit 1
+fi
+authz clinical16_restored > "$tmp/restored.authz"
+cmp "$tmp/source.authz" "$tmp/restored.authz"
+echo 'PASS: full source/restored PostgreSQL authorization fingerprint and active actor tests IDENTICAL'
+
+# Deliberately reproduce SOL's old --no-acl defect, and require a mismatch.
+docker exec "$container" createdb -U postgres clinical16_noacl
 docker exec -i "$container" pg_restore -U postgres --no-owner --no-acl \
- -d clinical16_restored < "$tmp/restored.dump"
+ --exit-on-error --single-transaction -d clinical16_noacl < "$tmp/restored.dump"
+fingerprint clinical16_noacl > "$tmp/broken.authority"
+if cmp -s "$tmp/source.authority" "$tmp/broken.authority";then
+ echo 'FAIL: --no-acl restore incorrectly accepted as authorization-equivalent';exit 1
+fi
+echo 'PASS: adversarial --no-acl restore DETECTED as missing original grants'
+
+# Negative perturbation checks run in a rollback-only transaction: both
+# an incorrectly granted PUBLIC clinical RPC and missing private object must
+# change the original/restored fingerprint and fail the comparison.
+{
+ printf 'BEGIN;\nGRANT EXECUTE ON FUNCTION public.create_staff_appointment_clinical_record(uuid,uuid,text,numeric,numeric,text) TO PUBLIC;\n'
+ cat scripts/recovery/tests/clinical17-security-fingerprint.sql
+ printf 'ROLLBACK;\n'
+} | psql -XqAt -v ON_ERROR_STOP=1 -d clinical16_restored > "$tmp/widened.authority"
+if cmp -s "$tmp/source.authority" "$tmp/widened.authority";then
+ echo 'FAIL: malicious PUBLIC EXECUTE grant was not detected';exit 1
+fi
+{
+ printf 'BEGIN;\nDROP TABLE clinic_private.clinical_draft_requests CASCADE;\n'
+ cat scripts/recovery/tests/clinical17-security-fingerprint.sql
+ printf 'ROLLBACK;\n'
+} | psql -XqAt -v ON_ERROR_STOP=1 -d clinical16_restored > "$tmp/missing-object.authority"
+if cmp -s "$tmp/source.authority" "$tmp/missing-object.authority";then
+ echo 'FAIL: missing clinical idempotency table was not detected';exit 1
+fi
+# Original restored state must still match after the intentionally rolled-back
+# corruption probes; never leave a corrupted candidate in the CI fixture.
+fingerprint clinical16_restored > "$tmp/final.authority"
+cmp "$tmp/source.authority" "$tmp/final.authority"
+echo 'PASS: bad ACL, missing clinical object and missing browser role are detected and never accepted'
+
 query(){ docker exec "$container" psql -XAt -v ON_ERROR_STOP=1 -U postgres -d clinical16_restored -c "$1"; }
 for table in clinic_private.clinical_record_provenance clinic_private.clinical_draft_audit clinic_private.clinical_draft_requests;do
  test "$(query "select count(*) from $table")" = 1
@@ -54,4 +123,4 @@ test "$(query "select count(*) from public.appointments where id='55555555-5555-
 test "$(query "select has_table_privilege('authenticated','clinic_private.clinical_draft_audit','SELECT')")" = f
 test "$(query "select has_column_privilege('authenticated','public.clinical_records','branch_id','INSERT')")" = f
 test "$(query "select count(*) from pg_trigger where tgrelid='clinic_private.clinical_draft_audit'::regclass and tgname='clinical_draft_audit_no_update_delete' and tgenabled='O'")" = 1
-echo 'PASS: CLINICAL17 signed+AES256 PG17 restore, tamper/missing signature rejected, draft/audit/nonce/provenance, historical Dog/Chow Chow and grants recovered'
+echo 'PASS: CLINICAL17 signed+AES256 PG17 restore, tamper/missing signature rejected, draft/audit/nonce/provenance, historical Dog/Chow Chow and full source/restored ACL/RLS/trigger/actor privileges equivalent'

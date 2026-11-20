@@ -256,12 +256,36 @@ supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql
 supabase/tests/clinical_provenance_pagination_pg17.sql
 web/src/lib/clinical-chart.ts
 CLINICAL17_ONLY
-) <(git diff --name-only eb030489626babb9bb0a61a387c2d49df2f71730 "$EXPECTED_HEAD_SHA") ||
- fail 'clinical remediation expanded outside seven authorized security/recovery paths'
+) <(git diff --name-only eb030489626babb9bb0a61a387c2d49df2f71730 08713ddc9a3ef984426807f475cf7829631c5326) ||
+ fail 'frozen PR109 original seven-path clinical remediation moved'
+git fetch --no-tags origin 'refs/pull/109/head:refs/remotes/origin/frozen-pr109'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr109)" == 08713ddc9a3ef984426807f475cf7829631c5326 &&
+  "$(git rev-parse "08713ddc9a3ef984426807f475cf7829631c5326:scripts/ci/full_tree_pg17.sh")" == 29fad32738e2c60d8748b6e01cd908952f827208 ]] ||
+ fail 'SOL-reviewed frozen PR109 exact head/CI guard moved'
+git merge-base --is-ancestor 08713ddc9a3ef984426807f475cf7829631c5326 "$EXPECTED_HEAD_SHA" ||
+ fail 'clinical recovery ACL child is not descended from frozen PR109'
+diff -u <(cat <<'CLINICAL_ACL_RECOVERY_ONLY'
+.github/workflows/clinical-chart-pg17.yml
+scripts/ci/full_tree_pg17.sh
+scripts/recovery/tests/clinical17-restored-authz.sql
+scripts/recovery/tests/clinical17-security-fingerprint.sql
+scripts/recovery/tests/clinical17-signed-restore.sh
+CLINICAL_ACL_RECOVERY_ONLY
+) <(git diff --name-only 08713ddc9a3ef984426807f475cf7829631c5326 "$EXPECTED_HEAD_SHA") ||
+ fail 'ACL recovery correction changed outside exactly five authorized paths'
 while read -r path sha;do
  [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
-   "$(git hash-object "$path")" == "$sha" ]] ||
- fail "clinical17 reviewed source drift: $path"
+    "$(git hash-object "$path")" == "$sha" ]] ||
+ fail "clinical recovery ACL reviewed child blob drift: $path"
+done <<'CLINICAL_ACL_RECOVERY_BLOBS'
+.github/workflows/clinical-chart-pg17.yml 99bac429d8e2a03be47837b1cd42c09156c08a43
+scripts/recovery/tests/clinical17-restored-authz.sql 63f788345169b5d9bfdceee03543c804f25f407a
+scripts/recovery/tests/clinical17-security-fingerprint.sql b00bac091dd99d7e5ce5a9069f5ce3d5fcd284eb
+scripts/recovery/tests/clinical17-signed-restore.sh 4ea872facdb768b5084236679cff06216e4b58ae
+CLINICAL_ACL_RECOVERY_BLOBS
+while read -r path sha;do
+ [[ "$(git rev-parse "08713ddc9a3ef984426807f475cf7829631c5326:$path")" == "$sha" ]] ||
+ fail "frozen PR109 clinical source drift: $path"
 done <<'CLINICAL17_BLOBS'
 .github/workflows/clinical-chart-pg17.yml 290a0dd049de4d0006afa6d5739c1f030386e086
 docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 48069e896afc9f52ddea5eaaf5777eb835d802e7
@@ -499,6 +523,8 @@ while IFS= read -r path; do
   supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql|\
   supabase/tests/clinical_chart_encounter_pg17.sql|\
   scripts/recovery/tests/clinical17-signed-restore.sh|\
+  scripts/recovery/tests/clinical17-security-fingerprint.sql|\
+  scripts/recovery/tests/clinical17-restored-authz.sql|\
   supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql|\
   supabase/tests/clinical_provenance_pagination_pg17.sql|\
   web/src/lib/clinical-chart.ts) ;;
