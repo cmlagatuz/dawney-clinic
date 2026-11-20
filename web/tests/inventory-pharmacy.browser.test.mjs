@@ -11,7 +11,7 @@ function pharmacyFixture(){
   const ids={naga:uuid(1),cavite:uuid(2),a:uuid(3),b:uuid(4),c:uuid(5),
     nLot1:uuid(6),nLot2:uuid(7),nExpired:uuid(8),nHeld:uuid(11),
     nRecalled:uuid(12),nReserved:uuid(13),cLot:uuid(14),movementN:uuid(15),
-    movementC:uuid(16),staff:uuid(90)}
+    movementC:uuid(16),staff:uuid(90),otherStaff:uuid(91)}
   const remote='https://issue51-fixtures.supabase.co'
   const RealDate=Date,freeze=RealDate.parse('2026-11-20T01:00:00Z')
   class FixedDate extends RealDate{
@@ -23,17 +23,17 @@ function pharmacyFixture(){
   const theme=params.get('theme')==='dark'?'dark':'light'
   const scenario=params.get('case')||'normal'
   localStorage.setItem('dawney-theme',theme)
-  const user={id:ids.staff,aud:'authenticated',role:'authenticated',
+  const user={id:scenario==='account-switch'?ids.otherStaff:ids.staff,aud:'authenticated',role:'authenticated',
     email:'pharmacy-fixture@example.test',email_confirmed_at:'2025-01-01T00:00:00Z',
     created_at:'2025-01-01T00:00:00Z',app_metadata:{},user_metadata:{}}
   const expiry=Math.floor(RealDate.now()/1000)+86400*365
-  const token=['{"alg":"HS256","typ":"JWT"}',JSON.stringify({sub:ids.staff,exp:expiry}),'fixture']
+  const token=['{"alg":"HS256","typ":"JWT"}',JSON.stringify({sub:user.id,exp:expiry}),'fixture']
     .map(x=>btoa(x).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')).join('.')
   localStorage.setItem('dawney.auth.v1',JSON.stringify({
     user,access_token:token,refresh_token:'synthetic-test',expires_at:expiry
   }))
   window.__pharmacyMock={calls:[],blocked:[],mutations:[],assertions:[],
-    recovered:false}
+    recovered:false,revoked:false}
   const catalogue=[
     {id:ids.a,product_code:'QA78-A',generic_name:'Synthetic Medicine Alpha',formulation:'vial',
       strength:'1 mg',stock_unit:'vial',minimum_shelf_life_days:0,requires_refrigeration:false,
@@ -115,7 +115,7 @@ function pharmacyFixture(){
     if(url.pathname==='/auth/v1/user')
       return scenario==='expired'?json({message:'JWT expired'},401):json(user)
     if(url.pathname==='/rest/v1/staff_memberships'){
-      return json(scenario==='denied'?[]:[{user_id:ids.staff,role:'veterinarian',is_active:true}])
+      return json(scenario==='denied'||scenario==='account-switch'?[]:[{user_id:user.id,role:'veterinarian',is_active:true}])
     }
     if(url.pathname==='/rest/v1/staff_branch_memberships'){
       const branches=scenario==='both'?[ids.naga,ids.cavite]:[ids.naga]
@@ -138,7 +138,8 @@ function pharmacyFixture(){
     if(isReadonlyRPC&&req.method==='POST'){
       const payload=await req.json(),branch=payload.p_branch
       window.__pharmacyMock.assertions.push(branch)
-      if(scenario==='revoked')return json({code:'42501',message:'Not authorized for branch'},403)
+      if(scenario==='revoked'||scenario==='revocation-after'&&window.__pharmacyMock.revoked)
+        return json({code:'42501',message:'Not authorized for branch'},403)
       if(branch!==ids.naga&&branch!==ids.cavite)
         return json({code:'42501',message:'Not authorized for branch'},403)
       if(url.pathname.endsWith('/assert_staff_branch'))return json(branch)
@@ -310,6 +311,24 @@ test('CLOUD Issue78: real Chromium pharmacy isolation, FEFO, statuses, keyboard 
         true,'branch-specific quantity is shown on the authorized catalog result')
       assert.deepEqual(branch.mutations,[])
       assert.deepEqual(branch.blocked,[])
+      // Revalidation after a previously successful stock read must revoke and
+      // clear the entire branch screen, not leave cached medicine/ledger details.
+      await browser.goto(origin+'/app/pharmacy?case=revocation-after')
+      await browser.until('document.querySelectorAll(".pharmacy-medicine").length===3')
+      await browser.value('document.querySelector(".pharmacy-medicine").click();true')
+      await browser.until('!!document.querySelector(".pharmacy-batches")')
+      await browser.value(`window.__pharmacyMock.revoked=true;
+        [...document.querySelectorAll('.pharmacy-toolbar button')][0].click();true`)
+      await browser.until('!!document.querySelector(".pharmacy-failure")')
+      assert.equal(await browser.value('!!document.querySelector(".pharmacy-medicine")'),false,
+        'revocation clears stock from the previously successful read')
+
+      // New account token on a fresh document must never inherit old branch data.
+      await browser.goto(origin+'/app/pharmacy?case=account-switch')
+      await browser.until('!!document.querySelector(".pharmacy-failure")')
+      assert.equal(await browser.value('!!document.querySelector(".pharmacy-medicine")'),false)
+      assert.equal(await browser.value('window.__pharmacyMock.calls.some(x=>x.includes("/medicine_catalog"))'),false)
+
       // Branch and account revocation cannot display previous records.
       await browser.goto(origin+'/app/pharmacy?case=denied')
       await browser.until('!!document.querySelector(".pharmacy-failure")')
