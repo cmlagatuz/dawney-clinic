@@ -377,7 +377,7 @@ test('CLOUD: owner requested booking enters branch-only Operations, clinical con
       await browser.value('(()=>{const e=document.querySelector(".ops-toolbar input[type=date]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,localStorage.getItem("cloud.integrated.day"));e.dispatchEvent(new Event("input",{bubbles:true}));e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
       await browser.until('!!document.querySelector(".ops-visit")',9000)
       await browser.goto(url+'/app/ops?actor=staff&case=empty')
-      await browser.until('!!document.querySelector(".empty-state")',9000)
+      await browser.until('document.querySelector("#main-content")?.textContent.includes("No appointments in this window")',9000)
       assert.equal(await browser.value('!!document.querySelector(".ops-visit")'),false)
       // The branch invoker counts RPC is missing: show unavailable, never fabricate zero.
       await browser.goto(url+'/app/ops?actor=staff&case=counts-missing')
