@@ -33,7 +33,7 @@ function syntheticPublicSession() {
     if (url.pathname === '/auth/v1/user') return reply({ message: 'No synthetic session' }, 401)
     if (url.pathname === '/rest/v1/clinic_branches') {
       const id = url.searchParams.get('id')?.replace(/^eq\./, '')
-      if (id) return reply(id === naga ? [{ id: naga, booking_enabled: false }] : [])
+      if (id) return reply(id === naga ? [{ id: naga, booking_enabled: true }] : []) // policy remains unapproved
       return reply([
         { id: naga, slug: 'naga', display_name: 'Synthetic Naga' },
         { id: uuid(3), slug: 'cavite', display_name: 'Synthetic Cavite' }
