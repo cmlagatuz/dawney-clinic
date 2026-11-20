@@ -158,15 +158,22 @@ test('CLOUD clinical browser: staff-scoped chart, themes/widths, keyboard, no wr
       await browser.value('document.querySelectorAll(".clinical-patient")[0].click();true')
       await browser.until('!!document.querySelector(".clinical-chart")')
       await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
-      await browser.until('!!document.querySelector("form[aria-label=\'encounter local working draft\'] input")')
-      await browser.value('document.querySelector("form[aria-label=\'encounter local working draft\'] input").focus();true')
+      try { await browser.until('!!document.querySelector(".clinical-form-shell input")', 5000) }
+      catch {
+        const snap=await browser.value(`({
+          panels:[...document.querySelectorAll('.clinical-panel')].map(p=>p.textContent?.slice(0,80)),
+          selected:[...document.querySelectorAll('[role=tab]')].filter(t=>t.getAttribute('aria-selected')==='true').map(t=>t.id)
+        })`)
+        assert.fail('No encounter field for synthetic selection: '+JSON.stringify(snap))
+      }
+      await browser.value('document.querySelector(".clinical-form-shell input").focus();true')
       await browser.send('Input.insertText',{text:'Unsaved fixture notes'})
-      await browser.until('document.querySelector("form[aria-label=\'encounter local working draft\'] input")?.value==="Unsaved fixture notes"')
+      await browser.until('document.querySelector(".clinical-form-shell input")?.value==="Unsaved fixture notes"')
       await browser.value('document.querySelectorAll(".clinical-patient")[1].click();true')
       await browser.until('document.querySelector("#clinical-tab-overview")?.getAttribute("aria-selected")==="true"')
       await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
-      await browser.until('!!document.querySelector("form[aria-label=\'encounter local working draft\'] input")')
-      assert.equal(await browser.value('document.querySelector("form[aria-label=\'encounter local working draft\'] input").value'),
+      await browser.until('!!document.querySelector(".clinical-form-shell input")')
+      assert.equal(await browser.value('document.querySelector(".clinical-form-shell input").value'),
         '','switching patients discards previous local draft')
       assert.equal(await browser.value('window.__clinicalCalls.mutations.length'),0)
 
