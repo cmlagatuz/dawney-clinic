@@ -83,6 +83,7 @@ function OpsView({port, branchName, onDenied}: {port: OpsReadPort | null; branch
   return <>{heading}
     <p className="visually-hidden" role="status" aria-live="polite">{win ? `${win.items.length}${win.hasMore ? ' or more' : ''} appointments loaded for ${label}.` : ''}</p>
     <div className="ops-toolbar" role="group" aria-label="Date and view">
+      <button type="button" className="button button-secondary button-small" onClick={reload} aria-label="Refresh authorized branch appointments and counts">Refresh branch data</button>
       <div className="ops-seg" role="group" aria-label="View">
         <button type="button" className="button button-secondary button-small" aria-pressed={view === 'board'} onClick={() => setView('board')}>Flow board</button>
         <button type="button" className="button button-secondary button-small" aria-pressed={view === 'schedule'} onClick={() => setView('schedule')}>Schedule</button></div>
