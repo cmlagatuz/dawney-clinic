@@ -82,7 +82,7 @@ begin
  for i in 1..50 loop
   perform public.create_staff_appointment_clinical_record(
    'aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',gen_random_uuid(),
-   'SYNTHETIC VERIFIED '+i::text,null,null,null);
+   'SYNTHETIC VERIFIED '||i::text,null,null,null);
  end loop;
  a:=public.read_staff_patient_chart(naga,pet,'records',null,null,50);
  if jsonb_array_length(a->'items')<>50 or a->>'hasMore'<>'true' then

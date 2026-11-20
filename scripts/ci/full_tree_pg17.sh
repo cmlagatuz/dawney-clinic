@@ -263,11 +263,11 @@ while read -r path sha;do
    "$(git hash-object "$path")" == "$sha" ]] ||
  fail "clinical17 reviewed source drift: $path"
 done <<'CLINICAL17_BLOBS'
-.github/workflows/clinical-chart-pg17.yml 5c75648d07d15c197781cf41548478527b0c45c2
+.github/workflows/clinical-chart-pg17.yml 6ce9ba6af20aba9943cfad8d00939dd15febaffc
 docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 48069e896afc9f52ddea5eaaf5777eb835d802e7
 scripts/recovery/tests/clinical17-signed-restore.sh c879ee38563f9e47dfd7860eb30592583a70c8c0
 supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql c1018e711cc01055e4ef3269caf261c05036fd58
-supabase/tests/clinical_provenance_pagination_pg17.sql 8d8350ae32088251ddb896dfee0515adadc2acbb
+supabase/tests/clinical_provenance_pagination_pg17.sql aaab1e10e011199b1c183298a13d55528e773ea5
 web/src/lib/clinical-chart.ts baa7b28eba264a271c636f947fa9f467c87b4c37
 CLINICAL17_BLOBS
 while read -r file sha; do
