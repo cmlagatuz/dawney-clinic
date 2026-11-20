@@ -135,7 +135,6 @@ git merge-base --is-ancestor 0a8ac3ca914676189272ee5e736bf40e22f36a17 "$EXPECTED
 diff -u <(cat <<'RUNNER_CHILD_ONLY'
 .github/workflows/full-tree-pg17-security.yml
 .github/workflows/phase3-recovery.yml
-.github/workflows/phase4-repository-security.yml
 scripts/ci/full_tree_pg17.sh
 scripts/hosted-acceptance/acceptance.mjs
 scripts/hosted-acceptance/guards.mjs
@@ -167,6 +166,7 @@ git fetch --no-tags origin 'refs/pull/107/head:refs/remotes/origin/frozen-pr107'
 git merge-base --is-ancestor 8dd43037ba830a3b2a63d4c55c8cf710b9ab5d2b "$EXPECTED_HEAD_SHA" ||
  fail 'fixture-security child is not descended from frozen PR107'
 diff -u <(cat <<'FIXTURE_BOUNDARY_CHILD'
+.github/workflows/phase4-repository-security.yml
 scripts/ci/full_tree_pg17.sh
 scripts/hosted-acceptance/acceptance.mjs
 scripts/hosted-acceptance/tests/acceptance.test.mjs
