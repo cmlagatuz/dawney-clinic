@@ -96,8 +96,8 @@ test('CLOUD: public routes, Naga/Cavite, two themes and three widths, fail close
         width: 360, height: 900, deviceScaleFactor: 1, mobile: false
       })
       await browser.goto(origin + '/?theme=dark')
-      await browser.until('!!document.querySelector("button[aria-label=\"Open menu\"]")')
-      await browser.value('document.querySelector("button[aria-label=\"Open menu\"]").focus(); true')
+      await browser.until('!!document.querySelector("button.site-menu")')
+      await browser.value('document.querySelector("button.site-menu").focus(); true')
       await browser.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
       await browser.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
       await browser.until('document.querySelector("#site-nav").classList.contains("is-open")')
@@ -105,7 +105,7 @@ test('CLOUD: public routes, Naga/Cavite, two themes and three widths, fail close
       assert.equal(await browser.value('document.activeElement.matches(":focus-visible")'), true, 'open menu link has visible keyboard focus')
       await browser.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
       await browser.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
-      await browser.until('document.querySelector("button[aria-label=\"Open menu\"]") && document.querySelector("button[aria-label=\"Open menu\"]") === document.activeElement')
+      await browser.until('document.querySelector("button.site-menu") === document.activeElement')
       assert.equal(await browser.value('document.querySelector("#site-nav").classList.contains("is-open")'), false, 'Escape closes menu')
 
       // Backend outage is distinguishable from a deliberately unapproved
