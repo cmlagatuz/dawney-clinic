@@ -73,7 +73,10 @@ function installBillingFixture(){
      if(mode==='network'&&!window.__qaBilling.recovered)throw TypeError('Failed to fetch')
      if(url.pathname.endsWith('/invoices')){
        if(mode==='slow'&&branch===ids.naga&&!window.__qaBilling.recovered)
-         await new Promise(resolve=>{window.__qaBilling.releaseSlow=resolve})
+         await new Promise(resolve=>{
+           const previous=window.__qaBilling.releaseSlow
+           window.__qaBilling.releaseSlow=()=>{previous?.();resolve()}
+         })
        const items=mode==='empty'?[]:mode==='foreign'&&branch===ids.cavite?naga:
          branch===ids.naga?naga:cavite
        return reply({items,hasMore:mode==='more'})
@@ -248,6 +251,18 @@ test('CLOUD billing: synthetic branch invoice/detail/payment/receipt UI, respons
      await browser.until('!!document.querySelector("#billing-branch")')
      await selectNative(browser,'#billing-branch',naga)
      await browser.until('document.querySelector(".billing-banner")?.textContent.includes("More financial records exist")',9000)
+     // A delayed Naga read must never paint after Cavite is the selected branch.
+     await browser.goto(base+fixtures+'?actor=staff&case=slow')
+     await browser.until('!!document.querySelector("#billing-branch")')
+     await selectNative(browser,'#billing-branch',naga)
+     await browser.until('typeof window.__qaBilling.releaseSlow==="function"',9000)
+     await selectNative(browser,'#billing-branch',cavite)
+     await browser.until('document.querySelector(".billing-invoice")?.textContent.includes("QA-CAVITE")',9000)
+     await browser.value('window.__qaBilling.recovered=true;window.__qaBilling.releaseSlow();true')
+     await browser.until('document.querySelector(".billing-invoice")?.textContent.includes("QA-CAVITE")&&!document.body.textContent.includes("QA-NAGA-PAID")',9000)
+     assert.equal(await browser.value('document.querySelectorAll(".billing-invoice").length'),1)
+     assert.equal(await browser.value('document.body.textContent.includes("QA-NAGA-ISSUED")'),false)
+     assert.equal(await browser.value('document.body.textContent.includes("QA-RECEIPT-TEST")'),false)
    })
  }finally{await vite.close()}
 })
