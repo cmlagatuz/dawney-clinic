@@ -125,7 +125,7 @@ test('CLOUD RELEASE: full clinic owner-to-operator route acceptance with source-
           // invoices, balances, paid statuses, receipts or payment requests.
           await browser.goto(url+'/app/billing?actor=staff&theme='+theme)
           await browser.until('document.querySelector(".billing-workspace")?.textContent.includes("Billing read service not integrated")',9000)
-          const finance=await browser.value('({title:document.querySelector("#billing-title")?.textContent,actions:[...document.querySelectorAll(".billing-actions button")].map(x=>x.disabled),cards:document.querySelectorAll(".billing-invoice").length,overflow:document.documentElement.scrollWidth>innerWidth})')
+          const finance=await browser.value('({title:document.querySelector("#billing-title")?.textContent,actions:[...document.querySelectorAll(".billing-actions[aria-label] button")].map(x=>x.disabled),cards:document.querySelectorAll(".billing-invoice").length,overflow:document.documentElement.scrollWidth>innerWidth})')
           assert.match(finance.title,/Billing & invoices/)
           assert.equal(finance.cards,0,'no fake invoice row')
           assert.equal(finance.actions.length>0,true)
@@ -274,7 +274,11 @@ test('CLOUD RELEASE: real public discovery, 360/768/1440 light/dark and PII-free
       await browser.send('Emulation.setDeviceMetricsOverride',
         {width:768,height:900,deviceScaleFactor:1,mobile:false})
       await browser.goto(origin+'/book?actor=visitor&theme=light')
-      await browser.until('!!document.querySelector("form[aria-label=\"Naga appointment request\"] input[name=service]")',9000)
+      try{await browser.until('!!document.querySelector("form[aria-label=\"Naga appointment request\"] input[name=service]")',9000)}
+      catch{
+        const state=await browser.value('({main:document.querySelector("#main-content")?.textContent.slice(0,650),audit:JSON.parse(localStorage.getItem("cloud.integrated.syntheticAudit")||"[]").map(x=>x.path).slice(-14),unknown:window.__cloudIntegrated?.unexpected,auth:window.__cloudIntegrated?.authSubmits})')
+        assert.fail('Guest booking form absent with synthetic approved test policy: '+JSON.stringify(state))
+      }
       assert.equal(await browser.value('!!document.querySelector("[aria-label=\"Naga appointment request\"] button[type=submit]:not(:disabled)")'),false)
       await browser.value('document.querySelector("input[name=service]").click();true')
       await browser.until('!!document.querySelector("form[aria-label=\"Naga appointment request\"] label select")',9000)
