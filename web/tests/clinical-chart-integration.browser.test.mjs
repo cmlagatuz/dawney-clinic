@@ -116,8 +116,18 @@ test('CLOUD chart: live Chromium synthetic 50/51, responsive theme, denied, stal
       for(const section of ['history','encounter']){
         await browser.value(pick(section))
         await browser.until('document.querySelectorAll(".clinical-visit").length===50')
+        if(section==='encounter'){
+          assert.equal(await browser.value('!!document.querySelector(".clinical-attribution")'),false,
+            'unseen appointment draft must not be invented as a saved revision')
+          assert.equal(await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").disabled'),true)
+        }
         await browser.value('document.querySelector(".clinical-chart-pagination button").click();true')
         await browser.until('document.querySelectorAll(".clinical-visit").length===51')
+        if(section==='encounter'){
+          await browser.until('!!document.querySelector(".clinical-attribution")')
+          assert.equal(await browser.value('document.querySelector("form[aria-label=\'Persisted encounter draft form\'] textarea").value'),
+            'Existing synthetic complaint','newly paged draft hydrates editor rather than treating it as revision 0')
+        }
       }
       assert.equal(await browser.value('window.__clinicalQA.reads.every(r=>r.limit==="50")'),true)
       await browser.goto(origin+'/tests/fixtures/clinical-chart-fixture.html?case=ok&role=receptionist')
