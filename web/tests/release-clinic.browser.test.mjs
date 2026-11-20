@@ -279,7 +279,7 @@ test('CLOUD RELEASE: real public discovery, 360/768/1440 light/dark and PII-free
         const state=await browser.value('({main:document.querySelector("#main-content")?.textContent.slice(0,650),audit:JSON.parse(localStorage.getItem("cloud.integrated.syntheticAudit")||"[]").map(x=>x.path).slice(-14),unknown:window.__cloudIntegrated?.unexpected,auth:window.__cloudIntegrated?.authSubmits})')
         assert.fail('Guest booking form absent with synthetic approved test policy: '+JSON.stringify(state))
       }
-      assert.equal(await browser.value('!!document.querySelector("[aria-label=\"Naga appointment request\"] button[type=submit]:not(:disabled)")'),false)
+      assert.equal(await browser.value('!!document.querySelector("form.book-form button[type=submit]:not(:disabled)")'),false)
       await browser.value('document.querySelector("input[name=service]").click();true')
       await browser.until('!!document.querySelector("form.book-form label select")',9000)
       const options=await browser.value('[...document.querySelectorAll("form.book-form select")].at(-1)?.options.length')
