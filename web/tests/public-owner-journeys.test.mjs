@@ -13,7 +13,7 @@ function syntheticPublicSession() {
   const theme = new URL(location.href).searchParams.get('theme') === 'dark' ? 'dark' : 'light'
   const failure = new URL(location.href).searchParams.get('case') === 'failure'
   localStorage.setItem('dawney-theme', theme)
-  window.__cloudAcceptance = { writes: [], unexpected: [], reads: [], failures: 0 }
+  window.__cloudAcceptance = { writes: [], unexpected: [], reads: [], failures: 0, policyRecovered: false }
   const original = window.fetch.bind(window)
   const reply = (value, status = 200) => new Response(JSON.stringify(value), {
     status, headers: { 'content-type': 'application/json' }
@@ -41,7 +41,10 @@ function syntheticPublicSession() {
       ])
     }
     if (url.pathname === '/rest/v1/branch_booking_policies') {
-      if (failure && window.__cloudAcceptance.failures++ === 0) {
+      // Multiple policy reads may overlap during Auth initialization. Maintain
+      // the outage until the explicit user retry, regardless of call count.
+      if (failure && !window.__cloudAcceptance.policyRecovered) {
+        window.__cloudAcceptance.failures += 1
         return reply({ code: '08006', message: 'Synthetic policy read failure' }, 503)
       }
       return reply([]) // No owner-approved booking policy. Never fabricate slots.
@@ -133,7 +136,17 @@ test('CLOUD: public routes, Naga/Cavite, two themes and three widths, fail close
         assert.fail('Synthetic backend failure was not announced: ' + JSON.stringify(snapshot))
       }
       assert.equal(await browser.value('document.querySelector("#main-content form") === null'), true)
-      await browser.value('document.querySelector("#main-content [role=alert] button").click(); true')
+      assert.equal(await browser.value('window.__cloudAcceptance.failures > 0'), true,
+        'at least one synthetic backend read failed')
+      // Restore the mock backend, then activate the real retry button with Enter.
+      await browser.value('window.__cloudAcceptance.policyRecovered = true; document.querySelector("#main-content [role=alert] button").focus(); true')
+      assert.equal(await browser.value('document.activeElement === document.querySelector("#main-content [role=alert] button")'),
+        true, 'retry button receives keyboard focus')
+      await browser.send('Input.dispatchKeyEvent', {
+        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        text: '\r', unmodifiedText: '\r'
+      })
+      await browser.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
       await browser.until('document.querySelector("#main-content [role=status]")?.textContent.includes("not open yet")')
       assert.deepEqual(await browser.value('window.__cloudAcceptance.writes'), [], 'retry is read-only')
     })
