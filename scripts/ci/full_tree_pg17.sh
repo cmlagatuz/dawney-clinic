@@ -183,6 +183,13 @@ INVENTORY_INTEGRATION_ONLY
  fail 'frozen PR96 inventory child changed its exact four paths'
 git merge-base --is-ancestor 162c554f2866547f83ff37c698cada203842aaa9 "$EXPECTED_HEAD_SHA" ||
  fail 'recovery child is missing reviewed PR96 ancestor'
+# Preserve PR97's immutable nine-path signed recovery manifest. Its original
+# scope MUST be compared to frozen PR97, never the later frontend/CI HEAD.
+git merge-base --is-ancestor 5d915af715d5ad771e45fba5278042938c196ed5 "$EXPECTED_HEAD_SHA" ||
+ fail 'CI candidate missing frozen PR97 ancestor'
+[[ "$(git rev-parse "5d915af715d5ad771e45fba5278042938c196ed5:.github/workflows/phase3-recovery.yml")" == 8897020270294b8da628b4db2c9cef07b5827309 &&
+   "$(git rev-parse "5d915af715d5ad771e45fba5278042938c196ed5:scripts/ci/full_tree_pg17.sh")" == d8fdb630b58eedc7579ba1808d75eeb4388007cf ]] ||
+ fail 'original PR97 recovery/CI source fingerprint drift'
 # PR49 positive five-piece signed restore is an external immutable source,
 # copied only into recovery scripts; do not pretend it is in PR96 ancestry.
 git fetch --no-tags origin 'refs/pull/49/head:refs/remotes/origin/frozen-recovery-pr49'
@@ -199,8 +206,35 @@ scripts/recovery/tests/phase3-to-15-assertions.sql
 scripts/recovery/tests/phase3-to-15-history-snapshot.sql
 scripts/recovery/tests/synthetic-phase3-phase4-positive.sh
 RECOVERY_CHILD_ONLY
-) <(git diff --name-only 162c554f2866547f83ff37c698cada203842aaa9 "$EXPECTED_HEAD_SHA") ||
- fail 'recovery child changed files beyond nine authorized scripts/tests/workflow/CI paths'
+) <(git diff --name-only 162c554f2866547f83ff37c698cada203842aaa9 5d915af715d5ad771e45fba5278042938c196ed5) ||
+ fail 'frozen PR97 recovery child exceeds original nine authorized paths'
+# CLOUD owns the exact two frontend paths between the frozen PR97 and PR99.
+git fetch --no-tags origin 'refs/pull/99/head:refs/remotes/origin/frozen-cloud-pr99'
+[[ "$(git rev-parse refs/remotes/origin/frozen-cloud-pr99)" == c1f2751740792b069ca2a3da38efa7ce538f7489 ]] ||
+ fail 'frozen CLOUD PR99 source moved'
+git merge-base --is-ancestor c1f2751740792b069ca2a3da38efa7ce538f7489 "$EXPECTED_HEAD_SHA" ||
+ fail 'CI child does not descend from frozen CLOUD PR99'
+diff -u <(cat <<'CLOUD_PR99_ONLY'
+web/src/components/SiteLayout.tsx
+web/tests/public-owner-journeys.test.mjs
+CLOUD_PR99_ONLY
+) <(git diff --name-only 5d915af715d5ad771e45fba5278042938c196ed5 c1f2751740792b069ca2a3da38efa7ce538f7489) ||
+ fail 'CLOUD PR99 expanded beyond two exact frontend paths'
+diff -u <(cat <<'ASTRA_CI_ONLY'
+.github/workflows/phase3-recovery.yml
+scripts/ci/full_tree_pg17.sh
+ASTRA_CI_ONLY
+) <(git diff --name-only c1f2751740792b069ca2a3da38efa7ce538f7489 "$EXPECTED_HEAD_SHA") ||
+ fail 'ASTRA child changed outside two authorized CI paths'
+while read -r path sha; do
+ [[ "$(git rev-parse "c1f2751740792b069ca2a3da38efa7ce538f7489:$path")" == "$sha" &&
+    "$(git rev-parse "HEAD:$path")" == "$sha" &&
+    "$(git hash-object "$path")" == "$sha" ]] ||
+ fail "CLOUD PR99 reviewed source drift: $path"
+done <<'CLOUD_PR99_EXACT_BLOBS'
+web/src/components/SiteLayout.tsx f4bd3adb932e87a4b4ac0751b0c678fa02d7bfaa
+web/tests/public-owner-journeys.test.mjs 9097c181801b72325e23b4581d4606bc19532604
+CLOUD_PR99_EXACT_BLOBS
 # PR49 supporting test fixtures are exact, not a new Auth/Storage model.
 while read -r path sha; do
  [[ "$(git rev-parse "034be375d577bf421b9590d68c3599c0067a8b58:$path")" == "$sha" &&
@@ -216,11 +250,18 @@ PR49_SIGNED_SUPPORT
 [[ "$(git rev-parse "034be375d577bf421b9590d68c3599c0067a8b58:scripts/recovery/tests/synthetic-phase3-phase4-positive.sh")" == 24ff53d115d7d153474f5018adb289aee525798f ]] ||
  fail 'original positive signed five-component PR49 harness changed'
 while read -r path sha; do
- [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
-    "$(git hash-object "$path")" == "$sha" ]] ||
- fail "recovery extension exact source drift: $path"
+ if [[ "$path" == .github/workflows/phase3-recovery.yml ]]; then
+  [[ "$(git rev-parse "5d915af715d5ad771e45fba5278042938c196ed5:$path")" == 8897020270294b8da628b4db2c9cef07b5827309 &&
+     "$(git rev-parse "HEAD:$path")" == "$sha" &&
+     "$(git hash-object "$path")" == "$sha" ]] ||
+    fail 'recovery trigger changed beyond its exact reviewed CI-only blob'
+ else
+  [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+     "$(git hash-object "$path")" == "$sha" ]] ||
+    fail "recovery extension exact source drift: $path"
+ fi
 done <<'RECOVERY_EXTENSION_PINS'
-.github/workflows/phase3-recovery.yml 8897020270294b8da628b4db2c9cef07b5827309
+.github/workflows/phase3-recovery.yml a78b3e6c4f53496efb729dcd6b43450c50b0eaa5
 scripts/recovery/tests/synthetic-phase3-phase4-positive.sh 76cd48e241bda58562e4934697009a5d9cbd41fa
 scripts/recovery/tests/phase3-to-15-history-snapshot.sql b13a10eb386e2743904c379a4d89aef33afe24c8
 scripts/recovery/tests/phase3-to-15-assertions.sql 6e17a935cf8f68caae757f5759c725e25f6f4447
@@ -397,7 +438,8 @@ while IFS= read -r path; do
   scripts/recovery/tests/phase3-to-15-assertions.sql|\
   scripts/recovery/tests/phase3-to-15-history-snapshot.sql|\
   scripts/recovery/tests/synthetic-phase3-phase4-positive.sh|\
-  scripts/ci/pr88_frontend_pins.sh) ;;
+  scripts/ci/pr88_frontend_pins.sh|\
+  web/tests/public-owner-journeys.test.mjs) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
@@ -409,8 +451,9 @@ while read -r path sha; do
     "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" == "$sha" ]] ||
  fail "original PR79/81 public source drift: $path"
  case "$path" in
-  web/src/pages/public/BookPage.tsx|web/src/pages/public/ServicesPage.tsx|web/tests/naga-site.test.mjs)
-   # CLOUD's replacement is byte-pinned by pr88_frontend_pins.sh.
+  web/src/pages/public/BookPage.tsx|web/src/pages/public/ServicesPage.tsx|web/tests/naga-site.test.mjs|web/src/components/SiteLayout.tsx)
+   # PR88 replacements are independently pinned; CLOUD's SiteLayout is
+   # separately pinned to its exact PR99 blob by CLOUD_PR99_EXACT_BLOBS.
    ;;
   *)
    [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
@@ -574,7 +617,7 @@ supabase/tests/phase5a_staff_booking_rpc_queue.sql 9fd4a627f471391b192968af57f81
 supabase/tests/phase5a_staff_pg17_regression.sql a1b9781325724885188099075d8c36e9ed223b1b
 supabase/tests/phase3_storage_outer_path_after_fix.sql 293abc90a168f6157aa0b0055d2e78fea8f59a8f
 BLOBS
-echo 'PASS: frozen PR49 recovery inputs, PR92/95/96 source, exact 11+12-15 SQL, nine-path signed recovery child and unchanged browser/RLS pins.'
+echo 'PASS: frozen PR97 nine-path signed recovery, exact CLOUD PR99 two frontend blobs, CI-only child, fixed migrations, source and RLS pins.'
 pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
 provider(){
  if [[ "$PGDATABASE" == full_tree_history_ci ]]; then

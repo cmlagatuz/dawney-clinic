@@ -3,6 +3,8 @@ name: Phase 3 recovery scripts
 on:
   pull_request:
     paths:
+      # CI-only PR99 exact-source pin integration must rerun the signed five-component rehearsal.
+      - 'scripts/ci/full_tree_pg17.sh'
       - 'scripts/recovery/**'
       - '.github/workflows/phase3-recovery.yml'
   push:
