@@ -31,6 +31,76 @@ function ownedActorTokens(actors){
   'actor_tokens_data_only');
  return Object.freeze(Object.fromEntries(roles.map(role=>[role,props[role].value])));
 }
+/**
+ * This manifest chooses which EXISTING foreign rows acceptance probes.
+ * Merely validating caller-owned fixtures leaves a validation-to-use race:
+ * a getter could pass four reads, then substitute nonexistent UUIDs for
+ * cross-owner RLS negatives. Capture all nested values exactly once.
+ *
+ * A plain-data descriptor is required at EVERY depth. Proxy detection occurs
+ * before any reflective operation; getters/setters and exotic prototypes are
+ * never executed. The result owns only immutable scalar strings.
+ */
+const fixtureShape=Object.freeze({
+ ownerA:Object.freeze(['userId','ownerId','petId']),
+ ownerB:Object.freeze(['userId','ownerId','petId']),
+ staff:Object.freeze(['userId','expectedRole']),
+ revoked:Object.freeze(['userId','expectedRole']),
+ anonymousAuth:Object.freeze(['userId']),
+ serviceId:null,resourceId:null,slotA:null,slotB:null
+});
+function fixtureRecord(source,keys){
+ ensure(source!==null&&typeof source==='object'&&!Array.isArray(source)&&
+  !isProxy(source),'fixture_data_only');
+ const proto=Object.getPrototypeOf(source);
+ ensure(proto===Object.prototype||proto===null,'fixture_data_only');
+ const props=Object.getOwnPropertyDescriptors(source);
+ const own=Reflect.ownKeys(props);
+ ensure(own.length===keys.length&&own.every(key=>typeof key==='string'&&
+  keys.includes(key)&&props[key].enumerable&&
+  Object.hasOwn(props[key],'value')),'fixture_data_only');
+ return props;
+}
+function ownedFixtures(source){
+ const names=Object.keys(fixtureShape);
+ const props=fixtureRecord(source,names);
+ const copy={};
+ for(const name of names){
+  const expected=fixtureShape[name];
+  const value=props[name].value;
+  if(expected===null){
+   ensure(typeof value==='string','fixture_data_only');
+   copy[name]=value;
+   continue;
+  }
+  const nested=fixtureRecord(value,expected);
+  const part={};
+  for(const field of expected){
+   ensure(typeof nested[field].value==='string','fixture_data_only');
+   part[field]=nested[field].value;
+  }
+  copy[name]=Object.freeze(part);
+ }
+ const owned=Object.freeze(copy);
+ // Validation now and all future reads consume the SAME owned identity bytes.
+ assertFixtures(owned);
+ const ids=[
+  owned.ownerA.userId,owned.ownerA.ownerId,owned.ownerA.petId,
+  owned.ownerB.userId,owned.ownerB.ownerId,owned.ownerB.petId,
+  owned.staff.userId,owned.revoked.userId,owned.anonymousAuth.userId,
+  owned.serviceId,owned.resourceId
+ ];
+ ensure(ids.every(isUuid)&&new Set(ids).size===ids.length,'fixture_identity_collision');
+ ensure(owned.staff.expectedRole==='veterinarian'&&
+  owned.revoked.expectedRole==='veterinarian','staff_role_fixture');
+ // The original signed plan has only two UTC slots. Refuse ambiguous time
+ // zones or shortened timestamps even if Date.parse accepts them.
+ ensure([owned.slotA,owned.slotB].every(v=>
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v)&&
+  Number.isFinite(Date.parse(v))&&new Date(v).toISOString()===v),
+  'approved_slot_fixture_missing');
+ return owned;
+}
 const allowed=(method,path)=>{
  const exact=['/auth/v1/.well-known/jwks.json','/auth/v1/user'];
  if(method==='GET'&&exact.includes(path))return true;
@@ -113,16 +183,17 @@ export async function runHostedAcceptance(options={}){
  // tests control Date.now only inside their own Node test process.
  ensure(options!==null&&typeof options==='object'&&!Object.hasOwn(options,'now'),
    'caller_time_forbidden');
- const {transport,approval,trust,staging,actors,fixtures,publishableKey,journalDir}=options;
- // Snapshot all token bytes exactly once, before approval/JWKS/Auth or journal.
+ const {transport,approval,trust,staging,actors,fixtures:callerFixtures,publishableKey,journalDir}=options;
+ // Both actor and fixture authority is snapped BEFORE owner authorization,
+ // JWT verification, journal creation or injected transport use.
  const actorTokens=ownedActorTokens(actors);
+ const fixtures=ownedFixtures(callerFixtures);
  const now=Date.now();
  // No invocation of an injected transport may occur until every safety gate succeeds.
  ensure(transport&&typeof transport.request==='function','no_transport_injected');
  const gate=verifyOwnerGate({approval,trust,staging,now});
  ensure(typeof publishableKey==='string'&&/^sb_publishable_[A-Za-z0-9_-]{4,}$/.test(publishableKey),
    'publishable_key_only');
- assertFixtures(fixtures);
  ensure(Date.parse(fixtures.slotA)>now+60000&&Date.parse(fixtures.slotB)>now+60000,
    'expired_staging_slots');
  // Exclusive runId claim happens before ANY injected HTTP call, even JWKS.
