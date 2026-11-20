@@ -93,11 +93,23 @@ test('static: ops code never derives authority from JWT/user metadata, URL or br
     assert.ok(!/user_metadata|app_metadata|getSession|localStorage|sessionStorage|useSearchParams|location\.(search|hash)|document\.cookie|active_branch/.test(s), f.pathname)
   }
 })
-test('static: branch scope is optional and unwired in port.ts; flag default OFF; page keys view by account+branch', () => {
+test('static: production Operations is branch-only, no global queue/count fallback, flag OFF', () => {
   const rd = f => readFileSync(new URL('../src/' + f, import.meta.url), 'utf8')
-  assert.ok(!/branch/i.test(rd('ops/port.ts').replace(/\/\*[\s\S]*?\*\//g, '')), 'real port stays unscoped until Astra supplies #80 client readers')
+  const source = rd('ops/port.ts').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.match(source, /createBranchPortFor\(branchDeps, user\)/)
+  for (const name of ['listOwnBranchMemberships','listClinicBranches','assertStaffBranch',
+      'listBranchQueueWindow','getBranchDashboardCounts'])
+    assert.match(source, new RegExp(name), name)
+  assert.doesNotMatch(source, /\b(listClinicQueueWindow|getClinicDashboardCounts|createReadPortFor)\b/,
+    'global queue/count adapters cannot be imported into active port')
+  assert.match(source, /window:\s*unscopedDenied/)
+  assert.match(source, /counts:\s*unscopedDenied/)
   assert.match(rd('ops/flag.ts'), /VITE_PHASE5A_OPS_UI === 'true'/)
-  assert.match(rd('pages/staff/OpsPage.tsx'), /<OpsView key=\{`\$\{uid \?\? 'none'\}:/)
+  const page = rd('pages/staff/OpsPage.tsx')
+  assert.match(page, /<OpsView key=\{\`\$\{uid \?\? 'none'\}:/)
+  assert.match(page, /port=\{scope\.scoped\}/)
+  assert.doesNotMatch(page, /legacy\s*\?|port=\{legacy/)
   assert.match(rd('ops/useBranchScope.ts'), /assertBranch\(active\)/)
-  assert.ok(!/\.insert|\.update|\.upsert|\.rpc\(|\.from\(|supabase/.test(rd('ops/useBranchScope.ts') + rd('ops/branch-model.mjs') + rd('ops/port-adapter.mjs')))
+  assert.ok(!/\.insert|\.update|\.upsert|\.rpc\(|\.from\(|supabase/.test(
+    rd('ops/useBranchScope.ts') + rd('ops/branch-model.mjs') + rd('ops/port-adapter.mjs')))
 })
