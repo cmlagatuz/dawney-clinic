@@ -32,7 +32,8 @@ BEGIN
   END IF;
   IF NOT EXISTS (
    SELECT 1 FROM pg_proc p
-   WHERE p.oid=f::oid AND p.prosecdef AND p.proconfig @> ARRAY['search_path=']
+   WHERE p.oid=f::oid AND p.prosecdef AND
+    ('search_path='=ANY(p.proconfig) OR 'search_path=""'=ANY(p.proconfig))
   ) THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: RPC definer/search_path: %',f;
   END IF;
  END LOOP;
