@@ -134,6 +134,7 @@ git merge-base --is-ancestor 0a8ac3ca914676189272ee5e736bf40e22f36a17 "$EXPECTED
 diff -u <(cat <<'RUNNER_CHILD_ONLY'
 .github/workflows/full-tree-pg17-security.yml
 .github/workflows/phase3-recovery.yml
+.github/workflows/phase4-repository-security.yml
 scripts/ci/full_tree_pg17.sh
 scripts/hosted-acceptance/acceptance.mjs
 scripts/hosted-acceptance/guards.mjs
@@ -176,6 +177,7 @@ while read -r path sha;do
     "$(git hash-object "$path")" == "$sha" ]] ||
  fail "fixture snapshot child exact blob drift: $path"
 done <<'FIXTURE_SNAPSHOT_BLOBS'
+.github/workflows/phase4-repository-security.yml 20d50851b4b0842bb880591aeadcb78842f6c8e0
 scripts/hosted-acceptance/acceptance.mjs 21846505972dc3f6d68df16113f379fd1762817b
 scripts/hosted-acceptance/tests/acceptance.test.mjs 12e373d7ecf10c8d36b806a870a628715942b07c
 FIXTURE_SNAPSHOT_BLOBS
