@@ -18,6 +18,8 @@ import { OPS_UI_ENABLED } from './ops/flag'
 import { OpsPage } from './pages/staff/OpsPage'
 import { ClinicalWorkspacePage } from './pages/staff/ClinicalWorkspacePage'
 import { PharmacyPage } from './pages/staff/PharmacyPage'
+import { BillingPage } from './pages/staff/BillingPage'
+import { OwnerBillingPage } from './billing/OwnerBillingPage'
 
 function Guard() {
   const { checking, user, error, refresh } = useAuth()
@@ -31,6 +33,8 @@ const phase4PatientForm = import.meta.env.VITE_PHASE4_PATIENT_FORM === 'true'
 const clinicalWorkspacePreview = import.meta.env.VITE_CLINICAL_WORKSPACE_UI === 'true'
 /** Inventory migration #15 is NOT applied. Staff pharmacy UI stays OFF unless explicitly enabled. */
 const pharmacyPreview = import.meta.env.VITE_PHASE5B_PHARMACY_UI === 'true'
+/** Financial backend is unapproved; preview stays OFF by default. */
+const billingPreview = import.meta.env.VITE_PHASE5C_BILLING_UI === 'true'
 
 export function App() {
   if(!configured) return <main className="config-error"><h1>Clinic setup required</h1>
@@ -48,6 +52,8 @@ export function App() {
       <Route path="/app/appointments" element={<AppointmentsPage/>}/>
       {OPS_UI_ENABLED && <Route path="/app/ops" element={<OpsPage/>}/>}
       {clinicalWorkspacePreview && <Route path="/app/clinical" element={<ClinicalWorkspacePage/>}/>}
-      {pharmacyPreview && <Route path="/app/pharmacy" element={<PharmacyPage/>}/>}</Route></Route>
+      {pharmacyPreview && <Route path="/app/pharmacy" element={<PharmacyPage/>}/>}
+      {billingPreview && <Route path="/app/billing" element={<BillingPage/>}/>}
+      {billingPreview && <Route path="/app/invoices" element={<OwnerBillingPage/>}/>}</Route></Route>
 </Routes></AuthProvider></BrowserRouter>
 }

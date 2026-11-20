@@ -1,0 +1,88 @@
+/* CLOUD billing module: responsive design-system tokens, no fixed-width financial tables. */
+.billing-workspace,.billing-owner{min-width:0}
+.billing-workspace :is(button,select,input):focus-visible,.billing-owner :is(button,a):focus-visible{
+ outline:3px solid var(--focus);outline-offset:3px
+}
+.billing-lock{display:inline-block;border:1px solid var(--danger-border);background:var(--danger-soft);color:var(--danger);
+ border-radius:var(--radius-pill);padding:.5rem .85rem;font-size:.82rem;font-weight:700;max-width:100%;overflow-wrap:anywhere}
+.billing-intro{display:flex;align-items:flex-start;flex-wrap:wrap;gap:.5rem 1.2rem;margin:1rem 0;
+ border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-2);
+ padding:1rem 1.25rem;color:var(--text)}
+.billing-muted{color:var(--muted);font-size:.9rem;line-height:1.5}
+.billing-boundary{margin:1.2rem 0}
+.billing-boundary a{color:var(--primary-text);text-decoration:underline}
+.billing-branch,.billing-toolbar,.billing-actions{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.billing-branch{border:1px solid var(--border);border-radius:var(--radius);
+ background:var(--surface);padding:1rem;margin:1rem 0}
+.billing-branch label{font-weight:700}
+.billing-branch select,.billing-filters input,.billing-filters select{
+ display:block;min-width:0;max-width:100%;border:1px solid var(--border-strong);
+ color:var(--text);background:var(--surface);border-radius:var(--radius-sm);padding:.68rem .75rem}
+.billing-branch select{width:min(100%,390px)}
+.billing-branch-body{min-width:0;margin-top:1.25rem}
+.billing-toolbar{justify-content:space-between;align-items:flex-start;margin-bottom:1rem}
+.billing-toolbar h2{margin:0 0 .35rem;font-size:1.22rem}
+.billing-toolbar p{margin:0}
+.billing-actions{margin:1rem 0}
+.billing-actions button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.billing-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
+.billing-stats>div{display:flex;flex-direction:column;gap:.4rem;min-width:0;padding:1rem;
+ border-radius:var(--radius);background:var(--surface);border:1px solid var(--border)}
+.billing-stats strong{font-size:1.35rem;color:var(--text);overflow-wrap:anywhere}
+.billing-stats span{color:var(--muted);font-size:.85rem}
+.billing-banner{border:1px solid var(--warning);background:var(--warning-soft);color:var(--warning);
+ border-radius:var(--radius-sm);padding:.75rem 1rem}
+.billing-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:.75rem;margin:1rem 0}
+.billing-filters label{display:flex;flex-direction:column;gap:.35rem;font-weight:650}
+.billing-split{display:grid;grid-template-columns:minmax(200px,.9fr) minmax(0,1.8fr);gap:1rem;min-width:0}
+.billing-list,.billing-invoice-detail{min-width:0;border:1px solid var(--border);border-radius:var(--radius);
+ background:var(--surface);padding:1rem}
+.billing-list h3,.billing-invoice-detail h3{font-size:1.06rem;margin:0 0 .75rem}
+.billing-list ul,.billing-history{padding:0;margin:0;list-style:none}
+.billing-list li+li{margin-top:.6rem}
+.billing-invoice{width:100%;max-width:100%;display:flex;flex-direction:column;gap:.4rem;
+ text-align:left;color:var(--text);border:1px solid var(--border);background:var(--surface-2);
+ border-radius:var(--radius-sm);padding:.85rem;cursor:pointer;overflow-wrap:anywhere}
+.billing-invoice:hover,.billing-invoice:focus-visible,.billing-invoice.is-selected{
+ border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.billing-invoice-head,.billing-detail-heading{display:flex;justify-content:space-between;gap:.5rem;
+ align-items:flex-start;min-width:0}
+.billing-status{display:inline-flex;align-items:center;flex-shrink:0;border:1px solid var(--border-strong);
+ border-radius:var(--radius-pill);padding:.16rem .55rem;color:var(--text);font-size:.78rem;
+ font-weight:700;line-height:1.4;text-transform:capitalize}
+.billing-total{font-weight:700}
+.billing-detail-heading{margin-bottom:.65rem}
+.billing-invoice-detail section{margin:1.2rem 0}
+.billing-invoice-detail h4{margin:0 0 .65rem;font-size:1rem}
+.billing-table-scroll{width:100%;max-width:100%;overflow-x:auto}
+.billing-table{border-collapse:collapse;min-width:460px;width:100%;text-align:left;color:var(--text)}
+.billing-table th,.billing-table td{border-bottom:1px solid var(--border);padding:.6rem .5rem;
+ vertical-align:top;font-size:.83rem;white-space:normal}
+.billing-table th small{display:block;color:var(--muted);font-weight:400}
+.billing-totals{margin:1rem 0;padding:.8rem;background:var(--surface-2);
+ border-radius:var(--radius-sm)}
+.billing-totals div{display:flex;justify-content:space-between;gap:.8rem;padding:.35rem 0;
+ border-bottom:1px solid var(--border)}
+.billing-totals dt{color:var(--muted)}
+.billing-totals dd{margin:0;font-weight:680;text-align:right;overflow-wrap:anywhere}
+.billing-history li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.3rem .8rem;
+ padding:.65rem 0;border-bottom:1px solid var(--border);overflow-wrap:anywhere}
+.billing-history time{grid-column:1/-1;color:var(--muted);font-size:.78rem}
+.billing-failure{margin:1rem 0}
+.billing-failure p{color:var(--muted)}
+.billing-owner-shell{max-width:780px;margin:1.5rem auto}
+.billing-owner-shell h2{margin-top:0}
+@media(max-width:1000px){.billing-split{grid-template-columns:minmax(0,1fr)}
+ .billing-list ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
+ .billing-list li+li{margin:0}
+}
+@media(max-width:580px){.billing-branch,.billing-toolbar{align-items:stretch;flex-direction:column}
+ .billing-branch select{width:100%}
+ .billing-filters{grid-template-columns:minmax(0,1fr)}
+ .billing-stats{grid-template-columns:minmax(0,1fr)}
+ .billing-list ul{grid-template-columns:minmax(0,1fr)}
+ .billing-actions{display:grid;grid-template-columns:minmax(0,1fr)}
+ .billing-actions button{min-width:0;width:100%}
+ .billing-intro{padding:.85rem}
+ .billing-invoice-detail,.billing-list{padding:.8rem}
+}

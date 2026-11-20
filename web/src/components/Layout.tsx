@@ -33,6 +33,7 @@ export function PublicLayout() {
     <footer className="public-footer">Dawney Animal Clinic · Secure account access</footer></div>
 }
 
+const billingPreview = import.meta.env.VITE_PHASE5C_BILLING_UI === 'true'
 const nav = [
   { to: '/app/overview', label: 'Overview', icon: 'home' },
   { to: '/app/pets', label: 'My patients', icon: 'paw' },
@@ -41,11 +42,13 @@ const nav = [
 ] as const
 /** All staff shortcuts require *current server-verified* active branch membership. */
 const staffNav = OPS_UI_ENABLED ? [{ to: '/app/ops', label: 'Clinic operations', icon: 'pulse' }] as const : []
+const ownerBillingNav = billingPreview ? [{ to: '/app/invoices', label: 'My invoices', icon: 'calendar' }] as const : []
 const clinicalPreview = import.meta.env.VITE_CLINICAL_WORKSPACE_UI === 'true'
 const pharmacyPreview = import.meta.env.VITE_PHASE5B_PHARMACY_UI === 'true'
-const titles: Record<string, string> = Object.fromEntries([...nav, ...staffNav].map(n => [n.to, n.label]))
+const titles: Record<string, string> = Object.fromEntries([...nav, ...ownerBillingNav, ...staffNav].map(n => [n.to, n.label]))
 if(clinicalPreview)titles['/app/clinical']='Patient charts & encounters'
 if(pharmacyPreview)titles['/app/pharmacy']='Veterinary pharmacy'
+if(billingPreview)titles['/app/billing']='Clinic billing'
 
 /** Never offer a staff-only shortcut merely because a build flag is enabled.
  * A confirmed account must also have active RLS-backed branch membership. */
@@ -56,19 +59,20 @@ function ClinicalStaffNavigation(){
   useEffect(()=>{
     let live=true
     setAccess({account,allowed:false})
-    if(!user||!account||(!OPS_UI_ENABLED&&!clinicalPreview&&!pharmacyPreview))return ()=>{live=false}
+    if(!user||!account||(!OPS_UI_ENABLED&&!clinicalPreview&&!pharmacyPreview&&!billingPreview))return ()=>{live=false}
     const port=createClinicalReadPort(user)
     void port.loadBranches().then(branches=>{
       if(live)setAccess({account,allowed:branches.length>0})
     },()=>{if(live)setAccess({account,allowed:false})})
     return ()=>{live=false}
   },[account])
-  if((!OPS_UI_ENABLED&&!clinicalPreview&&!pharmacyPreview)||!account||access.account!==account||!access.allowed)return null
+  if((!OPS_UI_ENABLED&&!clinicalPreview&&!pharmacyPreview&&!billingPreview)||!account||access.account!==account||!access.allowed)return null
   return <nav className="main-nav" aria-label="Clinic staff workspaces">
     <p className="nav-label">Clinic staff · preview</p>
     {OPS_UI_ENABLED&&<NavLink to="/app/ops"><Icon name="calendar"/>Clinic operations</NavLink>}
     {clinicalPreview&&<NavLink to="/app/clinical"><Icon name="pulse"/>Patient charts & encounters</NavLink>}
     {pharmacyPreview&&<NavLink to="/app/pharmacy"><Icon name="shield"/>Veterinary pharmacy</NavLink>}
+    {billingPreview&&<NavLink to="/app/billing"><Icon name="calendar"/>Billing & invoices</NavLink>}
   </nav>
 }
 
@@ -123,7 +127,7 @@ export function AppLayout() {
       <Brand />
       <nav className="main-nav" aria-label="Pet owner portal">
         <p className="nav-label">Pet owner portal</p>
-        {nav.map(n => <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>)}
+        {[...nav,...ownerBillingNav].map(n => <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>)}
       </nav>
       <ClinicalStaffNavigation/>
       <div className="sidebar-bottom"><small>Signed in as</small><span className="truncate">{email}</span>
