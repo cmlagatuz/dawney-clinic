@@ -31,7 +31,7 @@ WITH
    pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable)
    ORDER BY a.grantee,a.grantor,a.privilege_type,a.is_grantable)
    FROM aclexplode(coalesce(c.relacl,acldefault(
-    case when c.relkind='S' then 's' else 'r' end,c.relowner))) a),'[]'::jsonb),
+    (case when c.relkind='S' then 's' else 'r' end)::"char",c.relowner))) a),'[]'::jsonb),
   'roleMatrix',(
     SELECT jsonb_object_agg(role_name,rights ORDER BY role_name)
     FROM (SELECT role_name,jsonb_build_object(

@@ -278,9 +278,9 @@ while read -r path sha;do
     "$(git hash-object "$path")" == "$sha" ]] ||
  fail "clinical recovery ACL reviewed child blob drift: $path"
 done <<'CLINICAL_ACL_RECOVERY_BLOBS'
-.github/workflows/clinical-chart-pg17.yml 99bac429d8e2a03be47837b1cd42c09156c08a43
+.github/workflows/clinical-chart-pg17.yml d805c12c7183194410ddca130a05de1e33f82a38
 scripts/recovery/tests/clinical17-restored-authz.sql 63f788345169b5d9bfdceee03543c804f25f407a
-scripts/recovery/tests/clinical17-security-fingerprint.sql b00bac091dd99d7e5ce5a9069f5ce3d5fcd284eb
+scripts/recovery/tests/clinical17-security-fingerprint.sql ab3c28ee8bbca6574756a7defb9ea2bf0abca3d8
 scripts/recovery/tests/clinical17-signed-restore.sh 4ea872facdb768b5084236679cff06216e4b58ae
 CLINICAL_ACL_RECOVERY_BLOBS
 while read -r path sha;do
