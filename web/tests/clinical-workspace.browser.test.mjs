@@ -158,7 +158,7 @@ test('CLOUD clinical browser: staff-scoped chart, themes/widths, keyboard, no wr
       await browser.value('document.querySelectorAll(".clinical-patient")[0].click();true')
       await browser.until('!!document.querySelector(".clinical-chart")')
       await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
-      try { await browser.until('!!document.querySelector(".clinical-form-shell input")', 5000) }
+      try { await browser.until('!!document.querySelector(".clinical-form-shell textarea")', 5000) }
       catch {
         const snap=await browser.value(`({
           panels:[...document.querySelectorAll('.clinical-panel')].map(p=>p.textContent?.slice(0,80)),
@@ -166,14 +166,14 @@ test('CLOUD clinical browser: staff-scoped chart, themes/widths, keyboard, no wr
         })`)
         assert.fail('No encounter field for synthetic selection: '+JSON.stringify(snap))
       }
-      await browser.value('document.querySelector(".clinical-form-shell input").focus();true')
+      await browser.value('document.querySelector(".clinical-form-shell textarea").focus();true')
       await browser.send('Input.insertText',{text:'Unsaved fixture notes'})
-      await browser.until('document.querySelector(".clinical-form-shell input")?.value==="Unsaved fixture notes"')
+      await browser.until('document.querySelector(".clinical-form-shell textarea")?.value==="Unsaved fixture notes"')
       await browser.value('document.querySelectorAll(".clinical-patient")[1].click();true')
       await browser.until('document.querySelector("#clinical-tab-overview")?.getAttribute("aria-selected")==="true"')
       await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
-      await browser.until('!!document.querySelector(".clinical-form-shell input")')
-      assert.equal(await browser.value('document.querySelector(".clinical-form-shell input").value'),
+      await browser.until('!!document.querySelector(".clinical-form-shell textarea")')
+      assert.equal(await browser.value('document.querySelector(".clinical-form-shell textarea").value'),
         '','switching patients discards previous local draft')
       assert.equal(await browser.value('window.__clinicalCalls.mutations.length'),0)
 
@@ -184,7 +184,7 @@ test('CLOUD clinical browser: staff-scoped chart, themes/widths, keyboard, no wr
       await browser.until('!!document.querySelector(".clinical-chart")')
       await browser.value('document.querySelector("#clinical-tab-prescriptions").click();true')
       await browser.until('!!document.querySelector("form[aria-label=\'prescriptions local working draft\']")')
-      assert.equal(await browser.value('[...document.querySelectorAll("form[aria-label=\'prescriptions local working draft\'] input")].every(i=>i.disabled)'),true)
+      assert.equal(await browser.value('[...document.querySelectorAll("form[aria-label=\'prescriptions local working draft\'] input,form[aria-label=\'prescriptions local working draft\'] textarea")].every(i=>i.disabled)'),true)
       assert.equal(await browser.value('[...document.querySelectorAll("form[aria-label=\'prescriptions local working draft\'] button")].every(b=>b.disabled)'),true)
       assert.deepEqual(await browser.value('window.__clinicalCalls.mutations'),[])
 
