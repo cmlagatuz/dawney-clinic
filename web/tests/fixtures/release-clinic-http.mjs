@@ -293,7 +293,7 @@ export function releaseClinicFixture(){
       return response(rows.filter(x=>(!lower||x.starts_at>=lower)&&(!higher||x.starts_at<higher)))
     }
     if(path==='/rest/v1/staff_memberships'){
-      const role=currentActor==='staff'&&mode!=='denied'?(mode==='receptionist'||mode==='role-mismatch'?'receptionist':'veterinarian'):null
+      const role=currentActor==='staff'&&mode!=='denied'?(mode==='administrator'?'administrator':mode==='receptionist'||mode==='role-mismatch'?'receptionist':'veterinarian'):null
       // PostgREST maybeSingle GET in this client version normalizes a JSON array.
       // The browser's existing staff fixture likewise supplies [row] or [].
       return response(role?[{user_id:ids.staffUser,role,is_active:true}]:[])
@@ -302,7 +302,7 @@ export function releaseClinicFixture(){
       const multi=mode==='multi'||mode==='multi-stale'
       return response(currentActor==='staff'&&mode!=='denied'
         ?[...[ids.naga,...(multi?[ids.cavite]:[])].map(branch_id=>({
-          user_id:ids.staffUser,branch_id,role:mode==='receptionist'?'receptionist':'veterinarian',is_active:true}))]:[])
+          user_id:ids.staffUser,branch_id,role:mode==='administrator'?'administrator':mode==='receptionist'?'receptionist':'veterinarian',is_active:true}))]:[])
     }
     if(path==='/rest/v1/medicine_catalog'){
       if(mode==='network'&&!window.__cloudIntegrated.recovered)
