@@ -290,7 +290,11 @@ test('CLOUD integrated owner request to staff queue/clinical chart/pharmacy with
           // Different authenticated actor sees the persisted synthetic appointment
           // ONLY through a current RLS/branch-asserted UTC staff queue.
           await browser.goto(url+'/app/clinical?actor=staff&theme='+theme)
-          await browser.until('!!document.querySelector("#clinical-day")',9000)
+          try { await browser.until('!!document.querySelector("#clinical-day")',7000) }
+          catch {
+            const state=await browser.value('({path:location.pathname,heading:document.querySelector("#main-content h1")?.textContent,main:document.querySelector("#main-content")?.textContent.slice(0,850),alerts:[...document.querySelectorAll("[role=alert]")].map(e=>e.textContent.slice(0,180)),lastRequests:JSON.parse(localStorage.getItem("cloud.integrated.syntheticAudit")||"[]").slice(-16)})')
+            assert.fail('Integrated staff chart was not authorized or rendered: '+JSON.stringify(state))
+          }
           await browser.value('(()=>{const el=document.querySelector("#clinical-day");el.value=localStorage.getItem("cloud.integrated.day");el.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
           await browser.until('!!document.querySelector(".clinical-patient")',9000)
           assert.equal(await browser.value('document.querySelectorAll(".clinical-patient").length'),1)
