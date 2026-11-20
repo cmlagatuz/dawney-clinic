@@ -52,7 +52,7 @@ jobs:
             test "$(git hash-object "$file")" = "$hash"
           done <<'SOURCE'
           supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql f3deb43948de798ddd58cd5bce58c1e69c0d2f01
-          supabase/tests/clinical_chart_encounter_pg17.sql bfc931abc74f2ef8ac694dcfac34866d5ed52846
+          supabase/tests/clinical_chart_encounter_pg17.sql d223db9503a5145372b0603445d05e645dd079fa
           web/src/lib/clinical-chart.ts 718aff682146e81daca59f54ccfd0f03e51729d8
           docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 346b0a668391fd2efc59b1bc2525bb5a07b7c280
           SOURCE

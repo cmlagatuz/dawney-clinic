@@ -57,8 +57,8 @@ begin
   '11111111-0000-4000-8000-000000000077',
   '33333333-3333-4333-8333-333333333333','appointments',v_at,v_id,50);
  if b->>'kind'<>'ok' or jsonb_array_length(b->'items')<>50
- or exists(select 1 from jsonb_array_elements(b->'items') e
-  where e->>'branchId'<>'11111111-0000-4000-8000-000000000077') then
+ or exists(select 1 from jsonb_array_elements(b->'items') as page_item(value)
+  where page_item.value->>'branchId'<>'11111111-0000-4000-8000-000000000077') then
   raise exception 'CLINICAL16_FAIL 50/51 stable branch pagination';end if;
  c:=public.read_staff_patient_chart(
   '11111111-0000-4000-8000-000000000077',
