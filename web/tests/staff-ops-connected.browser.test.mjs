@@ -299,7 +299,11 @@ test('CLOUD: owner requested booking enters branch-only Operations, clinical con
           await browser.goto(url+'/app/ops?actor=staff&theme='+theme)
           await browser.until('!!document.querySelector(".ops-toolbar input[type=date]")',9000)
           await browser.value('(()=>{const e=document.querySelector(".ops-toolbar input[type=date]");e.value=localStorage.getItem("cloud.integrated.day");e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
-          await browser.until('!!document.querySelector(".ops-visit")',9000)
+          try { await browser.until('!!document.querySelector(".ops-visit")',6500) }
+          catch {
+            const state=await browser.value('({main:document.querySelector("#main-content")?.textContent.slice(0,950),day:document.querySelector(".ops-toolbar input[type=date]")?.value,alerts:[...document.querySelectorAll("[role=alert]")].map(e=>e.textContent.slice(0,250)),audit:JSON.parse(localStorage.getItem("cloud.integrated.syntheticAudit")||"[]").slice(-24),unexpected:window.__cloudIntegrated?.unexpected})')
+            assert.fail('Ops verified-branch appointment unavailable: '+JSON.stringify(state))
+          }
           assert.equal(await browser.value('document.documentElement.getAttribute("data-theme")'),theme)
           assert.equal(await browser.value('document.documentElement.scrollWidth<=innerWidth'),
             true,'Operations board must not overflow at '+width+'/'+theme)
