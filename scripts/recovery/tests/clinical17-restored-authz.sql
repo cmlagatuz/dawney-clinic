@@ -128,10 +128,20 @@ ROLLBACK;
 -- Signed restore exact historical and private clinical data assertions.
 DO $history$
 BEGIN
- IF (SELECT count(*) FROM clinic_private.clinical_record_provenance)<>1
- OR (SELECT count(*) FROM public.clinical_encounter_drafts WHERE status='draft' AND revision=1)<>1
- OR (SELECT count(*) FROM clinic_private.clinical_draft_audit WHERE revision=1)<>1
- OR (SELECT count(*) FROM clinic_private.clinical_draft_requests)<>1
+ IF (SELECT count(*) FROM clinic_private.clinical_record_provenance
+   WHERE creator_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    AND branch_id='11111111-0000-4000-8000-000000000077'
+    AND pet_id='33333333-3333-4333-8333-333333333333')<>1
+ OR (SELECT count(*) FROM public.clinical_encounter_drafts
+  WHERE status='draft' AND revision=1
+   AND author_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+   AND last_edited_by='dddddddd-dddd-4ddd-8ddd-dddddddddddd')<>1
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_audit
+   WHERE revision=1 AND actor_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    AND action='created')<>1
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_requests
+   WHERE actor_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    AND response->>'kind'='saved')<>1
  OR (SELECT count(*) FROM public.pets
   WHERE id='33333333-3333-4333-8333-333333333333'
    AND species='Dog' AND breed='Chow Chow' AND breed_id='dog-chow-chow')<>1

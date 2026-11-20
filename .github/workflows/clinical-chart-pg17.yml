@@ -60,9 +60,9 @@ jobs:
           supabase/tests/clinical_chart_encounter_pg17.sql d223db9503a5145372b0603445d05e645dd079fa
           supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql c1018e711cc01055e4ef3269caf261c05036fd58
           supabase/tests/clinical_provenance_pagination_pg17.sql ee20ce8d21fdac11dfd2cf30e7e8f1209649fb84
-          scripts/recovery/tests/clinical17-signed-restore.sh 4ea872facdb768b5084236679cff06216e4b58ae
+          scripts/recovery/tests/clinical17-signed-restore.sh 5024a3937f42fdd4a75e0d34ae87a42eeefddb82
           scripts/recovery/tests/clinical17-security-fingerprint.sql ff91ed721aa1e49a28f9a350cedab5cef23c7211
-          scripts/recovery/tests/clinical17-restored-authz.sql 734c71a16dab0235a0965df037a5d66c845d1ace
+          scripts/recovery/tests/clinical17-restored-authz.sql a15a92b058401f7b868abf30fc12d0d738349ed6
           web/src/lib/clinical-chart.ts baa7b28eba264a271c636f947fa9f467c87b4c37
           docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 48069e896afc9f52ddea5eaaf5777eb835d802e7
           SOURCE

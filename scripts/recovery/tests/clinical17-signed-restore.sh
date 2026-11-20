@@ -38,6 +38,26 @@ fingerprint(){ psql -XqAt -v ON_ERROR_STOP=1 -d "$1" \
  -f scripts/recovery/tests/clinical17-security-fingerprint.sql; }
 authz(){ psql -XqAt -v ON_ERROR_STOP=1 -d "$1" \
  -f scripts/recovery/tests/clinical17-restored-authz.sql; }
+# Logical row-fidelity digest over every synthetic clinical and historical
+# source row. Every JSON field matters, including creator/editor, actor,
+# idempotency request/response, timestamps, attributes and anonymous history.
+data_fingerprint(){
+ psql -XqAt -v ON_ERROR_STOP=1 -d "$1" <<'DATA'
+WITH data AS (
+ SELECT 'draft' k,to_jsonb(t)::text row_json FROM public.clinical_encounter_drafts t
+ UNION ALL SELECT 'audit',to_jsonb(t)::text FROM clinic_private.clinical_draft_audit t
+ UNION ALL SELECT 'receipt',to_jsonb(t)::text FROM clinic_private.clinical_draft_requests t
+ UNION ALL SELECT 'provenance',to_jsonb(t)::text FROM clinic_private.clinical_record_provenance t
+ UNION ALL SELECT 'clinical_record',to_jsonb(t)::text FROM public.clinical_records t
+ UNION ALL SELECT 'patient',to_jsonb(t)::text FROM public.pets t
+ UNION ALL SELECT 'appointment',to_jsonb(t)::text FROM public.appointments t
+)
+SELECT md5(coalesce(string_agg(k||':'||row_json,E'\n' ORDER BY k,row_json),''))
+FROM data;
+DATA
+}
+data_fingerprint clinical16_ci > "$tmp/source.data"
+test -s "$tmp/source.data"
 fingerprint clinical16_ci > "$tmp/source.authority"
 test -s "$tmp/source.authority"
 authz clinical16_ci > "$tmp/source.authz"
@@ -68,6 +88,9 @@ cmp "$tmp/source.dump" "$tmp/restored.dump"
 docker exec "$container" createdb -U postgres clinical16_restored
 docker exec -i "$container" pg_restore -U postgres --no-owner \
  --exit-on-error --single-transaction -d clinical16_restored < "$tmp/restored.dump"
+data_fingerprint clinical16_restored > "$tmp/restored.data"
+cmp "$tmp/source.data" "$tmp/restored.data"
+echo 'PASS: full clinical/draft/creator/editor/audit/receipt/provenance/patient/appointment row digest identical'
 fingerprint clinical16_restored > "$tmp/restored.authority"
 if ! cmp -s "$tmp/source.authority" "$tmp/restored.authority";then
  diff -u "$tmp/source.authority" "$tmp/restored.authority" | head -100 || true
