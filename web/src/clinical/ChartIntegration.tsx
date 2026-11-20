@@ -189,6 +189,9 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
     'appointmentId' in item&&item.appointmentId===appointmentId)??null
   const [form,setForm]=useState<DraftContent>(()=>draft?{
     complaint:draft.complaint,examination:draft.examination,assessment:draft.assessment,plan:draft.plan}:blank())
+  const [authoritative,setAuthoritative]=useState<DraftContent>(()=>draft?{
+    complaint:draft.complaint,examination:draft.examination,
+    assessment:draft.assessment,plan:draft.plan}:blank())
   const [baseline,setBaseline]=useState(()=>draftSnapshot(draft??blank()))
   const [revision,setRevision]=useState(draft?.revision??0)
   const [saved,setSaved]=useState<{revision:number;authorId:string;editorId:string;updatedAt:string}|null>(
@@ -224,7 +227,10 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
       const raw=await port.saveDraft!(request)
       if(raw&&typeof raw==='object'&&'kind' in raw&&raw.kind!=='saved'){
         if(raw.kind==='conflict'){setConflict(true);setNotice('Revision conflict. Reload the authoritative draft before trying again.')}
-        else if(raw.kind==='denied'){setForm(blank());setBaseline(draftSnapshot(blank()));onDenied?.()}
+        else if(raw.kind==='denied'){
+          setForm(blank());setAuthoritative(blank());setBaseline(draftSnapshot(blank()))
+          pending.current=null;onDenied?.()
+        }
         else setNotice(raw.kind==='invalid'?'Server rejected invalid draft data. Nothing was saved.':
           'Save was not confirmed. The same unchanged request can be retried.')
         return
@@ -232,6 +238,8 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
       const ack=validateDraftAcknowledgement(raw,request,accountId)
       setRevision(ack.revision)
       setSaved({revision:ack.revision,authorId:ack.authorId,editorId:ack.editorId,updatedAt:ack.updatedAt})
+      setAuthoritative({complaint:request.complaint,examination:request.examination,
+        assessment:request.assessment,plan:request.plan})
       setBaseline(ticket.snapshot)
       pending.current=null
       setNotice(draftSnapshot(latest.current)===ticket.snapshot?
@@ -242,7 +250,10 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
       if(error&&typeof error==='object'&&'code' in error&&
         (error.code==='40001'||error.code==='23505')){
         setConflict(true);setNotice('Revision or request-ID conflict. Reload authoritative history; no overwrite was attempted.')
-      }else if(kind==='denied'){setForm(blank());setBaseline(draftSnapshot(blank()));onDenied?.()}
+      }else if(kind==='denied'){
+        setForm(blank());setAuthoritative(blank());setBaseline(draftSnapshot(blank()))
+        pending.current=null;onDenied?.()
+      }
       else if(kind==='unavailable')setNotice('Draft backend unavailable. Save not verified; retry is possible.')
       else setNotice('Save was not verified. Retry unchanged text with the same request ID.')
     }finally{busy.current=false;setSaving(false)}
@@ -282,12 +293,12 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
           {saving?'Awaiting acknowledgement…':canWrite?'Save encounter DRAFT':'Save unavailable — not connected'}
         </button>
         <button type="button" className="button button-secondary"
-          onClick={()=>{setForm(blank());setBaseline(draftSnapshot(blank()));pending.current=null;
-            setErrors({});setNotice('Local notes discarded. Server draft was not changed.')}} disabled={!dirty}>
+          onClick={()=>{setForm({...authoritative});pending.current=null;
+            setErrors({});setNotice('Local edits restored to the last verified response. Reload to recheck remote state.')}} disabled={!dirty}>
           Discard local edits
         </button>
         <button type="button" className="button button-quiet" onClick={onReload}>
-          {conflict?'Reload after conflict':'Reload authoritative history'}
+          {dirty?'Discard local edits and reload':conflict?'Reload after conflict':'Reload authoritative history'}
         </button>
       </div>
     </form>
