@@ -109,7 +109,7 @@ BEGIN
   BEGIN
    PERFORM public.create_staff_appointment_clinical_record(
     'aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',gen_random_uuid(),
-    'UNAUTHORIZED WRITER '+who_name);
+    'UNAUTHORIZED WRITER '||who_name);
    RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: % wrote protected record',who_name;
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
