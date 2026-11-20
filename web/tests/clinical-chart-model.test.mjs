@@ -40,6 +40,7 @@ test('clinical record 50/51 pages strictly match branch/patient/provenance contr
   assert.equal(first.items[0].procedure,'Synthetic historical note')
   assert.equal(check('records',rows.slice(50),false,first.nextCursor).items.length,1)
   assert.throws(()=>check('records',[{...record(0),petId:id(9)}]),/Malformed/)
+  assert.throws(()=>check('records',[{...record(0),performedAt:'2026-02-30T00:00:00Z'}]),/Malformed/)
   assert.throws(()=>check('records',[{...record(0),temperatureC:100}]),/Malformed/)
   assert.throws(()=>check('records',[{...record(0),weightKg:Number.POSITIVE_INFINITY}]),/Malformed/)
 })
