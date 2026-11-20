@@ -37,8 +37,8 @@ export function classifyChartError(error){
   return 'error'
 }
 export function validateChartPage(raw,request){
-  const {accountId,branchId,petId,section,cursor=null,limit=50}=request
-  if(!id(accountId)||!id(branchId)||!id(petId)||!CHART_SECTIONS.includes(section)||
+  const {accountId,branchId,petId,ownerId,section,cursor=null,limit=50}=request
+  if(!id(accountId)||!id(branchId)||!id(petId)||!id(ownerId)||!CHART_SECTIONS.includes(section)||
      !Number.isInteger(limit)||limit<1||limit>50||(cursor!==null&&!cursorPair(cursor)))fail()
   if(obj(raw)&&['not_found','denied','unavailable'].includes(raw.kind))return {kind:raw.kind}
   if(!obj(raw)||raw.kind!=='ok'||raw.accountId!==accountId||raw.branchId!==branchId||
@@ -48,7 +48,7 @@ export function validateChartPage(raw,request){
     (raw.hasMore&&(!raw.items.length||raw.nextCursor===null))||
     (!raw.hasMore&&raw.nextCursor!==null))fail()
   const p=raw.patient
-  if(p.id!==petId||!id(p.id)||!id(p.ownerId)||!value(p.name,500,false)||
+  if(p.id!==petId||p.ownerId!==ownerId||!id(p.id)||!id(p.ownerId)||!value(p.name,500,false)||
      !value(p.species,200,false)||!(p.breed===null||value(p.breed,200))||
      !['male','female','unknown'].includes(p.sex)||!date(p.birthDate)||
      typeof p.taxonomyReviewNeeded!=='boolean')fail()
