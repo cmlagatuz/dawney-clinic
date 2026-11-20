@@ -111,6 +111,7 @@ git fetch --no-tags origin 'refs/pull/75/head:refs/remotes/origin/frozen-pr75'
 git merge-base --is-ancestor c9995b0e44469408eaa5f46261f2702d3590fc12 "$EXPECTED_HEAD_SHA" ||
  fail 'offline remediation is not descended from reviewed PR75'
 diff -u <(cat <<'P2_REMEDIATION_ONLY'
+.github/workflows/staging-acceptance-plan-offline.yml
 docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md
 scripts/ci/full_tree_pg17.sh
 scripts/hosted-acceptance/staging-request-plan.mjs
@@ -128,7 +129,7 @@ done <<'STAGING_PREP_BLOBS'
 scripts/hosted-acceptance/staging-request-plan.mjs bc23dae4ba238b74c6e52522e6e95d46d9729826
 scripts/hosted-acceptance/tests/staging-request-plan.test.mjs 71c948c30df0419532b44c1d544c7861a37e014b
 docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md 2dc5cc7e3deb4951468d6875daa5c49f015b4cc8
-.github/workflows/staging-acceptance-plan-offline.yml 2c04fb85121b4d714b7dc319c39da4e82727566f
+.github/workflows/staging-acceptance-plan-offline.yml 2990c2a00c3c9d91f95db5f87aa496c82cf84a76
 STAGING_PREP_BLOBS
 while read -r path sha; do
  [[ -s "$path" && "$(git hash-object "$path")" == "$sha" ]] ||
