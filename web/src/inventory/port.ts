@@ -79,10 +79,12 @@ export function createPharmacyPort(user:User):PharmacyPort {
       const mapped=new Map(rules.items.map(x=>[x.medicine_id,x]))
       for(const a of alerts.items){
         const rule=mapped.get(a.medicine_id)
+        if(!rule&&!rules.hasMore)throw Error('Inventory alert references an unknown branch rule')
         if(rule&&(a.reorder_point_units!==rule.reorder_point_units||
           a.expiry_warning_days!==rule.expiry_warning_days))
           throw Error('Inconsistent inventory branch configuration')
         const medicine=named.get(a.medicine_id)
+        if(!medicine&&!catalog.hasMore)throw Error('Inventory alert references an unknown medicine')
         if(medicine&&a.product_code!==medicine.product_code)
           throw Error('Inventory medicine identity mismatch')
       }
@@ -110,6 +112,10 @@ export function createPharmacyPort(user:User):PharmacyPort {
       const batchMap=new Map(batches.items.map(x=>[x.id,x]))
       for(const candidate of fefo.items){
         const batch=batchMap.get(candidate.batch_id)
+        // If an untruncated batch read lacks the supposed eligible lot, fail closed.
+        // With a truncated read the later batch might simply be on the next page.
+        if(!batch&&!batches.hasMore)
+          throw Error('Inventory FEFO candidate has no verified branch batch')
         // If a detail page is truncated, a candidate may be outside the first page.
         if(batch&&(batch.lot_number!==candidate.lot_number||
           batch.expiry_date!==candidate.expiry_date||
