@@ -35,29 +35,39 @@ export function verifyOwnerGate({approval,trust,staging,now=Date.now()}={}){
  ensure(key.asymmetricKeyType==='rsa','owner_key_algorithm');
  const fingerprint=sha256(key.export({type:'spki',format:'der'}));
  ensure(fingerprint===trust.pinnedSha256.toLowerCase(),'untrusted_approval_key');
- const claims=approval.claims;
- const signed=Buffer.from(JSON.stringify(claims),'utf8');
+ // Serialize once: the *exact* bytes verified by RSA are the sole source of
+ // authority. Never read accessor/Proxy-backed caller claims after verification.
+ let signed;
+ try{signed=Buffer.from(JSON.stringify(approval.claims),'utf8');}
+ catch{throw Error('HOSTED_ACCEPTANCE_BLOCKED:owner_claims_invalid');}
  let good=false;
  try{good=verifySignature('RSA-SHA256',signed,key,decodeBase64Url(approval.signature));}catch{}
  ensure(good,'owner_signature_invalid');
- ensure(claims.kind==='dawney-hosted-security-acceptance-v1'&&claims.ownerApproved===true&&
-   claims.allowSyntheticWrites===true&&claims.environment==='disposable-staging' &&
-   claims.verifiedSeparateProject===true,'owner_approval_scope');
- ensure(claims.backendSourceSha===BACKEND_SOURCE_SHA,'backend_source_not_approved');
+ const verified=parse(signed.toString('utf8'),'owner_claims_invalid');
+ ensure(verified.kind==='dawney-hosted-security-acceptance-v1'&&verified.ownerApproved===true&&
+   verified.allowSyntheticWrites===true&&verified.environment==='disposable-staging' &&
+   verified.verifiedSeparateProject===true,'owner_approval_scope');
+ ensure(verified.backendSourceSha===BACKEND_SOURCE_SHA,'backend_source_not_approved');
  const actual=harnessHashes();
- ensure(object(claims.harnessFiles)&&Object.keys(claims.harnessFiles).length===2&&
-   Object.entries(actual).every(([file,hash])=>claims.harnessFiles[file]===hash),
+ ensure(object(verified.harnessFiles)&&Object.keys(verified.harnessFiles).length===2&&
+   Object.entries(actual).every(([file,hash])=>verified.harnessFiles[file]===hash),
    'harness_content_not_approved');
- ensure(typeof claims.runId==='string'&&/^[A-Z0-9_-]{8,32}$/.test(claims.runId),'run_marker_invalid');
- ensure(Number.isSafeInteger(claims.notBefore)&&Number.isSafeInteger(claims.expiresAt)&&
-   claims.expiresAt-claims.notBefore>0&&claims.expiresAt-claims.notBefore<=3600000&&
-   now>=claims.notBefore&&now<claims.expiresAt,'approval_expired');
+ ensure(typeof verified.runId==='string'&&/^[A-Z0-9_-]{8,32}$/.test(verified.runId),'run_marker_invalid');
+ ensure(Number.isSafeInteger(verified.notBefore)&&Number.isSafeInteger(verified.expiresAt)&&
+   verified.expiresAt-verified.notBefore>0&&verified.expiresAt-verified.notBefore<=3600000&&
+   now>=verified.notBefore&&now<verified.expiresAt,'approval_expired');
  ensure(object(staging)&&typeof staging.ref==='string'&&/^[a-z0-9]{20}$/.test(staging.ref) &&
    staging.ref!==PROTECTED_PROJECT_REF&&staging.ref!==staging.productionRef &&
    staging.productionRef===PROTECTED_PROJECT_REF,'staging_not_separate');
  ensure(staging.origin===`https://${staging.ref}.supabase.co` &&
-   claims.projectRef===staging.ref&&claims.origin===staging.origin,'staging_origin_mismatch');
- return {runId:claims.runId,origin:staging.origin};
+   verified.projectRef===staging.ref&&verified.origin===staging.origin,'staging_origin_mismatch');
+ // Optional additive digest is returned *from the verified bytes*, not the
+ // mutable approval.claims object. Existing PR68 callers keep their contract.
+ return {
+  runId:verified.runId,origin:staging.origin,
+  ...(Object.hasOwn(verified,'stagingPlanSha256')?
+   {stagingPlanSha256:verified.stagingPlanSha256}:{})
+ };
 }
 
 /** Public asymmetric JWKS cryptography; HS256, none, invalid kid/audience/issuer fail. */

@@ -4,6 +4,7 @@ name: Synthetic staging request plan OFFLINE source verification
 on:
   pull_request:
     paths:
+      - 'scripts/hosted-acceptance/guards.mjs'
       - 'scripts/hosted-acceptance/staging-request-plan.mjs'
       - 'scripts/hosted-acceptance/tests/staging-request-plan.test.mjs'
       - 'docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md'

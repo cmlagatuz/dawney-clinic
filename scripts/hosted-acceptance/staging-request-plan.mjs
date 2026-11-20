@@ -9,6 +9,7 @@ import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
+import {isProxy} from 'node:util/types';
 import {ensure,sha256,isUuid,verifyOwnerGate} from './guards.mjs';
 
 export const STAGING_REF='gxklkkoffpkdcxbqjlav';
@@ -27,8 +28,44 @@ const exactKeys=(value,keys)=>plain(value)&&Object.keys(value).length===keys.len
  Object.keys(value).every(k=>keys.includes(k));
 
 /**
+ * Reject accessors, setters, Proxies, inherited fields and nested references
+ * before validation. In particular do not read .body/.headers twice or invoke
+ * user getters during either security checks or canonical serialization.
+ * A null-prototype owned record prevents __proto__ assignment side effects.
+ */
+const dataPrimitive=v=>v===null||typeof v==='string'||typeof v==='boolean'||
+ (typeof v==='number'&&Number.isFinite(v));
+function ownedRecord(value,code,allowed=null,nested=[]){
+ ensure(plain(value)&&!isProxy(value)&&
+  (Object.getPrototypeOf(value)===Object.prototype||
+   Object.getPrototypeOf(value)===null),code);
+ const descriptors=Object.getOwnPropertyDescriptors(value);
+ const keys=Reflect.ownKeys(descriptors);
+ ensure(keys.length<=32&&keys.every(k=>typeof k==='string'&&
+  (allowed===null||allowed.includes(k))&&descriptors[k].enumerable&&
+  Object.hasOwn(descriptors[k],'value')&&
+  (nested.includes(k)||dataPrimitive(descriptors[k].value))),code);
+ const owned=Object.create(null);
+ for(const key of keys)owned[key]=descriptors[key].value;
+ return owned;
+}
+function ownedRequest(raw){
+ const request=ownedRecord(raw,'request_data_only',
+  ['origin','actor','method','path','headers','body'],['headers','body']);
+ request.headers=ownedRecord(request.headers,'request_headers_data_only');
+ if(Object.hasOwn(request,'body')){
+  const body=request.body;
+  if(Buffer.isBuffer(body)){
+   ensure(!isProxy(body),'request_body_data_only');
+   request.body=Buffer.from(body);
+  }else request.body=ownedRecord(body,'request_body_data_only');
+ }
+ return request;
+}
+
+/**
  * Signed claims must include stagingPlanSha256 for these exact file bytes.
- * This ADDITIVE attestation leaves Grok-reviewed PR #68 guard/harness unchanged.
+ * This ADDITIVE attestation retains the PR68 journal-first runner; the signed approval guard is narrowly hardened.
  */
 export function stagingPlanSha256(){
  try{return sha256(readFileSync(new URL('./staging-request-plan.mjs',import.meta.url)));}
@@ -146,25 +183,29 @@ export function prepareStagingRequest(options={}){
  ensure(plain(options)&&!Object.hasOwn(options,'now'),
   'caller_time_forbidden');
  const {request,approval,trust,staging}=options;
- const gate=verifyOwnerGate({approval,trust,staging,now:Date.now()});
- ensure(staging.ref===STAGING_REF&&gate.origin===STAGING_ORIGIN&&
-  staging.productionRef==='lgimhirgvresvbsdugac','adapter_staging_only');
- ensure(approval.claims.stagingPlanSha256===stagingPlanSha256(),
+ // Both the staging identity and request become owned, data-only values before
+ // their first security check. No caller-owned field is read after validation.
+ const target=ownedRecord(staging,'staging_data_only',['ref','origin','productionRef']);
+ const owned=ownedRequest(request);
+ const gate=verifyOwnerGate({approval,trust,staging:target,now:Date.now()});
+ ensure(target.ref===STAGING_REF&&gate.origin===STAGING_ORIGIN&&
+  target.productionRef==='lgimhirgvresvbsdugac','adapter_staging_only');
+ ensure(gate.stagingPlanSha256===stagingPlanSha256(),
   'staging_plan_content_not_approved');
- const kind=checkRequest(request,gate.runId);
- const hasBody=Object.hasOwn(request,'body');
+ const kind=checkRequest(owned,gate.runId);
+ const hasBody=Object.hasOwn(owned,'body');
  // JSON bytes are serialized from exact-key validated fields, so no extra
  // field can enter the snapshot; PDF bytes are copied, never shared.
- const bytes=hasBody?(Buffer.isBuffer(request.body)?
-  Buffer.from(request.body):Buffer.from(JSON.stringify(request.body),'utf8')):null;
+ const bytes=hasBody?(Buffer.isBuffer(owned.body)?
+  Buffer.from(owned.body):Buffer.from(JSON.stringify(owned.body),'utf8')):null;
  const canonical=hasBody?Object.freeze({
-  encoding:Buffer.isBuffer(request.body)?'pdf-bytes':'json-utf8',
+  encoding:Buffer.isBuffer(owned.body)?'pdf-bytes':'json-utf8',
   base64:bytes.toString('base64'),sha256:digest(bytes)
  }):null;
  const descriptor={
-  origin:STAGING_ORIGIN,url:STAGING_ORIGIN+request.path,method:request.method,
+  origin:STAGING_ORIGIN,url:STAGING_ORIGIN+owned.path,method:owned.method,
   responseKind:kind,redirectPolicy:'error',credentialsPolicy:'omit',
-  headers:Object.freeze({...request.headers})
+  headers:Object.freeze({...owned.headers})
  };
  if(canonical){
   Object.defineProperties(descriptor,{
