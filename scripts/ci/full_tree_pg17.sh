@@ -100,6 +100,7 @@ while IFS= read -r path; do
  web/tests/ops-port.test.mjs|\
   docs/STAGING_ACCEPTANCE_TRANSPORT_PREPARATION.md|\
   .github/workflows/staging-acceptance-plan-offline.yml|\
+  .github/workflows/phase4-repository-security.yml|\
   .github/workflows/phase3-recovery.yml|\
   scripts/hosted-acceptance/staging-request-plan.mjs|\
   scripts/hosted-acceptance/tests/staging-request-plan.test.mjs) ;;
