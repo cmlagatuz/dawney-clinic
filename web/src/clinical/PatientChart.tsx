@@ -1,5 +1,7 @@
 import {useEffect,useRef,useState,type KeyboardEvent} from 'react'
 import {StatusBadge} from '../components/ui'
+import {ChartIntegration} from './ChartIntegration'
+import type {ClinicalChartPort} from './chart-port'
 import {formatClinicTime,shortRef} from '../ops/ops-model.mjs'
 import type {OpsRole,OpsRow} from '../ops/ops-model.mjs'
 import {CLINICAL_SECTIONS,DRAFT_FIELDS,newDraft,selectPatientVisits,validateClinicalDraft} from './draft.mjs'
@@ -10,6 +12,12 @@ type Props={
   rows:OpsRow[]
   branchName:string
   role:OpsRole
+  accountId?:string
+  branchId?:string
+  appointmentId?:string
+  chartPort?:ClinicalChartPort
+  onDenied?:()=>void
+  syntheticSave?:boolean
 }
 const localSections=new Set<ClinicalSectionId>(['encounter','treatments','vaccinations','prescriptions'])
 const scratchTypes=['encounter','treatments','vaccinations','prescriptions'] as const
@@ -19,7 +27,7 @@ function emptyDrafts():Drafts{
     vaccinations:newDraft('vaccinations'),prescriptions:newDraft('prescriptions')}
 }
 
-export function PatientChart({petId,rows,branchName,role}:Props){
+export function PatientChart({petId,rows,branchName,role,accountId,branchId,appointmentId,chartPort,onDenied,syntheticSave=false}:Props){
   const [section,setSection]=useState<ClinicalSectionId>('overview')
   const tabs=useRef<Array<HTMLButtonElement|null>>([])
   const headingRef=useRef<HTMLHeadingElement>(null)
@@ -87,6 +95,13 @@ export function PatientChart({petId,rows,branchName,role}:Props){
     <section className="clinical-panel" role="tabpanel" id={'clinical-panel-'+section}
       aria-labelledby={'clinical-tab-'+section} tabIndex={0}>
       <h3>{current?.label}</h3>
+      {accountId&&branchId&&appointmentId&&
+        (section==='overview'||section==='visits'||section==='history'||section==='encounter')&&
+        <ChartIntegration key={accountId+':'+branchId+':'+petId+':'+appointmentId+':'+section}
+          mode={section==='overview'?'overview':section==='visits'?'visits':section==='history'?'history':'encounter'}
+          accountId={accountId} branchId={branchId} petId={petId} appointmentId={appointmentId}
+          role={role} port={chartPort} onDenied={onDenied} syntheticSave={syntheticSave}/>}
+
       {section==='overview'&&<div className="clinical-two">
         <div className="clinical-card">
           <h4>Patient context</h4>
