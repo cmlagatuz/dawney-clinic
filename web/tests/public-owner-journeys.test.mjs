@@ -105,7 +105,7 @@ test('CLOUD: public routes, Naga/Cavite, two themes and three widths, fail close
       // carriage return so the browser (not a synthetic DOM click) activates it.
       await browser.send('Input.dispatchKeyEvent', {
         type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
-        text: '\\r', unmodifiedText: '\\r'
+        text: '\r', unmodifiedText: '\r'
       })
       await browser.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
       await browser.until('document.querySelector("#site-nav").classList.contains("is-open")')
