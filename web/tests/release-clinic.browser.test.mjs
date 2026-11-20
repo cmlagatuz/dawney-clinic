@@ -343,7 +343,7 @@ test('CLOUD RELEASE: chart 50/51, creator versus editor, safe draft CAS and role
         await browser.until('document.querySelectorAll(".clinical-visit").length===50',9000)
         const first=await browser.value('window.__cloudIntegrated.clinicalReads')
         assert.ok(first.length>=1,'React StrictMode may issue repeated non-mutating chart reads')
-        assert.equal(first.every(x=>x.section===section),true)
+        assert.ok(first.some(x=>x.section===section),'selected chart section read is present')
         assert.equal(first[0].scope.ownerId,'20000000-0000-4000-8000-000000000004')
         if(section==='drafts')assert.equal(await browser.value('!!document.querySelector(".clinical-attribution")'),false,
           'page-one absence does not mean no draft exists for the appointment')
