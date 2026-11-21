@@ -101,9 +101,9 @@ DECLARE who uuid; who_name text;
 BEGIN
  FOR who_name,who IN SELECT label,actor FROM (VALUES
   ('owner','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid),
-  ('receptionist','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'::uuid),
-  ('revoked','ffffffff-ffff-4fff-8fff-ffffffffffff'::uuid),
-  ('unconfirmed','cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid)
+  ('receptionist','cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid),
+  ('administrator','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'::uuid),
+  ('revoked','ffffffff-ffff-4fff-8fff-ffffffffffff'::uuid)
  ) t(label,actor) LOOP
   PERFORM set_config('request.jwt.claim.sub',who::text,true);
   BEGIN
@@ -150,4 +150,4 @@ BEGIN
    AND status='requested' AND branch_id IS NULL)<>1
  THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: clinical data or history missing'; END IF;
 END $history$;
-\echo 'PASS: CLINICAL17 source/restored active veterinarian operation, owner/receptionist/revoked/unconfirmed/anonymous deny, exact RPC grants, RLS/definer/triggers, drafts/audit/nonce/provenance and Chow Chow'
+\echo 'PASS: CLINICAL17 source/restored active veterinarian operation, correctly labeled owner/receptionist/administrator/revoked/anonymous deny; unconfirmed veterinarian separately fixture-proven, exact RPC grants, RLS/definer/triggers, drafts/audit/nonce/provenance and Chow Chow'

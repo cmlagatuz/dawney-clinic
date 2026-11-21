@@ -81,6 +81,15 @@ WITH
  UNION ALL
  SELECT 'routine',n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')',
  jsonb_build_object('owner',pg_get_userbyid(p.proowner),'definer',p.prosecdef,
+  -- Exact SQL definition includes body, arguments, return type and SET clauses.
+  -- SHA256 catches a CREATE OR REPLACE body change with unchanged grants/owner.
+  'definitionSha256',encode(sha256(convert_to(pg_get_functiondef(p.oid),'UTF8')),'hex'),
+  'bodySha256',encode(sha256(convert_to(p.prosrc,'UTF8')),'hex'),
+  'language',l.lanname,'kind',p.prokind,'volatility',p.provolatile,
+  'strict',p.proisstrict,'leakproof',p.proleakproof,'parallel',p.proparallel,
+  'securityDefiner',p.prosecdef,'returnsSet',p.proretset,
+  'resultType',format_type(p.prorettype,null),
+  'cost',p.procost,'rows',p.prorows,
   'config',coalesce(to_jsonb(p.proconfig),'[]'::jsonb),
   'acl',coalesce((SELECT jsonb_agg(jsonb_build_array(
    case when a.grantee=0 then 'PUBLIC' else pg_get_userbyid(a.grantee) end,
@@ -90,6 +99,8 @@ WITH
   'anonExec',has_function_privilege('anon',p.oid,'EXECUTE'),
   'authExec',has_function_privilege('authenticated',p.oid,'EXECUTE'))
  FROM pg_proc p JOIN namespaces n ON n.oid=p.pronamespace
+ JOIN pg_language l ON l.oid=p.prolang
+ WHERE p.prokind IN ('f','p','w')
  UNION ALL
  SELECT 'policy',n.nspname||'.'||c.relname||'.'||p.polname,
  jsonb_build_object('cmd',p.polcmd,'permissive',p.polpermissive,
