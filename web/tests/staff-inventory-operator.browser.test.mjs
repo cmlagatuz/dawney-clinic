@@ -95,7 +95,7 @@ test('receptionist draft/receipt validation, no writes, responsive/dark, keyboar
   await browser.value('document.querySelector("#operator-branch").focus();true')
  assert.equal(await browser.value('document.activeElement===document.querySelector("#operator-branch")&&document.activeElement.matches(":focus-visible")'),true)
  await browser.send('Page.reload',{ignoreCache:true})
- await waitState(browser,'!!document.querySelector("#receive-heading")',12000)
+ await waitState(browser,'document.readyState==="complete"&&!!window.__cloudIntegrated?.directWrites&&!!document.querySelector("#receive-heading")',12000)
  assert.deepEqual((await snapshot(browser)).mutations,[])
  await browser.goto(origin+'/app/inventory?actor=owner')
  await waitState(browser,'document.querySelector("#main-content")?.textContent.includes("Inventory operations denied")',12000)

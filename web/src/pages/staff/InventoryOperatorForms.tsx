@@ -346,8 +346,8 @@ export function InventoryOperatorForms({user,branch,onDenied}:{user:User;branch:
     <form noValidate onSubmit={e=>{e.preventDefault();if(write)void receive();else setCheckedReceipt(true)}}>
      <div className="operator-form-grid">
       <label>Clinic branch<input value={branch.name} disabled readOnly/><span className="operator-muted">Selected from approved membership</span></label>
-      <label>Existing item code{write?<select value={receipt.code} disabled={!!busy||!!receiptTicket}
-        onChange={e=>{const code=e.target.value;updateReceipt('code',code);choose(items.find(x=>x.product_code===code)?.id??'')}}>
+      <label>Existing item code{write?<select value={selected?.product_code??''} disabled={!!busy||!!receiptTicket}
+        onChange={e=>{const code=e.currentTarget.value;choose(items.find(x=>x.product_code===code)?.id??'')}}>
        <option value="">Select an authorized item</option>{items.map(x=><option key={x.id} value={x.product_code}>{labels(x)}</option>)}
        </select>:
        <input value={receipt.code} maxLength={40} aria-invalid={Boolean(receiptErrors.code)}

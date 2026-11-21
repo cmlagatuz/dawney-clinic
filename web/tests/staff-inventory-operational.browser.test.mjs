@@ -65,7 +65,8 @@ async function createItem(browser){
 async function receiptTen(browser){
  const prefix='section:has(#receive-heading) '
  await waitState(browser,'!!document.querySelector('+css(prefix+'select')+')&&[...document.querySelectorAll('+css(prefix+'select option')+')].some(x=>x.value==="QA-NEW-1")',12000)
- await setValue(browser,prefix+'select','QA-NEW-1')
+ assert.equal(await browser.value('document.querySelector('+css(prefix+'select')+').value'),'QA-NEW-1',
+  'a freshly created item is selected by its authoritative item UUID')
  await waitState(browser,'document.querySelector('+css(prefix+'input[type=date]')+')?.value==="2026-11-20"',9000)
  await setValue(browser,prefix+'input[maxlength="80"]','LOT-TEST-10')
  await setValue(browser,prefix+'input[inputmode=numeric]','10')
