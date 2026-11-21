@@ -126,6 +126,39 @@ const expectRow=(r,label)=>{
  ensure(rows.length===1,'expected_one_'+label);
  return rows[0];
 };
+/**
+ * The checked security subject is an *exact* role/identity tuple, not merely
+ * a row returned by an untrusted query filter. A revoked receptionist proves
+ * nothing about a revoked veterinarian. Reject malformed/ambiguous response
+ * rows before any booking or private Storage mutation.
+ *
+ * The expected userId is the immutable owned fixture AND the JWT subject
+ * already verified against trusted staging JWKS and /auth/v1/user.
+ */
+function expectStaffMembership(response,actor,expected,verifiedSub,active){
+ const label=actor+'_membership';
+ const row=expectRow(response,label);
+ ensure(row!==null&&typeof row==='object'&&!Array.isArray(row)&&
+  !isProxy(row),'membership_data_only');
+ const proto=Object.getPrototypeOf(row);
+ ensure(proto===Object.prototype||proto===null,'membership_data_only');
+ const descriptors=Object.getOwnPropertyDescriptors(row);
+ const keys=Reflect.ownKeys(descriptors);
+ const fields=['user_id','role','is_active'];
+ ensure(keys.length===fields.length&&keys.every(key=>
+  typeof key==='string'&&fields.includes(key)&&
+  descriptors[key].enumerable&&Object.hasOwn(descriptors[key],'value')),
+  'membership_data_only');
+ const userId=descriptors.user_id.value;
+ const role=descriptors.role.value;
+ const enabled=descriptors.is_active.value;
+ ensure(isUuid(userId)&&userId===expected.userId&&
+  userId===verifiedSub&&
+  role===expected.expectedRole&&role==='veterinarian'&&
+  typeof enabled==='boolean'&&enabled===active,
+  label+'_identity_role_status');
+ return Object.freeze({userId,role,isActive:enabled});
+}
 function payloadPdf(runId){
  return Buffer.from('%PDF-1.4\n%DAWNEY_STAGE_'+runId+'\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n','utf8');
 }
@@ -296,13 +329,10 @@ export async function runHostedAcceptance(options={}){
   ensure(denyRead(await select(actor,'pets','id','id=eq.'+owners.petId)),
    'anonymous_patient_leak');
  }
- const staff=expectRow(await select('staff','staff_memberships','user_id,role,is_active',
-  'user_id=eq.'+fixtures.staff.userId),'staff_membership');
- ensure(staff.is_active===true&&staff.role===fixtures.staff.expectedRole,
-  'staff_membership_missing');
- const revoked=expectRow(await select('revoked','staff_memberships','user_id,role,is_active',
-  'user_id=eq.'+fixtures.revoked.userId),'revoked_membership');
- ensure(revoked.is_active===false,'revoked_membership_still_active');
+ expectStaffMembership(await select('staff','staff_memberships','user_id,role,is_active',
+  'user_id=eq.'+fixtures.staff.userId),'staff',fixtures.staff,subjects.get('staff'),true);
+ expectStaffMembership(await select('revoked','staff_memberships','user_id,role,is_active',
+  'user_id=eq.'+fixtures.revoked.userId),'revoked',fixtures.revoked,subjects.get('revoked'),false);
  checked.push('two_owners_anonymous_and_active_revoked_staff_rls');
 
  const marker='DAWNEY_STAGE_'+gate.runId;
