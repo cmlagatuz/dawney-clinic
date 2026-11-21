@@ -181,15 +181,17 @@ git merge-base --is-ancestor 980b7ab94a8f06cb810549a43bee0e6a0f63f789 "$EXPECTED
  fail 'revoked-veterinarian role child missing exact PR111 ancestry'
 diff -u <(cat <<'REVOKED_CLINICIAN_CHILD_ONLY'
 scripts/ci/full_tree_pg17.sh
+scripts/hosted-acceptance/acceptance.mjs
 scripts/hosted-acceptance/tests/acceptance.test.mjs
 REVOKED_CLINICIAN_CHILD_ONLY
 ) <(git diff --name-only 980b7ab94a8f06cb810549a43bee0e6a0f63f789 "$EXPECTED_HEAD_SHA") ||
- fail 'test-first revoked veterinarian child path scope widened'
+ fail 'revoked veterinarian exact identity/role child path scope widened'
 while read -r path sha;do
  [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
     "$(git hash-object "$path")" == "$sha" ]] ||
- fail "revoked-veterinarian test-first exact blob drift: $path"
+ fail "revoked-veterinarian exact blob drift: $path"
 done <<'REVOKED_CLINICIAN_CHILD_BLOBS'
+scripts/hosted-acceptance/acceptance.mjs 242803fcff634c6d542981c00d7cb1b971d8bf93
 scripts/hosted-acceptance/tests/acceptance.test.mjs 5048314c9de7d2fc7fd6d32761acb8b080f0b29f
 REVOKED_CLINICIAN_CHILD_BLOBS
 while read -r path sha;do
