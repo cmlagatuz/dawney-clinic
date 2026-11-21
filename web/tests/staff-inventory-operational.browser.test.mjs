@@ -184,9 +184,7 @@ test('wrong-role, revoked, failed RPC, account switch and all widths/themes rema
    assert.equal(await browser.value('document.documentElement.getAttribute("data-theme")'),theme)
    await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
    await browser.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
-   await waitState(browser,'!!document.querySelector("#operator-branch")',12000)
-   await browser.value('document.querySelector("#operator-branch").focus();true')
-   assert.equal(await browser.value('document.activeElement.matches(":focus-visible")'),true)
+   await waitState(browser,'(()=>{const el=document.querySelector("#operator-branch");if(!el)return false;el.focus();return document.activeElement===el&&el.matches(":focus-visible")})()',12000)
   }
  }
  for(const link of [
