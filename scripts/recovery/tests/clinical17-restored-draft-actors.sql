@@ -59,6 +59,11 @@ END $verify_unconfirmed_fixture$;
 
 -- Dedicated NEW branch-attributed appointment, created after the restore.
 -- This appointment and all subsequent RPC writes roll back with this script.
+-- Synthetic PG17 already-scheduled visit: temporarily bypass ONLY the
+-- public booking insert guard for this ONE post-restore fixture. Restore
+-- and assert trigger ON immediately BEFORE any authenticated clinical RPC.
+-- Forbidden in hosted, staging, production, or real owner/patient contexts.
+ALTER TABLE public.appointments DISABLE TRIGGER appointment_service_booking_guard;
 INSERT INTO public.appointments(id,owner_id,pet_id,resource_id,starts_at,ends_at,status,concern,created_by)
 VALUES ('a7171717-7777-4717-8717-171717171717','11111111-1111-4111-8111-111111111111',
  '33333333-3333-4333-8333-333333333333',
@@ -66,9 +71,12 @@ VALUES ('a7171717-7777-4717-8717-171717171717','11111111-1111-4111-8111-11111111
  now()+interval '400 days',now()+interval '400 days 30 minutes',
  'requested','RESTORE17 disposable first-draft visit',
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+ALTER TABLE public.appointments ENABLE TRIGGER appointment_service_booking_guard;
 DO $fresh_baseline$
 BEGIN
- IF (SELECT count(*) FROM public.appointments WHERE id='a7171717-7777-4717-8717-171717171717'
+ IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='public.appointments'::regclass
+  AND tgname='appointment_service_booking_guard' AND tgenabled='O')
+ OR (SELECT count(*) FROM public.appointments WHERE id='a7171717-7777-4717-8717-171717171717'
    AND branch_id='11111111-0000-4000-8000-000000000077'
    AND pet_id='33333333-3333-4333-8333-333333333333')<>1
  OR EXISTS(SELECT 1 FROM public.clinical_encounter_drafts WHERE appointment_id='a7171717-7777-4717-8717-171717171717')
