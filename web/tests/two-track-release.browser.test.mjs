@@ -2,7 +2,8 @@
 // Chromium and 127.0.0.1 Vite/static preview. No live provider or patient data.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {createServer,build,preview} from 'vite'
+import {build,preview} from 'vite'
+import {fork} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
 import {mkdtemp,rm,readFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
@@ -45,31 +46,36 @@ function policyFault(){
 }
 
 async function useLocalProfile(profile,configured,callback){
-  const previous=Object.fromEntries(['VITE_RELEASE_PROFILE','VITE_SUPABASE_URL','VITE_SUPABASE_PUBLISHABLE_KEY',
-    'VITE_PHASE4_PATIENT_FORM','VITE_PHASE5A_OPS_UI','VITE_CLINICAL_WORKSPACE_UI',
-    'VITE_PHASE5B_PHARMACY_UI','VITE_PHASE5C_BILLING_UI'].map(k=>[k,process.env[k]]))
-  if(profile===null)delete process.env.VITE_RELEASE_PROFILE
-  else process.env.VITE_RELEASE_PROFILE=profile
-  if(configured){process.env.VITE_SUPABASE_URL=URL_FAKE;process.env.VITE_SUPABASE_PUBLISHABLE_KEY=KEY_FAKE}
-  else{delete process.env.VITE_SUPABASE_URL;delete process.env.VITE_SUPABASE_PUBLISHABLE_KEY}
-  for(const k of Object.keys(previous).filter(k=>k.startsWith('VITE_PHASE')||k==='VITE_CLINICAL_WORKSPACE_UI'))
-    process.env[k]='false'
-  // Vite's import.meta.env replacements are initialized per test runner.
-  // Force the chosen local test profile in THIS server's build transform
-  // rather than inheriting the npm test runner's connected default.
-  const chosen=profile===null?'informational':profile
-  const server=await createServer({root,
-    define:{'import.meta.env.VITE_RELEASE_PROFILE':JSON.stringify(chosen)},
-    server:{host:'127.0.0.1',port:0,strictPort:false},logLevel:'error'})
+  // A Vite dev server is launched in a genuinely fresh Node process per
+  // profile. Vite snapshots process env on initial import; reusing the same
+  // in-process module cache can falsely promote A to connected.
+  const env={...process.env,VITE_RELEASE_PROFILE:profile??'informational'}
+  if(configured){env.VITE_SUPABASE_URL=URL_FAKE;env.VITE_SUPABASE_PUBLISHABLE_KEY=KEY_FAKE}
+  else{delete env.VITE_SUPABASE_URL;delete env.VITE_SUPABASE_PUBLISHABLE_KEY}
+  for(const k of ['VITE_PHASE4_PATIENT_FORM','VITE_PHASE5A_OPS_UI','VITE_CLINICAL_WORKSPACE_UI',
+      'VITE_PHASE5B_PHARMACY_UI','VITE_PHASE5C_BILLING_UI']) env[k]='false'
+  const child=fork(fileURLToPath(new URL('./fixtures/two-track-vite-server.mjs',import.meta.url)),[],{
+    cwd:root,env,execArgv:[],stdio:['ignore','ignore','ignore','ipc'],windowsHide:true
+  })
+  const port=await new Promise((resolve,reject)=>{
+    const timeout=setTimeout(()=>reject(Error('Isolated Vite profile server did not start')),15000)
+    child.once('error',()=>{clearTimeout(timeout);reject(Error('Isolated Vite profile server launch failed'))})
+    child.once('exit',()=>{clearTimeout(timeout);reject(Error('Isolated Vite profile server exited early'))})
+    child.once('message',message=>{
+      clearTimeout(timeout)
+      if(!Number.isInteger(message?.port))reject(Error('Invalid isolated Vite server address'))
+      else resolve(message.port)
+    })
+  }).catch(err=>{child.kill();throw err})
   try{
-    await server.listen()
-    const origin='http://127.0.0.1:'+server.httpServer.address().port
-    await withChromium(async browser=>callback(browser,origin))
+    await withChromium(async browser=>callback(browser,'http://127.0.0.1:'+port))
   }finally{
-    await server.close()
-    for(const [key,value] of Object.entries(previous)){
-      if(value===undefined)delete process.env[key]
-      else process.env[key]=value
+    if(child.exitCode===null&&child.connected){
+      await new Promise(resolve=>{
+        const timeout=setTimeout(()=>{child.kill();resolve()},6500)
+        child.once('exit',()=>{clearTimeout(timeout);resolve()})
+        child.send('close')
+      })
     }
   }
 }
