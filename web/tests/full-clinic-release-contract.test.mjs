@@ -29,6 +29,8 @@ test('CLOUD full-clinic: protected features are still individually OFF by defaul
   assert.match(app,/function Guard\(\)/)
   assert.match(app,/return user \? <Outlet \/> : <Navigate to="\/auth\/signin" replace \/>/)
   assert.match(hub,/createClinicalReadPort\(account\)/)
+  assert.match(hub,/assertStaffBranch\(account,branch\.id\)/)
+  assert.match(hub,/Promise\.allSettled\(branches\.map/)
   assert.match(hub,/staffPreviewRequested&&access\.kind==='allowed'/)
 })
 test('CLOUD full-clinic: no synthetic message, finance or clinical API is introduced',()=>{
