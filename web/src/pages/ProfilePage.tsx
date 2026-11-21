@@ -1,12 +1,20 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { useAuth } from '../hooks/AuthProvider'
 import { LoadingCard, PageHeading, initials } from '../components/ui'
 import { createOwner, readOwner, updateOwner, type OwnerProfile } from '../lib/owners'
 
 export function ProfilePage() {
   const { user } = useAuth()
+  return user ? <OwnerProfilePage key={user.id} user={user} /> : null
+}
+
+/** Unmount old fields and async save state as soon as Auth changes account. */
+function OwnerProfilePage({ user }: { user: User }) {
   const [profile, setProfile] = useState<OwnerProfile|null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string|null>(null)
   const [notice, setNotice] = useState<string|null>(null)
@@ -15,16 +23,22 @@ export function ProfilePage() {
     if(!user) return
     let active = true
     setLoading(true)
+    setLoadFailed(false)
+    setError(null)
     void readOwner(user).then(result => {
       if (!active) return
       setProfile(result)
       setFields({first_name:result?.first_name ?? String(user.user_metadata?.first_name ?? ''),
         last_name:result?.last_name ?? String(user.user_metadata?.last_name ?? ''),
         phone:result?.phone ?? '',address:result?.address ?? ''})
-    }).catch(() => {if(active)setError('Unable to load your profile. Check your connection and retry.')})
+    }).catch(() => { if(active) {
+      setProfile(null)
+      setLoadFailed(true)
+      setError('Unable to verify your saved profile. No new profile was created. Check your connection and retry.')
+    } })
       .finally(()=>{if(active)setLoading(false)})
     return ()=>{active=false}
-  }, [user])
+  }, [user.id, attempt])
   async function save(e:FormEvent){
     e.preventDefault();if(!user) return
     setSaving(true);setError(null);setNotice(null)
@@ -34,10 +48,13 @@ export function ProfilePage() {
     finally {setSaving(false)}
   }
   return <section className="page" aria-labelledby="profile-heading">
-    <PageHeading id="profile-heading" eyebrow="Account settings" title="My owner profile" actions={<span className="tag">{profile?'Saved profile':'Setup required'}</span>}>
+    <PageHeading id="profile-heading" eyebrow="Account settings" title="My owner profile" actions={<span className="tag">{loading ? 'Checking profile' : loadFailed ? 'Profile unavailable' : profile ? 'Saved profile' : 'Setup required'}</span>}>
       This information is stored securely and remains after you sign out.</PageHeading>
     <div className="info-grid"><article className="card"><div className="profile-head"><span className="avatar avatar-lg" aria-hidden="true">{initials(fields.first_name,fields.last_name)}</span><div><h2>Contact details</h2><p>{user?.email}</p></div></div>
-      {loading ? <LoadingCard label="Loading saved profile…" rows={4} /> : <>
+      {loading ? <LoadingCard label="Loading saved profile…" rows={4} /> : loadFailed ?
+        <div><p role="alert" className="alert alert-error">{error}</p>
+          <button type="button" className="button button-secondary" onClick={() => setAttempt(n => n + 1)}>Retry profile verification</button>
+        </div> : <>
         {error && <p role="alert" className="alert alert-error">{error}</p>}
         {notice && <p role="status" className="alert alert-success">{notice}</p>}
         <form className="form-stack" onSubmit={e=>void save(e)}>
@@ -48,7 +65,7 @@ export function ProfilePage() {
           <button className="button button-primary" disabled={saving}>{saving?'Saving…':profile?'Save changes':'Create owner profile'}</button>
         </form></>}
     </article><aside className="card card-muted"><h2>Account security</h2><dl className="summary-list"><div><dt>Email</dt><dd>{user?.email}</dd></div><div><dt>Verification</dt><dd>Verified</dd></div>
-      <div><dt>Owner record</dt><dd>{profile?'Linked to this account':'Not created yet'}</dd></div></dl>
+      <div><dt>Owner record</dt><dd>{loading ? 'Checking' : loadFailed ? 'Unavailable — retry verification' : profile ? 'Linked to this account' : 'Not created yet'}</dd></div></dl>
       <p className="small-help">Patient and appointment access will be checked by PostgreSQL row-level security, not by this screen.</p></aside></div>
   </section>
 }
