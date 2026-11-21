@@ -64,7 +64,7 @@ jobs:
           scripts/recovery/tests/clinical17-signed-restore.sh 5fec3252176577e7dcaf3d42e5978eecd501e0fb
           scripts/recovery/tests/clinical17-security-fingerprint.sql fc133422c66c4b1e1c7b35d959bcf2ee65943a71
           scripts/recovery/tests/clinical17-restored-authz.sql 402a3b4ff95fa755c759c26600afe1d52795e501
-          scripts/recovery/tests/clinical17-restored-draft-actors.sql f420c1dba91f83d605955437690d43213ca6f28d
+          scripts/recovery/tests/clinical17-restored-draft-actors.sql db1091c63d7a27f5ce2b5cc70ed374367ec93b16
           web/src/lib/clinical-chart.ts baa7b28eba264a271c636f947fa9f467c87b4c37
           docs/CLINICAL_CHART_ENCOUNTER_DRAFT.md 48069e896afc9f52ddea5eaaf5777eb835d802e7
           SOURCE

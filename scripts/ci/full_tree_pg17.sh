@@ -294,9 +294,9 @@ while read -r path sha;do
     "$(git hash-object "$path")" == "$sha" ]] ||
  fail "routine-fidelity child blob drift: $path"
 done <<'CLINICAL_ROUTINE_CHILD_BLOBS'
-.github/workflows/clinical-chart-pg17.yml c8ed9edde5431c6213f5b9782b54841c653f6856
+.github/workflows/clinical-chart-pg17.yml ab0dbc8ba70dd27d6aace8db77c41e495a9b61f3
 scripts/recovery/tests/clinical17-restored-authz.sql 402a3b4ff95fa755c759c26600afe1d52795e501
-scripts/recovery/tests/clinical17-restored-draft-actors.sql f420c1dba91f83d605955437690d43213ca6f28d
+scripts/recovery/tests/clinical17-restored-draft-actors.sql db1091c63d7a27f5ce2b5cc70ed374367ec93b16
 scripts/recovery/tests/clinical17-security-fingerprint.sql fc133422c66c4b1e1c7b35d959bcf2ee65943a71
 scripts/recovery/tests/clinical17-signed-restore.sh 5fec3252176577e7dcaf3d42e5978eecd501e0fb
 CLINICAL_ROUTINE_CHILD_BLOBS

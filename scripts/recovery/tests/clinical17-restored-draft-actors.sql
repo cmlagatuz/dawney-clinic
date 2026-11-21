@@ -4,6 +4,7 @@
 BEGIN;
 DO $fixture$
 DECLARE naga uuid:='11111111-0000-4000-8000-000000000077';
+ cavite uuid:='22222222-0000-4000-8000-000000000077';
 BEGIN
  -- Read actual state, not the label attached to a UUID in a test.
  IF (SELECT count(*) FROM auth.users u JOIN public.staff_memberships m ON m.user_id=u.id
@@ -12,11 +13,11 @@ BEGIN
    AND NOT u.is_anonymous AND m.role='veterinarian' AND m.is_active
    AND b.role='veterinarian' AND b.is_active)<>1
  OR (SELECT count(*) FROM auth.users u JOIN public.staff_memberships m ON m.user_id=u.id
-   JOIN public.staff_branch_memberships b ON b.user_id=u.id AND b.branch_id=naga
+   JOIN public.staff_branch_memberships b ON b.user_id=u.id AND b.branch_id=cavite
    WHERE u.id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' AND u.email_confirmed_at IS NOT NULL
    AND m.role='receptionist' AND m.is_active AND b.role='receptionist' AND b.is_active)<>1
  OR (SELECT count(*) FROM auth.users u JOIN public.staff_memberships m ON m.user_id=u.id
-   JOIN public.staff_branch_memberships b ON b.user_id=u.id AND b.branch_id=naga
+   JOIN public.staff_branch_memberships b ON b.user_id=u.id AND b.branch_id=cavite
    WHERE u.id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' AND u.email_confirmed_at IS NOT NULL
    AND m.role='administrator' AND m.is_active AND b.role='administrator' AND b.is_active)<>1
  OR (SELECT count(*) FROM auth.users u JOIN public.staff_memberships m ON m.user_id=u.id
