@@ -63,14 +63,20 @@ test('CLOUD integrated release: owner A/B journey, communication controls, direc
     }
   }
   await browser.goto(origin+'/app/overview?actor=owner&theme=light')
-  await browser.until('document.body.textContent.includes("Synthetic Patient")',10000)
+  await browser.until('document.querySelector(".stat-grid")?.textContent.includes("Registered patients")',10000)
+  assert.equal(await browser.value('document.querySelector(".stat-grid .stat-value")?.textContent'), '1',
+    'owner A overview count comes from actual owner-scoped patient rows')
   await browser.value('document.querySelector("#main-content a[href=\\"/app/workflows\\"]").click();true')
   await browser.until('!!document.querySelector("#clinic-journey-heading")',9000)
   await browser.send('Page.reload',{ignoreCache:true})
   await browser.until('!!document.querySelector("#clinic-journey-heading")',9000)
   await browser.goto(origin+'/app/overview?actor=other&theme=dark')
+  await browser.until('document.querySelector(".stat-grid")?.textContent.includes("Registered patients")',10000)
+  assert.equal(await browser.value('document.querySelector(".stat-grid .stat-value")?.textContent'), '1')
+  await browser.goto(origin+'/app/pets?actor=other&theme=dark')
   await browser.until('document.body.textContent.includes("Synthetic B Patient")',10000)
-  assert.equal(await browser.value('document.body.textContent.includes("Synthetic Patient")'),false,'owner B cannot display A pet')
+  assert.equal(await browser.value('document.body.textContent.includes("Synthetic Patient")'),false,
+    'owner B patient route cannot display owner A name')
   await browser.goto(origin+'/app/workflows?actor=visitor')
   await browser.until('location.pathname==="/auth/signin"',9000)
   assert.equal(await browser.value('!!document.querySelector("#clinic-journey-heading")'),false)
