@@ -29,20 +29,33 @@ BEGIN
  OR EXISTS (SELECT 1 FROM public.staff_memberships
    WHERE user_id='22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
  THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: actor baseline fixture identity or status wrong'; END IF;
- -- Synthetic unconfirmed veterinarian membership exists ONLY inside this
- -- rollback-scoped test, with both legitimate grant tables populated.
- INSERT INTO public.staff_memberships(user_id,role,is_active)
+END $fixture$;
+-- An active UNCONFIRMED staff row is intentionally impossible to create
+-- through normal writes: enforce_staff_membership_safety rejects it. To test
+-- corrupt restored rows, privileged disposable CI bypasses EXACTLY the INSERT
+-- protection trigger for one synthetic row and restores it immediately.
+-- Never do this against Supabase, clinical patient data, or a real account.
+ALTER TABLE public.staff_memberships DISABLE TRIGGER staff_membership_before_write;
+INSERT INTO public.staff_memberships(user_id,role,is_active)
  VALUES ('22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb','veterinarian',true);
- INSERT INTO public.staff_branch_memberships(user_id,branch_id,role,is_active)
- VALUES ('22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb',naga,'veterinarian',true);
- IF (SELECT count(*) FROM auth.users u JOIN public.staff_memberships m ON m.user_id=u.id
-   JOIN public.staff_branch_memberships b ON b.user_id=u.id AND b.branch_id=naga
+ALTER TABLE public.staff_memberships ENABLE TRIGGER staff_membership_before_write;
+INSERT INTO public.staff_branch_memberships(user_id,branch_id,role,is_active)
+ VALUES ('22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  '11111111-0000-4000-8000-000000000077','veterinarian',true);
+DO $verify_unconfirmed_fixture$
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM pg_trigger
+  WHERE tgrelid='public.staff_memberships'::regclass
+   AND tgname='staff_membership_before_write' AND tgenabled='O')
+ OR (SELECT count(*) FROM auth.users u JOIN public.staff_memberships m ON m.user_id=u.id
+   JOIN public.staff_branch_memberships b ON b.user_id=u.id
    WHERE u.id='22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
    AND u.email_confirmed_at IS NULL AND NOT u.is_anonymous
    AND m.role='veterinarian' AND m.is_active
+   AND b.branch_id='11111111-0000-4000-8000-000000000077'
    AND b.role='veterinarian' AND b.is_active)<>1
- THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: unconfirmed vet fixture not genuine'; END IF;
-END $fixture$;
+ THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: unconfirmed veterinarian state or insert guard incorrect'; END IF;
+END $verify_unconfirmed_fixture$;
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 SET LOCAL request.jwt.claims='{"role":"authenticated","is_anonymous":false}';
