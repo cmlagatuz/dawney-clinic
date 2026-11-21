@@ -16,5 +16,9 @@ export function resolveAfterAuth(nextParam,storedIntent){
 /** Email-verification redirect: fixed path plus, at most, the constant '?next=/book' hint. Never any user data. */
 export function authCallbackUrl(origin,toBook){
  if(typeof origin!=='string'||!/^https?:\/\/[^/?#\s]+$/.test(origin))throw Error('Valid origin required')
+ // This is normally window.location.origin; reject forged URL authority
+ // with embedded credentials, which must never be propagated to redirects.
+ const parsed=new URL(origin)
+ if(parsed.username||parsed.password||parsed.origin!==origin)throw Error('Valid origin required')
  return origin+'/auth/callback'+(toBook?'?next=%2Fbook':'')
 }

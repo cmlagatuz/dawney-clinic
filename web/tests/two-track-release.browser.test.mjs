@@ -153,7 +153,7 @@ test('CLOUD PROFILE B: approved synthetic Naga only, guest safe sign-in, owner/p
       'guest cannot submit without a verified account and eligible patient')
     await browser.goto(origin+'/services?actor=visitor&theme=dark')
     await browser.until('document.querySelector("#main-content")?.textContent.includes("Fixture care")',12000)
-    assert.equal(await browser.value('document.querySelectorAll("a[href*=\"cavite\"][href*=\"book\"]').length'),0)
+    assert.equal(await browser.value('document.querySelectorAll("a[href*=cavite][href*=book]").length'),0)
     assert.deepEqual(await browser.value('window.__cloudIntegrated.unexpected'),[])
     await browser.goto(origin+'/auth/signin?actor=visitor&next=%2Fbook')
     await browser.until('!!document.querySelector("form input[name=email]")',9000)
