@@ -68,6 +68,11 @@ test('CLOUD integrated release: owner A/B journey, communication controls, direc
     'owner A overview count comes from actual owner-scoped patient rows')
   await browser.value('document.querySelector("#main-content a[href=\\"/app/workflows\\"]").click();true')
   await browser.until('!!document.querySelector("#clinic-journey-heading")',9000)
+  // The synthetic interceptor removes its fake Auth session whenever a new
+  // document lacks actor=owner. Real app routes never require this QA hint:
+  // use a direct fixture URL for the full-document authenticated reload.
+  await browser.goto(origin+'/app/workflows?actor=owner&theme=light')
+  await browser.until('!!document.querySelector("#clinic-journey-heading")',9000)
   await browser.send('Page.reload',{ignoreCache:true})
   try {
     await browser.until('!!document.querySelector("#clinic-journey-heading")',9000)
