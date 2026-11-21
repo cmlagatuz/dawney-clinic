@@ -16,7 +16,7 @@ export function validateNewItem(x){
   if(!safe(x.strength,1,80))errors.strength='Medicine strength is required (1–80 characters).'
  }
  if(x.reorder!==''&&(!count(x.reorder)))errors.reorder='Reorder point must be a whole, nonnegative unit count.'
- if(x.supplier!==''&&!safe(x.supplier,1,120))errors.supplier='Supplier reference is too long or invalid.'
+ if(x.supplier!==''&&!safe(x.supplier,2,120))errors.supplier='Supplier reference is too long or invalid.'
  return Object.freeze(errors)
 }
 export function validateReceipt(x,branchDate){
@@ -31,7 +31,7 @@ export function validateReceipt(x,branchDate){
  if(isInventoryDate(branchDate)&&isInventoryDate(x.expiresOn)&&x.expiresOn<=branchDate)
   errors.expiresOn='Expired stock is not eligible for normal receiving. Hold for authorized quarantine review.'
  if(!safe(x.branchId,1,64))errors.branchId='Select a currently authorized branch.'
- if(x.supplier!==''&&!safe(x.supplier,1,120))errors.supplier='Invalid supplier reference.'
+ if(x.supplier!==''&&!safe(x.supplier,2,120))errors.supplier='Invalid supplier reference.'
  return Object.freeze(errors)
 }
 export const validDraft=errors=>Object.keys(errors).length===0
