@@ -125,9 +125,11 @@ function OwnerPetsPageCatalog({ user }: { user: User }) {
   }, [userId])
   // Once the refreshed private metadata is authoritative, a successfully saved pending file is replaced by it (so Download works and
   // an unsaved/pending file can never be downloaded or mistaken for the stored one).
-  const synced = metadataSynced(att, att.refreshing)
+  const synced = metadataSynced(att, att.refreshing) &&
+    Object.values(uploads).every(u => u.status !== 'saved' ||
+      (typeof u.attachmentId === 'string' && existing.some(row => row.id === u.attachmentId)))
   useEffect(() => {
-    for (const c of savedToClear(uploads, synced, existing)) setUploads(u => (u[c as AttachmentCategory].status === 'saved' ? { ...u, [c]: uploadReducer(u[c as AttachmentCategory], { type: 'remove' }) } : u))
+    for (const c of savedToClear(uploads, synced)) setUploads(u => (u[c as AttachmentCategory].status === 'saved' ? { ...u, [c]: uploadReducer(u[c as AttachmentCategory], { type: 'remove' }) } : u))
   }, [uploads, synced])
   function openNew() { reset(); setFormOpen(true); setNotice(null); setError(null) }
   function openEdit(pet: CatalogPet) {
@@ -160,13 +162,17 @@ function OwnerPetsPageCatalog({ user }: { user: User }) {
         if (retryMode(u) === 'finalize' && u.objectPath) {
           // The private object already exists: only record its metadata again (never upload a second object).
           const finalized = await finalizeUploadedAttachment(user, petId, c, u.objectPath, sanitizeFilename(file.name), file.type, file.size)
-          dispatch(c, { type: 'saved', attachmentId: finalized.id })
-          if (current()) attReload()
+          if (current()) {
+            dispatch(c, { type: 'ack', attachmentId: finalized.id })
+            dispatch(c, { type: 'saved' }); attReload()
+          }
         } else {
           const result = await uploadPatientAttachment(user, petId, c, file, 'owners')
           if (result.status === 'saved') {
-            dispatch(c, { type: 'saved', attachmentId: result.attachment.id })
-            if (current()) attReload()
+            if (current()) {
+              dispatch(c, { type: 'ack', attachmentId: result.attachment.id })
+              dispatch(c, { type: 'saved' }); attReload()
+            }
           }
           else { dispatch(c, { type: 'unindexed', objectPath: result.objectPath }); failures += 1 }
         }
