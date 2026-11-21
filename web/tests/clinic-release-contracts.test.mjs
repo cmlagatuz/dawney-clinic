@@ -23,7 +23,7 @@ test('22 actual routes have unique source-backed contracts, roles, migrations an
 })
 test('machine contract registry matches EVERY actual React Router path, including overview and clinic navigator',()=>{
  const app=read('src/App.tsx')
- const routed=[...app.matchAll(/<Route\\s+path="([^"]+)"/g)].map(match=>match[1])
+ const routed=[...app.matchAll(/<Route\s+path="([^"]+)"/g)].map(match=>match[1])
  assert.equal(new Set(routed).size,routed.length,'each actual React Route path is unique')
  const contracted=[...new Set(CLINIC_ROUTE_CONTRACTS.map(row=>row.path))]
  assert.deepEqual(contracted.sort(),routed.sort(),'a new actual route must never omit the release API/role/migration contract')
