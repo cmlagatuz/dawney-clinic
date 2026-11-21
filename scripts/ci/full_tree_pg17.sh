@@ -190,7 +190,7 @@ while read -r path sha;do
     "$(git hash-object "$path")" == "$sha" ]] ||
  fail "revoked-veterinarian test-first exact blob drift: $path"
 done <<'REVOKED_CLINICIAN_CHILD_BLOBS'
-scripts/hosted-acceptance/tests/acceptance.test.mjs 4d448f7dc1f0301140884506a86b3f4d4cf87c82
+scripts/hosted-acceptance/tests/acceptance.test.mjs 5048314c9de7d2fc7fd6d32761acb8b080f0b29f
 REVOKED_CLINICIAN_CHILD_BLOBS
 while read -r path sha;do
  [[ "$(git rev-parse "980b7ab94a8f06cb810549a43bee0e6a0f63f789:$path")" == "$sha" ]] ||

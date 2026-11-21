@@ -807,7 +807,7 @@ test('SOL membership rows must be unique, complete and free of unapproved branch
    ['null-id',[{user_id:null,role:'veterinarian',is_active:actor==='staff'}]],
    ['array-row',[['veterinarian',uid[actor],actor==='staff']]],
    ['inherited-row',[Object.assign(Object.create({role:'veterinarian'}),{
-      user_id:uid[actor],is_active:actor==='staff})]]
+      user_id:uid[actor],is_active:actor==='staff'})]]
   ];
   for(const [label,rows] of scenarios){
    const {transport,state}=fakeTransport();
