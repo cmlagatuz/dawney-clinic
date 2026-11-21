@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { Link } from 'react-router'
 import { useAuth } from '../hooks/AuthProvider'
 import { readOwner } from '../lib/owners'
@@ -52,6 +53,11 @@ function PatientPhoto({ petId, name, version }: { petId: string; name: string; v
 
 export function PetsPageCatalog() {
   const { user } = useAuth()
+  return user ? <OwnerPetsPageCatalog key={user.id} user={user} /> : null
+}
+
+/** Keep all edit, download, upload and private photo state inside the current account. */
+function OwnerPetsPageCatalog({ user }: { user: User }) {
   const [pets, setPets] = useState<CatalogPet[]>([])
   const [species, setSpecies] = useState<SpeciesOption[]>([])
   const [speciesStatus, setSpeciesStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -78,6 +84,7 @@ export function PetsPageCatalog() {
   const busy = saving || uploadBusy // the form may not be saved, closed or re-targeted while anything is in flight
   const session = useRef(0) // bumped whenever the form is closed/re-targeted or the account changes; late async work checks it
   const [photoVersion, setPhotoVersion] = useState(0)
+  const transferActive = useRef(false)
   const uploadsRef = useRef(uploads)
   uploadsRef.current = uploads
   const formRef = useRef<HTMLDivElement>(null)
@@ -133,12 +140,18 @@ export function PetsPageCatalog() {
   }
 
   async function runUploads(petId: string, cats: string[]): Promise<number> {
-    if (!user) return cats.length
+    // An immediate second retry cannot upload the same file to a new Storage key
+    // before React has rendered the disabled/busy state.
+    if (transferActive.current) return cats.length
+    transferActive.current = true
     let failures = 0
     const s = session.current
-    const current = () => session.current === s // false once the form was closed/re-targeted or the account changed
+    const current = () => session.current === s && accountRef.current === user.id
+    // false once the form was closed, re-targeted or the signed-in account changed
     const dispatch = (c: AttachmentCategory, a: UploadAction) => { if (current()) setUploads(u => ({ ...u, [c]: uploadReducer(u[c], a) })) }
+    try {
     for (const c of cats as AttachmentCategory[]) {
+      if (!current()) break // Never start another category after owner/patient switch.
       const u = uploadsRef.current[c]
       const file = u.file
       if (!file) continue
@@ -146,24 +159,29 @@ export function PetsPageCatalog() {
       try {
         if (retryMode(u) === 'finalize' && u.objectPath) {
           // The private object already exists: only record its metadata again (never upload a second object).
-          await finalizeUploadedAttachment(user, petId, c, u.objectPath, sanitizeFilename(file.name), file.type, file.size)
-          dispatch(c, { type: 'saved' }); attReload()
+          const finalized = await finalizeUploadedAttachment(user, petId, c, u.objectPath, sanitizeFilename(file.name), file.type, file.size)
+          dispatch(c, { type: 'saved', attachmentId: finalized.id })
+          if (current()) attReload()
         } else {
           const result = await uploadPatientAttachment(user, petId, c, file, 'owners')
-          if (result.status === 'saved') { dispatch(c, { type: 'saved' }); attReload() }
+          if (result.status === 'saved') {
+            dispatch(c, { type: 'saved', attachmentId: result.attachment.id })
+            if (current()) attReload()
+          }
           else { dispatch(c, { type: 'unindexed', objectPath: result.objectPath }); failures += 1 }
         }
       } catch (e) { dispatch(c, { type: 'error', message: friendlyUploadError(e) }); failures += 1 }
     }
-    setPhotoVersion(v => v + 1)
+    if (current()) setPhotoVersion(v => v + 1)
     return failures
+    } finally { transferActive.current = false }
   }
   async function retry(c: AttachmentCategory) {
     if (!editing) return
     const s = session.current
     const failures = await runUploads(editing, [c])
     if (session.current !== s) return
-    if (failures === 0) { setError(null); setNotice('File uploaded securely.') }
+    if (failures === 0) { setError(null); setNotice('Private file metadata was recorded. Rechecking the saved document list…') }
   }
 
   async function save(e: FormEvent) {
@@ -175,17 +193,28 @@ export function PetsPageCatalog() {
     try {
       const input = { name: fields.name, speciesId: taxonomy.speciesId, breedId: taxonomy.breedId, sex: fields.sex, color: fields.color, birth_date: fields.birth_date }
       const pet = editing ? await editCatalogPet(user, editing, input) : await addCatalogPet(user, input)
-      await reload()
-      if (session.current !== s0) return // the form was closed, re-targeted or the account changed while saving
+      // A successfully inserted patient must NEVER be inserted twice if the
+      // subsequent list read fails or is denied. Switch to EDIT by server ID.
+      const wasEditing = Boolean(editing)
+      setEditing(pet.id)
+      try {
+        await reload()
+      } catch {
+        if (session.current === s0 && accountRef.current === uid0) {
+          setError('Patient information reached the clinic database, but the updated list could not be verified. Retry loading rather than registering this patient again.')
+        }
+        return
+      }
+      if (session.current !== s0 || accountRef.current !== uid0) return // stale form or account
       const pending = pendingUploads(uploadsRef.current)
       if (pending.length) {
         setEditing(pet.id)
         const failures = await runUploads(pet.id, pending)
-        if (session.current !== s0) return
+        if (session.current !== s0 || accountRef.current !== uid0) return
         if (failures > 0) { setError(`${pet.name} was saved, but ${failures === 1 ? 'one file' : `${failures} files`} could not be completed. Retry below.`); return }
       }
       if (session.current !== s0) return
-      reset(); setNotice(editing ? 'Patient information updated successfully.' : 'Patient saved to the clinic database.')
+      reset(); setNotice(wasEditing ? 'Patient information updated successfully.' : 'Patient saved to the clinic database.')
     } catch (err) {
       if (session.current !== s0) return
       setError(err instanceof Error && safeMessage.test(err.message) ? err.message : 'Patient could not be saved. Please check the information and try again.')
