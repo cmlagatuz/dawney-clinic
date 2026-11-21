@@ -62,8 +62,14 @@ test('CLOUD: default patient/profile/booking reads fail closed across two accoun
     assert.equal(await browser.value('document.body.textContent.includes("Synthetic Patient")'),false)
     await browser.goto(origin+'/app/pets?actor=owner')
     await browser.until('!!document.querySelector("button[aria-label^=Edit]")',9000)
+    // Switch input modality with an actual keyboard Tab before focusing the
+    // edit control. Programmatic focus after pointer use is not :focus-visible.
+    await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+    await browser.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
     await browser.value('document.querySelector("button[aria-label^=Edit]").focus();true')
-    assert.equal(await browser.value('document.activeElement.matches(":focus-visible")'),true)
+    assert.equal(await browser.value('document.activeElement===document.querySelector("button[aria-label^=Edit]")'),true)
+    assert.equal(await browser.value('document.activeElement.matches(":focus-visible")'),true,
+      'real keyboard modality must paint a visible focus state')
     await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r',unmodifiedText:'\r'})
     await browser.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
     await browser.until('document.body.textContent.includes("Edit patient")',9000)
