@@ -57,7 +57,7 @@ export function AttachmentField({ category, label, hint, accept, state, existing
     try { await onDownload(existing); setDl('idle') } catch { setDl('error') }
   }
   const busy = state.status === 'uploading'
-  const statusText = state.status === 'uploading' ? 'Uploading privately…' : state.status === 'saved' ? 'Saved securely' : state.status === 'ready' ? 'Ready — uploads when you save' : state.status === 'unindexed' ? 'Upload needs finishing' : state.status === 'error' ? 'Upload failed' : ''
+  const statusText = state.status === 'uploading' ? 'Uploading privately…' : state.status === 'saved' ? 'Private metadata saved; verifying document list…' : state.status === 'ready' ? 'Ready — uploads when you save' : state.status === 'unindexed' ? 'Upload needs finishing' : state.status === 'error' ? 'Upload failed' : ''
 
   return <fieldset className="attachment" disabled={disabled}>
     <legend>{label} <span className="tag">Optional</span></legend>
@@ -82,7 +82,7 @@ export function AttachmentField({ category, label, hint, accept, state, existing
             onChange={e => { pick(e.target.files?.[0]); e.target.value = '' }} />
           <label htmlFor={id} className="button button-secondary button-small file-button">{state.file || existing ? 'Choose replacement' : 'Choose file'}</label>
           {state.file && !busy && state.status !== 'saved' && <button type="button" className="button-quiet" onClick={onRemove}>Remove</button>}
-          {(state.status === 'error' || state.status === 'unindexed') && state.file && <button type="button" className="button button-secondary button-small" onClick={onRetry}>Retry upload</button>}
+          {(state.status === 'error' || state.status === 'unindexed') && state.file && <button type="button" className="button button-secondary button-small" onClick={onRetry}>{state.objectPath ? 'Retry metadata recording' : 'Retry private upload'}</button>}
           {existing && !state.file && <button type="button" className="button button-secondary button-small" disabled={dl === 'busy'} onClick={() => void download()}>{dl === 'busy' ? 'Preparing…' : 'Download'}</button>}
         </div>
       </div>
