@@ -8,6 +8,7 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 test('22 actual routes have unique source-backed contracts, roles, migrations and negative gates',()=>{
  assert.equal(CLINIC_ROUTE_CONTRACTS.length,23)
  assert.equal(new Set(CLINIC_ROUTE_CONTRACTS.map(r=>r.path)).size,22)
+ assert.ok(CLINIC_ROUTE_CONTRACTS.some(r=>r.id==='attachments'&&r.path==='/app/pets'),'private documents share the patient route but require a separate API contract')
  for(const row of CLINIC_ROUTE_CONTRACTS){
   for(const field of ['id','title','role','scope','flag','request','response','failure','persistence','missing'])
    assert.ok(typeof row[field]==='string'&&row[field].trim().length>0,row.path+' '+field)
@@ -16,7 +17,7 @@ test('22 actual routes have unique source-backed contracts, roles, migrations an
   assert.ok(Array.isArray(row.reads)&&Array.isArray(row.writes))
   assert.equal(Object.isFrozen(row),true)
   assert.ok(['no-frontend-write','provider-unverified','missing-server-adapter'].includes(row.persistence))
-  assert.equal(routeContract(row.path),row)
+  assert.equal(routeContract(row.path)?.path,row.path)
  }
  for(const path of ['/missing','/app/unknown','/admin/diagnostics'])assert.equal(routeContract(path),null)
 })
