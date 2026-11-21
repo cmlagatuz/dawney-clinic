@@ -62,6 +62,16 @@ data_fingerprint clinical16_ci > "$tmp/source.data"
 test -s "$tmp/source.data"
 fingerprint clinical16_ci > "$tmp/source.authority"
 test -s "$tmp/source.authority"
+# Coverage preflight: a fingerprint without these clinical definer/helper
+# definitions must never be accepted as meaningful recovery evidence.
+for routine in public.save_staff_clinical_encounter_draft public.read_staff_patient_chart \
+ public.create_staff_appointment_clinical_record clinic_private.has_branch_role \
+ clinic_private.has_verified_clinical_record clinic_private.clinical_audit_append_only;do
+ grep -Fq "$(printf 'routine\t%s(' "$routine")" "$tmp/source.authority" || {
+  echo "FAIL: essential clinical routine absent from signed-source definition manifest: $routine";exit 1;
+ }
+done
+echo 'PASS: essential privileged clinical RPC and authorization helper definitions present in SHA256 authority manifest'
 authz clinical16_ci > "$tmp/source.authz"
 draft_actors clinical16_ci > "$tmp/source.draft-authz"
 test -s "$tmp/source.draft-authz"

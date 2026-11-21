@@ -117,13 +117,14 @@ WITH
  FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
  JOIN namespaces n ON n.oid=c.relnamespace WHERE NOT t.tgisinternal
  UNION ALL
- SELECT 'default_acl',n.nspname||'.'||pg_get_userbyid(d.defaclrole)||'.'||d.defaclobjtype::text,
+ SELECT 'default_acl',coalesce(n.nspname::text,'<global>')||'.'||pg_get_userbyid(d.defaclrole)||'.'||d.defaclobjtype::text,
  jsonb_build_object('acl',coalesce((SELECT jsonb_agg(jsonb_build_array(
   case when a.grantee=0 then 'PUBLIC' else pg_get_userbyid(a.grantee) end,
   pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable)
   ORDER BY a.grantee,a.grantor,a.privilege_type,a.is_grantable)
  FROM aclexplode(d.defaclacl) a),'[]'::jsonb))
- FROM pg_default_acl d JOIN namespaces n ON n.oid=d.defaclnamespace
+ FROM pg_default_acl d LEFT JOIN namespaces n ON n.oid=d.defaclnamespace
+ WHERE d.defaclnamespace=0 OR n.oid IS NOT NULL
 )
 SELECT k||E'\t'||identity||E'\t'||payload::text
 FROM entities ORDER BY k,identity;
