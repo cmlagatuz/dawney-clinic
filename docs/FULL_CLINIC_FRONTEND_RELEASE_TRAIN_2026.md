@@ -14,7 +14,7 @@ The original visitor SiteLayout, owner Guard/AppLayout, OpsPage, ClinicalWorkspa
 
 ## Source-of-truth exact route/API/RLS contract matrix
 
-The machine-readable registry contains 22 distinct actual React paths (public, Auth, protected portals, and unknown-route wildcard) with required request, response, error semantics, migrations, flags, missing operations and persistence truth is web/src/release/clinic-contracts.mjs and its TypeScript declaration clinic-contracts.d.mts. The following human-review matrix groups related routes for readability; each actual path has a separate machine-readable record.  all API/table/function names below originate from PR116 reviewed source. RPC functions for missing operations have **not** been assigned invented names.
+The machine-readable registry contains 25 source-contract entries covering all 24 distinct actual React Router paths (public, Auth, protected portals, and unknown-route wildcard); patient records and private attachments intentionally have separate entries for the shared /app/pets route with required request, response, error semantics, migrations, flags, missing operations and persistence truth is web/src/release/clinic-contracts.mjs and its TypeScript declaration clinic-contracts.d.mts. The following human-review matrix groups related routes for readability; each actual path has a separate machine-readable record.  all API/table/function names below originate from PR116 reviewed source. RPC functions for missing operations have **not** been assigned invented names.
 
 | Actual route | Current trusted source/API | Verified subject + branch scope | Required migration/source | Current UI/flag | Persistence and missing contract |
 | --- | --- | --- | --- | --- | --- |
