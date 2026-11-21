@@ -184,12 +184,32 @@ scripts/ci/full_tree_pg17.sh
 scripts/hosted-acceptance/acceptance.mjs
 scripts/hosted-acceptance/tests/acceptance.test.mjs
 REVOKED_CLINICIAN_CHILD_ONLY
-) <(git diff --name-only 980b7ab94a8f06cb810549a43bee0e6a0f63f789 "$EXPECTED_HEAD_SHA") ||
- fail 'revoked veterinarian exact identity/role child path scope widened'
+) <(git diff --name-only 980b7ab94a8f06cb810549a43bee0e6a0f63f789 87a84c2c11a1994028246b8e393917e49812cbdb) ||
+ fail 'frozen PR115 three-path identity/role correction moved'
+git fetch --no-tags origin 'refs/pull/115/head:refs/remotes/origin/frozen-pr115'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr115)" == 87a84c2c11a1994028246b8e393917e49812cbdb &&
+   "$(git rev-parse "87a84c2c11a1994028246b8e393917e49812cbdb:scripts/ci/full_tree_pg17.sh")" == 8416deae75fa329f1df877742dbc721b8e237137 ]] ||
+ fail 'frozen SOL-reviewed PR115 exact head/CI guard changed'
+git merge-base --is-ancestor 87a84c2c11a1994028246b8e393917e49812cbdb "$EXPECTED_HEAD_SHA" ||
+ fail 'revoked private RLS child must descend from frozen PR115'
+diff -u <(cat <<'REVOKED_PRIVATE_CHILD_ONLY'
+scripts/ci/full_tree_pg17.sh
+scripts/hosted-acceptance/acceptance.mjs
+scripts/hosted-acceptance/tests/acceptance.test.mjs
+REVOKED_PRIVATE_CHILD_ONLY
+) <(git diff --name-only 87a84c2c11a1994028246b8e393917e49812cbdb "$EXPECTED_HEAD_SHA") ||
+ fail 'revoked private RLS child changed beyond 3 exact source/test/CI paths'
 while read -r path sha;do
  [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
     "$(git hash-object "$path")" == "$sha" ]] ||
- fail "revoked-veterinarian exact blob drift: $path"
+ fail "revoked private test-first source blob drift: $path"
+done <<'REVOKED_PRIVATE_CHILD_BLOBS'
+scripts/hosted-acceptance/acceptance.mjs ca6489bee35eaa60639ef775fa9c2478d68b9d65
+scripts/hosted-acceptance/tests/acceptance.test.mjs 5c47cbefe90f5402994e199899b00e5acd49b75e
+REVOKED_PRIVATE_CHILD_BLOBS
+while read -r path sha;do
+ [[ "$(git rev-parse "87a84c2c11a1994028246b8e393917e49812cbdb:$path")" == "$sha" ]] ||
+ fail "frozen PR115 exact runner+test original blob drift: $path"
 done <<'REVOKED_CLINICIAN_CHILD_BLOBS'
 scripts/hosted-acceptance/acceptance.mjs 242803fcff634c6d542981c00d7cb1b971d8bf93
 scripts/hosted-acceptance/tests/acceptance.test.mjs 5048314c9de7d2fc7fd6d32761acb8b080f0b29f

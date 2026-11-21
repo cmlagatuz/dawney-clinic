@@ -884,3 +884,99 @@ test('SOL roles remain correlated with verified JWT even if caller mutates actor
  assert.equal(state.appointments.length,2);
  assert.equal(state.objects.size,3);
 });
+
+
+/**
+ * SOL PR115 P2: a revoked veterinarian must be unable to SELECT the existing,
+ * independently verified owner A/B and patient A/B rows. Empty queries for
+ * nonexistent UUIDs do not prove RLS. All probes must precede write intent.
+ */
+test('SOL revoked veterinarian owner/patient exfiltration fails before booking and Storage writes',async()=>{
+ for(const table of ['owners','pets']){
+  for(const victim of ['ownerA','ownerB']){
+   const {transport,state}=fakeTransport();
+   const input={...base()};
+   const wanted=fixtures[victim];
+   let leaked=false;
+   input.transport={async request(req){
+    if(req.actor==='revoked'&&req.method==='GET'&&
+       req.path.startsWith('/rest/v1/'+table+'?')&&
+       req.path.includes('id=eq.'+(table==='owners'?wanted.ownerId:wanted.petId))){
+      leaked=true;
+      return {status:200,json:[table==='owners'?
+       {id:wanted.ownerId,user_id:wanted.userId}:
+       {id:wanted.petId,owner_id:wanted.ownerId}]};
+    }
+    return transport.request(req);
+   }};
+   await assert.rejects(runHostedAcceptance(input),
+    new RegExp('revoked_'+(table==='owners'?'owner':'patient')+'_leak'));
+   assert.equal(leaked,true,'runner MUST request already existing victim row '+table+'/'+victim);
+   assert.equal(state.appointments.length,0,'no booking mutation before revoked RLS');
+   assert.equal(state.objects.size,0,'no Storage mutation before revoked RLS');
+   assert.equal(state.calls.some(x=>['POST','PATCH','DELETE','PUT'].includes(x.method)),false);
+   const {readdirSync}=await import('node:fs');
+   for(const file of readdirSync(input.journalDir)){
+    const journal=JSON.parse(readFileSync(join(input.journalDir,file),'utf8'));
+    assert.deepEqual(journal.bookingAttempts,[]);
+    assert.deepEqual(journal.uploadAttempts,[]);
+   }
+  }
+ }
+});
+
+test('SOL revoked rows are requested using immutable original owner/patient IDs despite caller fixture replacement',async()=>{
+ const frozen=structuredClone(fixtures);
+ const caller=structuredClone(fixtures);
+ const {transport,state}=fakeTransport();
+ const calls=[];
+ const input={...base(),fixtures:caller};
+ input.transport={async request(req){
+  if(req.path==='/auth/v1/user'&&req.actor==='revoked'){
+   caller.ownerA.ownerId='99999999-9999-4999-8999-999999999999';
+   caller.ownerA.petId='99999999-1111-4111-8111-999999999999';
+   caller.ownerB.ownerId='88888888-8888-4888-8888-888888888888';
+   caller.ownerB.petId='88888888-2222-4222-8222-888888888888';
+  }
+  calls.push({actor:req.actor,path:req.path,method:req.method});
+  return transport.request(req);
+ }};
+ const result=await runHostedAcceptance(input);
+ assert.equal(result.cleanup.status,'passed');
+ for(const victim of [frozen.ownerA,frozen.ownerB]){
+  assert.ok(calls.some(x=>x.actor==='revoked'&&x.path.startsWith('/rest/v1/owners?')&&
+   x.path.includes('id=eq.'+victim.ownerId)),'revoked known owner check must retain trusted identity');
+  assert.ok(calls.some(x=>x.actor==='revoked'&&x.path.startsWith('/rest/v1/pets?')&&
+   x.path.includes('id=eq.'+victim.petId)),'revoked known patient check must retain trusted identity');
+ }
+ assert.equal(state.appointments.length,2);
+ assert.equal(state.objects.size,3);
+});
+
+test('SOL revoked clinician 401/403/true-empty read denials accepted, but unrelated responses rejected',async()=>{
+ for(const status of [200,401,403]){
+  const {transport}=fakeTransport();
+  const input={...base()};
+  input.transport={async request(req){
+   if(req.actor==='revoked'&&req.method==='GET'&&
+      (/^\/rest\/v1\/(owners|pets)\?/.test(req.path))){
+    return status===200?{status,json:[]}:{status,json:{code:'42501'}};
+   }
+   return transport.request(req);
+  }};
+  const result=await runHostedAcceptance(input);
+  assert.equal(result.cleanup.status,'passed',String(status));
+ }
+ for(const status of [204,404,500]){
+  const {transport,state}=fakeTransport();
+  const input={...base()};
+  input.transport={async request(req){
+   if(req.actor==='revoked'&&req.method==='GET'&&req.path.startsWith('/rest/v1/owners?'))
+    return {status,json:[]};
+   return transport.request(req);
+  }};
+  await assert.rejects(runHostedAcceptance(input),/revoked_owner_leak/);
+  assert.equal(state.appointments.length,0);
+  assert.equal(state.objects.size,0);
+ }
+});

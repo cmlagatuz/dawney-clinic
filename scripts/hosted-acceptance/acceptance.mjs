@@ -333,7 +333,17 @@ export async function runHostedAcceptance(options={}){
   'user_id=eq.'+fixtures.staff.userId),'staff',fixtures.staff,subjects.get('staff'),true);
  expectStaffMembership(await select('revoked','staff_memberships','user_id,role,is_active',
   'user_id=eq.'+fixtures.revoked.userId),'revoked',fixtures.revoked,subjects.get('revoked'),false);
- checked.push('two_owners_anonymous_and_active_revoked_staff_rls');
+ // A revoked staff JWT MUST NOT see either already-verified existing owner
+ // or patient row. Nonexistent UUIDs would falsely pass a broken RLS policy.
+ // These are immutable, owned fixture IDs established by positive owner
+ // reads above; execute before journal mutation, booking or Storage writes.
+ for(const f of [owners,other]){
+  ensure(denyRead(await select('revoked','owners','id','id=eq.'+f.ownerId)),
+   'revoked_owner_leak');
+  ensure(denyRead(await select('revoked','pets','id','id=eq.'+f.petId)),
+   'revoked_patient_leak');
+ }
+ checked.push('two_owners_anonymous_active_revoked_staff_and_revoked_private_owner_patient_rls');
 
  const marker='DAWNEY_STAGE_'+gate.runId;
  const requestNonceA=randomUUID(),requestNonceB=randomUUID();
