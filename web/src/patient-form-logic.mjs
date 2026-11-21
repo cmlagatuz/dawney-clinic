@@ -66,7 +66,8 @@ export function uploadReducer(state, action) {
     case 'invalid': return { status: 'error', file: null, message: action.message, objectPath: null }
     case 'remove': return emptyUpload
     case 'start': return { ...state, status: 'uploading', message: '' }
-    case 'saved': return { status: 'saved', file: state.file, message: '', objectPath: null }
+    case 'saved': return { status: 'saved', file: state.file, message: '', objectPath: null,
+      ...(action.attachmentId ? { attachmentId: action.attachmentId } : {}) }
     case 'unindexed': return { status: 'unindexed', file: state.file, message: 'The file reached private storage but could not be recorded. Retry to finish.', objectPath: action.objectPath }
     case 'error': return { ...state, status: 'error', message: action.message }
     default: return state
@@ -97,8 +98,15 @@ export function uploadsBusy(uploads) {
  * is now authoritative. Nothing is cleared until the metadata read has settled successfully, so an unsaved file is never
  * swapped for stale metadata and never offered for download.
  */
-export function savedToClear(uploads, metadataSynced) {
-  return metadataSynced ? Object.entries(uploads ?? {}).filter(([, u]) => u && u.status === 'saved').map(([c]) => c) : []
+export function savedToClear(uploads, metadataSynced, verifiedMetadata) {
+  if (!metadataSynced) return []
+  // When the current patient's freshly fetched metadata is supplied, clear
+  // a saved pending file ONLY after its exact server-acknowledged row appears.
+  // An old ready list or an empty eventual-consistency read is not proof.
+  return Object.entries(uploads ?? {}).filter(([, u]) => u && u.status === 'saved'
+    && (verifiedMetadata === undefined
+      || (Array.isArray(verifiedMetadata) && typeof u.attachmentId === 'string'
+        && verifiedMetadata.some(row => row?.id === u.attachmentId)))).map(([category]) => category)
 }
 
 /** Only known, user-actionable adapter messages are shown; anything else becomes a generic retry message. */
