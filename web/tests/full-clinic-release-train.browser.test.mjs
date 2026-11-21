@@ -69,7 +69,12 @@ test('CLOUD integrated release: owner A/B journey, communication controls, direc
   await browser.value('document.querySelector("#main-content a[href=\\"/app/workflows\\"]").click();true')
   await browser.until('!!document.querySelector("#clinic-journey-heading")',9000)
   await browser.send('Page.reload',{ignoreCache:true})
-  await browser.until('!!document.querySelector("#clinic-journey-heading")',9000)
+  try {
+    await browser.until('!!document.querySelector("#clinic-journey-heading")',9000)
+  } catch {
+    const diagnostic=await browser.value('({path:location.pathname,heading:document.querySelector("h1")?.textContent,main:document.querySelector("#main-content")?.textContent.slice(0,230),auth:!!localStorage.getItem("dawney.auth.v1"),unexpected:window.__cloudIntegrated?.unexpected})')
+    assert.fail('Reload of authenticated journey failed: '+JSON.stringify(diagnostic))
+  }
   await browser.goto(origin+'/app/overview?actor=other&theme=dark')
   await browser.until('document.querySelector(".stat-grid")?.textContent.includes("Registered patients")',10000)
   assert.equal(await browser.value('document.querySelector(".stat-grid .stat-value")?.textContent'), '1')
