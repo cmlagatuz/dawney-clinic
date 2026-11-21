@@ -127,7 +127,7 @@ function OwnerPetsPageCatalog({ user }: { user: User }) {
   // an unsaved/pending file can never be downloaded or mistaken for the stored one).
   const synced = metadataSynced(att, att.refreshing)
   useEffect(() => {
-    for (const c of savedToClear(uploads, synced)) setUploads(u => (u[c as AttachmentCategory].status === 'saved' ? { ...u, [c]: uploadReducer(u[c as AttachmentCategory], { type: 'remove' }) } : u))
+    for (const c of savedToClear(uploads, synced, existing)) setUploads(u => (u[c as AttachmentCategory].status === 'saved' ? { ...u, [c]: uploadReducer(u[c as AttachmentCategory], { type: 'remove' }) } : u))
   }, [uploads, synced])
   function openNew() { reset(); setFormOpen(true); setNotice(null); setError(null) }
   function openEdit(pet: CatalogPet) {
