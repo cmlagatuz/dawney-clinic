@@ -20,6 +20,7 @@ import { ClinicalWorkspacePage } from './pages/staff/ClinicalWorkspacePage'
 import { PharmacyPage } from './pages/staff/PharmacyPage'
 import { BillingPage } from './pages/staff/BillingPage'
 import { OwnerBillingPage } from './billing/OwnerBillingPage'
+import { ClinicReleasePage, CommunicationsUnavailablePage } from './pages/ClinicReleasePage'
 
 function Guard() {
   const { checking, user, error, refresh } = useAuth()
@@ -50,6 +51,8 @@ export function App() {
     <Route element={<Guard/>}><Route element={<AppLayout/>}><Route path="/app/overview" element={<OverviewPage/>}/><Route path="/app/profile" element={<ProfilePage/>}/>
       <Route path="/app/pets" element={phase4PatientForm?<PetsPageCatalog/>:<PetsPage/>}/>
       <Route path="/app/appointments" element={<AppointmentsPage/>}/>
+      <Route path="/app/clinic" element={<ClinicReleasePage/>}/>
+      <Route path="/app/communications" element={<CommunicationsUnavailablePage/>}/>
       {OPS_UI_ENABLED && <Route path="/app/ops" element={<OpsPage/>}/>}
       {clinicalWorkspacePreview && <Route path="/app/clinical" element={<ClinicalWorkspacePage/>}/>}
       {pharmacyPreview && <Route path="/app/pharmacy" element={<PharmacyPage/>}/>}
