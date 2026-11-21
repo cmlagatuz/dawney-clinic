@@ -1,9 +1,9 @@
 export type SpeciesLike = { id: string; label: string; group_name: string; scientific_name: string | null; is_active: boolean }
 export type SpeciesGroupView<T extends SpeciesLike = SpeciesLike> = { group: string; label: string; items: T[] }
-export type UploadState = { status: 'idle' | 'ready' | 'uploading' | 'saved' | 'unindexed' | 'error'; file: File | null; message: string; objectPath: string | null }
+export type UploadState = { status: 'idle' | 'ready' | 'uploading' | 'saved' | 'unindexed' | 'error'; file: File | null; message: string; objectPath: string | null; attachmentId?: string }
 export type UploadAction =
   | { type: 'select'; file: File } | { type: 'invalid'; message: string } | { type: 'remove' }
-  | { type: 'start' } | { type: 'saved' } | { type: 'unindexed'; objectPath: string } | { type: 'error'; message: string }
+  | { type: 'start' } | { type: 'saved'; attachmentId?: string } | { type: 'unindexed'; objectPath: string } | { type: 'error'; message: string }
 export const GROUP_ORDER: readonly string[]
 export const GROUP_LABELS: Record<string, string>
 export const emptyUpload: UploadState
@@ -17,6 +17,6 @@ export function uploadReducer(state: UploadState, action: UploadAction): UploadS
 export function pendingUploads(uploads: Record<string, UploadState>): string[]
 export function retryMode(u: UploadState | null | undefined): 'finalize' | 'upload'
 export function uploadsBusy(uploads: Record<string, UploadState> | null | undefined): boolean
-export function savedToClear(uploads: Record<string, UploadState> | null | undefined, metadataSynced: boolean): string[]
+export function savedToClear(uploads: Record<string, UploadState> | null | undefined, metadataSynced: boolean, verifiedMetadata?: readonly { id: string }[]): string[]
 export function friendlyUploadError(err: unknown): string
 export function formatBytes(n: number): string
