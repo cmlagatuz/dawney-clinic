@@ -54,7 +54,13 @@ async function useLocalProfile(profile,configured,callback){
   else{delete process.env.VITE_SUPABASE_URL;delete process.env.VITE_SUPABASE_PUBLISHABLE_KEY}
   for(const k of Object.keys(previous).filter(k=>k.startsWith('VITE_PHASE')||k==='VITE_CLINICAL_WORKSPACE_UI'))
     process.env[k]='false'
-  const server=await createServer({root,server:{host:'127.0.0.1',port:0,strictPort:false},logLevel:'error'})
+  // Vite's import.meta.env replacements are initialized per test runner.
+  // Force the chosen local test profile in THIS server's build transform
+  // rather than inheriting the npm test runner's connected default.
+  const chosen=profile===null?'informational':profile
+  const server=await createServer({root,
+    define:{'import.meta.env.VITE_RELEASE_PROFILE':JSON.stringify(chosen)},
+    server:{host:'127.0.0.1',port:0,strictPort:false},logLevel:'error'})
   try{
     await server.listen()
     const origin='http://127.0.0.1:'+server.httpServer.address().port
@@ -145,7 +151,7 @@ test('CLOUD PROFILE B: approved synthetic Naga only, guest safe sign-in, owner/p
   await useLocalProfile('connected',true,async(browser,origin)=>{
     await browser.send('Page.addScriptToEvaluateOnNewDocument',{source:'('+releaseClinicFixture.toString()+')()'})
     await browser.goto(origin+'/book?actor=visitor&theme=dark&reset=1')
-    await browser.until('!!document.querySelector("form[aria-label=\"Naga appointment request\"]")',12000)
+    await browser.until('!!document.querySelector("form.book-form")',12000)
     assert.equal(await browser.value('document.body.textContent.includes("Fixture care")'),true)
     assert.equal(await browser.value('document.querySelectorAll("input[name=slot]").length'),0,
       'no slots selected until a verified date is chosen')
@@ -188,7 +194,7 @@ test('CLOUD PROFILE B: unapproved schedule and offline policy are different fail
       if(scenario==='offline'){
         await browser.until('!!document.querySelector("#main-content [role=alert] button")',8000)
         await browser.value('window.__cloudReleasePolicyRecovered=true;document.querySelector("#main-content [role=alert] button").click();true')
-        await browser.until('!!document.querySelector("form[aria-label=\"Naga appointment request\"]")',10000)
+        await browser.until('!!document.querySelector("form.book-form")',10000)
       }else{
         assert.match(await browser.value('document.querySelector("#main-content")?.textContent'),/not open yet|unavailable|still being set up/i)
       }
