@@ -16,7 +16,7 @@ create table public.staff_access_requests (
  user_id uuid primary key references auth.users(id) on delete restrict,
  requested_branch_id uuid not null references public.clinic_branches(id) on delete restrict,
  note text check(note is null or length(note)<=500),
- state text not null check(state in ('pending','approved','rejected','inactive','revoked')),
+ state text not null default 'pending' check(state in ('pending','approved','rejected','inactive','revoked')),
  revision integer not null default 1 check(revision>0),
  requested_at timestamptz not null default clock_timestamp(),
  reviewed_at timestamptz,
@@ -235,15 +235,17 @@ declare v_actor uuid; v_branch uuid; v_req public.staff_access_requests%rowtype;
  v_branches uuid[]; v_existing uuid;
 begin
  v_actor:=clinic_private.require_operational_actor();
- if p_target is null or p_target=v_actor or p_request_id is null
+ if p_target=v_actor then
+  raise exception 'Administrator cannot approve or change own access' using errcode='42501'; end if;
+ if p_target is null or p_request_id is null
   or p_expected_revision is null or p_expected_revision<1
-  or p_action not in ('approve','reject','inactivate','revoke','role_change')
+  or p_action is null or p_action not in ('approve','reject','inactivate','revoke','role_change')
  then raise exception 'Invalid staff review action' using errcode='22023'; end if;
  v_branches:=coalesce(p_branches,array[]::uuid[]);
  if pg_catalog.cardinality(v_branches)>32 then
   raise exception 'Too many target branches' using errcode='22023'; end if;
  if p_action in ('approve','role_change') then
-  if p_role not in ('administrator','veterinarian','receptionist','accountant')
+  if p_role is null or p_role not in ('administrator','veterinarian','receptionist','accountant')
    or pg_catalog.cardinality(v_branches)=0
    or exists(select 1 from pg_catalog.unnest(v_branches) x
       where x is null)

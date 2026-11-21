@@ -306,7 +306,7 @@ git fetch --no-tags origin 'refs/pull/124/head:refs/remotes/origin/frozen-pr124'
  fail 'frozen PR124 source moved during child validation'
 git merge-base --is-ancestor ebe6caf8a1f9f17fb00739986b1ebdb83e2d9d0d "$EXPECTED_HEAD_SHA" ||
  fail 'operational child missing exact frozen PR124 ancestor'
-[[ "$(git rev-parse HEAD:scripts/ci/operational_source_guard.sh)" == 0e615944a178f8320001922e6eff8e762e158fca ]] ||
+[[ "$(git rev-parse HEAD:scripts/ci/operational_source_guard.sh)" == 258bbec1c8c0b88c757d4fce24d8eaea96a2673b ]] ||
  fail 'operational guard blob changed'
 bash scripts/ci/operational_source_guard.sh
 while read -r path sha;do
