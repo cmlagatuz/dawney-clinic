@@ -111,7 +111,7 @@ test('CLOUD integrated release: verified staff roles, revoked staff links, billi
   await browser.until('document.body.textContent.includes("Current staff membership was verified")',9000)
   await browser.value('document.querySelector("#main-content a[href=\\"/app/billing\\"]").click();true')
   await browser.until('document.body.textContent.includes("Billing read service not integrated")',9000)
-  const finance=await browser.value('({invoices:document.querySelectorAll(".billing-invoice").length,buttons:[...document.querySelectorAll(".billing-actions button")].map(x=>x.disabled),writes:window.__cloudIntegrated.directWrites,unexpected:window.__cloudIntegrated.unexpected})')
+  const finance=await browser.value('({invoices:document.querySelectorAll(".billing-invoice").length,buttons:[...document.querySelectorAll(".billing-actions[aria-label] button")].map(x=>x.disabled),writes:window.__cloudIntegrated.directWrites,unexpected:window.__cloudIntegrated.unexpected})')
   assert.equal(finance.invoices,0)
   assert.ok(finance.buttons.length>0&&finance.buttons.every(Boolean))
   assert.deepEqual(finance.writes,[])

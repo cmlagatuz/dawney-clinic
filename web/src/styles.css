@@ -577,3 +577,12 @@ select:disabled, input:disabled { background: var(--surface-2); color: var(--mut
 .clinic-journey-steps .field-help { margin: .2rem 0 0; }
 .clinic-journey .card > ul { padding-left: 1.5rem; display: grid; gap: .7rem; }
 .clinic-journey .card button { max-width: 100%; white-space: normal; text-align: left; }
+
+/* CLOUD: unavailable communications controls wrap their full accessible labels
+   instead of imposing a 360px minimum width via the shared .button nowrap. */
+.clinic-communications, .clinic-communications .card { min-width: 0; }
+.clinic-communications .cta-row { min-width: 0; }
+.clinic-communications .cta-row > .button {
+  min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere;
+  text-align: center;
+}

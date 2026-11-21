@@ -4,7 +4,7 @@ import {PageHeading} from '../components/ui'
 /** No transport, outbox, subscription or consent assumption exists.
  * This page never invokes an API, reads a recipient, or sends a message. */
 export function CommunicationsUnavailablePage(){
-  return <section className="page" aria-labelledby="communications-title">
+  return <section className="page clinic-communications" aria-labelledby="communications-title">
     <PageHeading id="communications-title" eyebrow="Owner account · protected"
       title="Clinic communications">
       Private messages, notifications and campaigns require an independently approved
