@@ -140,7 +140,7 @@ test('CLOUD PROFILE A remains public-only when dummy backend env exists; missing
         const state=await browser.value('({form:document.querySelectorAll("#main-content form").length,remote:window.__cloudPublicProfile.outbound,heading:document.querySelector("h1").textContent,links:[...document.querySelectorAll("a")].some(a=>a.href.includes("/auth/signin"))})')
         assert.equal(state.form,0)
         assert.deepEqual(state.remote,[])
-        assert.equal(state.links,false)
+        assert.equal(state.links,false,JSON.stringify({profile,configured,path,state}))
         if(path==='/book')assert.match(state.heading,/booking information/i)
       }
     })
@@ -166,7 +166,7 @@ test('CLOUD PROFILE B: approved synthetic Naga only, guest safe sign-in, owner/p
     assert.equal(await browser.value('document.querySelector("#main-content h1")?.textContent.includes("Welcome back")'),true)
     await browser.goto(origin+'/app/pets?actor=owner')
     await browser.until('document.body.textContent.includes("Synthetic Patient")',10000)
-    assert.equal(await browser.value('document.querySelectorAll("a[href=\"/app/ops\"],a[href=\"/app/clinical\"],a[href=\"/app/pharmacy\"],a[href=\"/app/billing\"],a[href=\"/app/invoices\"]").length'),0)
+    assert.equal(await browser.value('[...document.querySelectorAll("a")].filter(a=>["/app/ops","/app/clinical","/app/pharmacy","/app/billing","/app/invoices"].includes(a.getAttribute("href"))).length'),0)
     await browser.goto(origin+'/app/pets?actor=other')
     await browser.until('document.body.textContent.includes("Synthetic B Patient")',10000)
     assert.equal(await browser.value('document.body.textContent.includes("Synthetic Patient")'),false)
