@@ -287,8 +287,8 @@ scripts/recovery/tests/clinical17-restored-draft-actors.sql
 scripts/recovery/tests/clinical17-security-fingerprint.sql
 scripts/recovery/tests/clinical17-signed-restore.sh
 CLINICAL_ROUTINE_CHILD_ONLY
-) <(git diff --name-only f9b2ad473ab2b379a48050eaea5678fe0644c40b "$EXPECTED_HEAD_SHA") ||
- fail 'routine fidelity child expanded beyond six reviewed recovery paths'
+) <(git diff --name-only f9b2ad473ab2b379a48050eaea5678fe0644c40b ebe6caf8a1f9f17fb00739986b1ebdb83e2d9d0d) ||
+ fail 'frozen PR124 recovery ancestry moved beyond six reviewed paths'
 while read -r path sha;do
  [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
     "$(git hash-object "$path")" == "$sha" ]] ||
@@ -300,6 +300,15 @@ scripts/recovery/tests/clinical17-restored-draft-actors.sql f45fc308278ced1537c3
 scripts/recovery/tests/clinical17-security-fingerprint.sql fc133422c66c4b1e1c7b35d959bcf2ee65943a71
 scripts/recovery/tests/clinical17-signed-restore.sh 5fec3252176577e7dcaf3d42e5978eecd501e0fb
 CLINICAL_ROUTINE_CHILD_BLOBS
+# Frozen PR124 remains untouched; new feature source has a second exact guard.
+git fetch --no-tags origin 'refs/pull/124/head:refs/remotes/origin/frozen-pr124'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr124)" == ebe6caf8a1f9f17fb00739986b1ebdb83e2d9d0d ]] ||
+ fail 'frozen PR124 source moved during child validation'
+git merge-base --is-ancestor ebe6caf8a1f9f17fb00739986b1ebdb83e2d9d0d "$EXPECTED_HEAD_SHA" ||
+ fail 'operational child missing exact frozen PR124 ancestor'
+[[ "$(git rev-parse HEAD:scripts/ci/operational_source_guard.sh)" == b43652ee31c9f8b4f11260e1c82907907e17cfea ]] ||
+ fail 'operational guard blob changed'
+bash scripts/ci/operational_source_guard.sh
 while read -r path sha;do
  [[ "$(git rev-parse "f9b2ad473ab2b379a48050eaea5678fe0644c40b:$path")" == "$sha" ]] ||
  fail "frozen PR113 clinical ACL recovery blob drift: $path"
@@ -554,7 +563,14 @@ while IFS= read -r path; do
   scripts/recovery/tests/clinical17-restored-authz.sql|\
   supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql|\
   supabase/tests/clinical_provenance_pagination_pg17.sql|\
-  web/src/lib/clinical-chart.ts) ;;
+  web/src/lib/clinical-chart.ts|\
+  .github/workflows/operational-staff-inventory-pg17.yml|\
+  docs/STAFF_INVENTORY_OPERATIONAL_CONTRACT.md|\
+  scripts/ci/operational_source_guard.sh|\
+  supabase/migrations/20261121201000_staff_self_service_approval_accountant.sql|\
+  supabase/migrations/20261121202000_inventory_transactional_branch_ops.sql|\
+  supabase/tests/operational_staff_inventory_pg17.sql|\
+  web/src/lib/operational-rpcs.ts) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
