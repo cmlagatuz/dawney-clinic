@@ -11,16 +11,30 @@ const when = (iso: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'm
 /** Pet-owner home. Every figure is computed from the signed-in owner's persisted records; nothing is sample data. */
 export function OverviewPage() {
   const { user } = useAuth()
+  return user ? <OwnerOverview key={user.id} userId={user.id} /> : null
+}
+function OwnerOverview({ userId }: { userId: string }) {
+  const { user } = useAuth()
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [attempt,setAttempt] = useState(0)
   useEffect(() => {
-    if (!user) return
+    if (!user || user.id !== userId) return
     let active = true
-    void Promise.all([readOwner(user), listPets(user), listAppointments(user)])
-      .then(([owner, pets, appointments]) => { if (active) setData({ owner, pets, appointments }) })
-      .catch(() => { if (active) setError('Could not load your overview. Please refresh and try again.') })
+    const account = user
+    // Clear all prior rows synchronously on retry. An error must not leave
+    // another account's statistics, upcoming visits or patient names visible.
+    setData(null)
+    setError(null)
+    void Promise.all([readOwner(account), listPets(account), listAppointments(account)])
+      .then(([owner, pets, appointments]) => {
+        if (active) setData({ owner, pets, appointments })
+      })
+      .catch(() => {
+        if (active) setError('Could not load your overview. No patient or booking totals have been assumed.')
+      })
     return () => { active = false }
-  }, [user])
+  }, [userId, attempt])
 
   const first = data?.owner?.first_name ?? String(user?.user_metadata?.first_name ?? '')
   const now = Date.now()
@@ -35,7 +49,10 @@ export function OverviewPage() {
     <PageHeading id="overview-heading" eyebrow="Pet owner portal" title={first ? `Welcome, ${first}` : 'Welcome'}
       actions={<Link className="button button-primary" to="/app/appointments">Request appointment</Link>}>
       A summary of your patients and visits at Dawney Animal Clinic.</PageHeading>
-    {error && <p role="alert" className="alert alert-error">{error}</p>}
+    <p className="field-help"><Link to="/app/workflows">Clinic journey guide</Link> explains verified owner actions, staff workspaces and which clinic operations are still unavailable.</p>
+    {error && <div className="alert alert-error" role="alert"><p>{error}</p>
+      <button type="button" className="button button-secondary" onClick={()=>setAttempt(n=>n+1)}>Retry overview</button>
+    </div>}
     {!data && !error && <LoadingCard label="Loading your overview…" rows={4} />}
     {data && <>
       <div className="stat-grid">

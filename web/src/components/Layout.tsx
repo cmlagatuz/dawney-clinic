@@ -36,9 +36,11 @@ export function PublicLayout() {
 const billingPreview = import.meta.env.VITE_PHASE5C_BILLING_UI === 'true'
 const nav = [
   { to: '/app/overview', label: 'Overview', icon: 'home' },
+  { to: '/app/workflows', label: 'Clinic journeys', icon: 'pulse' },
   { to: '/app/pets', label: 'My patients', icon: 'paw' },
   { to: '/app/appointments', label: 'Appointments', icon: 'calendar' },
   { to: '/app/profile', label: 'My profile', icon: 'user' },
+  { to: '/app/communications', label: 'Messages · unavailable', icon: 'shield' },
 ] as const
 /** All staff shortcuts require *current server-verified* active branch membership. */
 const staffNav = OPS_UI_ENABLED ? [{ to: '/app/ops', label: 'Clinic operations', icon: 'pulse' }] as const : []
