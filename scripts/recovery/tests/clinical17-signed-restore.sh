@@ -38,6 +38,8 @@ fingerprint(){ psql -XqAt -v ON_ERROR_STOP=1 -d "$1" \
  -f scripts/recovery/tests/clinical17-security-fingerprint.sql; }
 authz(){ psql -XqAt -v ON_ERROR_STOP=1 -d "$1" \
  -f scripts/recovery/tests/clinical17-restored-authz.sql; }
+draft_actors(){ psql -XqAt -v ON_ERROR_STOP=1 -d "$1" \
+ -f scripts/recovery/tests/clinical17-restored-draft-actors.sql; }
 # Logical row-fidelity digest over every synthetic clinical and historical
 # source row. Every JSON field matters, including creator/editor, actor,
 # idempotency request/response, timestamps, attributes and anonymous history.
@@ -60,7 +62,19 @@ data_fingerprint clinical16_ci > "$tmp/source.data"
 test -s "$tmp/source.data"
 fingerprint clinical16_ci > "$tmp/source.authority"
 test -s "$tmp/source.authority"
+# Coverage preflight: a fingerprint without these clinical definer/helper
+# definitions must never be accepted as meaningful recovery evidence.
+for routine in public.save_staff_clinical_encounter_draft public.read_staff_patient_chart \
+ public.create_staff_appointment_clinical_record clinic_private.has_branch_role \
+ clinic_private.has_verified_clinical_record clinic_private.clinical_audit_append_only;do
+ grep -Fq "$(printf 'routine\t%s(' "$routine")" "$tmp/source.authority" || {
+  echo "FAIL: essential clinical routine absent from signed-source definition manifest: $routine";exit 1;
+ }
+done
+echo 'PASS: essential privileged clinical RPC and authorization helper definitions present in SHA256 authority manifest'
 authz clinical16_ci > "$tmp/source.authz"
+draft_actors clinical16_ci > "$tmp/source.draft-authz"
+test -s "$tmp/source.draft-authz"
 docker exec "$container" pg_dump -U postgres -Fc -d clinical16_ci > "$tmp/source.dump"
 test -s "$tmp/source.dump"
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$tmp/ephemeral.key" >/dev/null 2>&1
@@ -98,6 +112,9 @@ if ! cmp -s "$tmp/source.authority" "$tmp/restored.authority";then
 fi
 authz clinical16_restored > "$tmp/restored.authz"
 cmp "$tmp/source.authz" "$tmp/restored.authz"
+draft_actors clinical16_restored > "$tmp/restored.draft-authz"
+cmp "$tmp/source.draft-authz" "$tmp/restored.draft-authz"
+echo 'PASS: source/restored real draft create/replay, second vet editor, unconfirmed vet and denied actor security matrix identical'
 echo 'PASS: full source/restored PostgreSQL authorization fingerprint and active actor tests IDENTICAL'
 
 # Deliberately reproduce SOL's old --no-acl defect, and require a mismatch.
@@ -129,11 +146,69 @@ fi
 if cmp -s "$tmp/source.authority" "$tmp/missing-object.authority";then
  echo 'FAIL: missing clinical idempotency table was not detected';exit 1
 fi
+# Intentionally replace ONLY a privileged draft writer body; PostgreSQL keeps
+# original owner/grants/SECURITY DEFINER/search_path. Metadata-only checks must
+# not make this malicious restore appear equivalent.
+{
+ cat <<'BROKEN_FN'
+BEGIN;
+CREATE TEMP TABLE clinical_before_metadata AS
+ SELECT proowner,proacl,prosecdef,proconfig,provolatile,proisstrict
+ FROM pg_proc WHERE oid=
+  'public.save_staff_clinical_encounter_draft(uuid,uuid,uuid,uuid,integer,text,text,text,text)'::regprocedure;
+CREATE OR REPLACE FUNCTION public.save_staff_clinical_encounter_draft(
+ p_branch uuid,p_pet uuid,p_appointment uuid,p_request_id uuid,
+ p_expected_revision integer,p_complaint text,p_examination text,
+ p_assessment text,p_plan text)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=''
+AS $broken$ BEGIN RAISE EXCEPTION 'DELIBERATELY BROKEN RECOVERED DRAFT WRITER'
+ USING ERRCODE='42501'; END $broken$;
+DO $metadata$
+BEGIN
+ IF EXISTS(
+ SELECT 1 FROM clinical_before_metadata b FULL JOIN
+ (SELECT proowner,proacl,prosecdef,proconfig,provolatile,proisstrict
+ FROM pg_proc WHERE oid=
+ 'public.save_staff_clinical_encounter_draft(uuid,uuid,uuid,uuid,integer,text,text,text,text)'::regprocedure) a
+ ON b.proowner=a.proowner AND b.prosecdef=a.prosecdef
+ AND b.proacl IS NOT DISTINCT FROM a.proacl
+ AND b.proconfig IS NOT DISTINCT FROM a.proconfig
+ AND b.provolatile=a.provolatile AND b.proisstrict=a.proisstrict
+ WHERE b.proowner IS NULL OR a.proowner IS NULL)
+ THEN RAISE EXCEPTION 'BROKEN_FUNCTION_TEST_INVALID: changed original privileges'; END IF;
+END $metadata$;
+BROKEN_FN
+ cat scripts/recovery/tests/clinical17-security-fingerprint.sql
+ printf 'ROLLBACK;\n'
+} | psql -XqAt -v ON_ERROR_STOP=1 -d clinical16_restored > "$tmp/broken-function.authority"
+if cmp -s "$tmp/source.authority" "$tmp/broken-function.authority";then
+ echo 'FAIL: modified SECURITY DEFINER draft body passed same grants and owner';exit 1
+fi
+fingerprint clinical16_restored > "$tmp/restored-after-function.authority"
+cmp "$tmp/source.authority" "$tmp/restored-after-function.authority"
+echo 'PASS: tampered SECURITY DEFINER draft body detected although ownership/ACL/config unchanged; transaction rolled back'
+
 # Original restored state must still match after the intentionally rolled-back
 # corruption probes; never leave a corrupted candidate in the CI fixture.
 fingerprint clinical16_restored > "$tmp/final.authority"
 cmp "$tmp/source.authority" "$tmp/final.authority"
 echo 'PASS: bad ACL, missing clinical object and missing browser role are detected and never accepted'
+
+# Reapply the already SIGNED and byte-verified archive to an independent
+# SECOND disposable DB, then recheck full immutable metadata, history and actual
+# clinical writer behavior. This protects a recovery that works only once.
+docker exec "$container" createdb -U postgres clinical16_second_restore
+docker exec -i "$container" pg_restore -U postgres --no-owner \
+ --exit-on-error --single-transaction -d clinical16_second_restore < "$tmp/restored.dump"
+data_fingerprint clinical16_second_restore > "$tmp/second.data"
+cmp "$tmp/source.data" "$tmp/second.data"
+fingerprint clinical16_second_restore > "$tmp/second.authority"
+cmp "$tmp/source.authority" "$tmp/second.authority"
+authz clinical16_second_restore > "$tmp/second.authz"
+cmp "$tmp/source.authz" "$tmp/second.authz"
+draft_actors clinical16_second_restore > "$tmp/second.draft-authz"
+cmp "$tmp/source.draft-authz" "$tmp/second.draft-authz"
+echo 'PASS: second independently restored DB reads original persisted draft, audit, receipts and provenance; real actor security and SHA256 function body fingerprints identical'
 
 query(){ docker exec "$container" psql -XAt -v ON_ERROR_STOP=1 -U postgres -d clinical16_restored -c "$1"; }
 for table in clinic_private.clinical_record_provenance clinic_private.clinical_draft_audit clinic_private.clinical_draft_requests;do
