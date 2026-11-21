@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs'
 import {CLINIC_ROUTE_CONTRACTS,RELEASE_MISSING_OPERATIONS,STAFF_RELEASE_MODULES,routeContract,clinicModuleView} from '../src/release/clinic-contracts.mjs'
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 
-test('13 actual routes have unique source-backed contracts, roles, migrations and negative gates',()=>{
- assert.equal(CLINIC_ROUTE_CONTRACTS.length,13)
- assert.equal(new Set(CLINIC_ROUTE_CONTRACTS.map(r=>r.path)).size,13)
+test('22 actual routes have unique source-backed contracts, roles, migrations and negative gates',()=>{
+ assert.equal(CLINIC_ROUTE_CONTRACTS.length,22)
+ assert.equal(new Set(CLINIC_ROUTE_CONTRACTS.map(r=>r.path)).size,22)
  for(const row of CLINIC_ROUTE_CONTRACTS){
   for(const field of ['id','title','role','scope','flag','request','response','failure','persistence','missing'])
    assert.ok(typeof row[field]==='string'&&row[field].length>6,row.path+' '+field)

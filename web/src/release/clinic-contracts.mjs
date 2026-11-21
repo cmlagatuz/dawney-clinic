@@ -149,9 +149,52 @@ export const CLINIC_ROUTE_CONTRACTS = Object.freeze([
     request:'No message request; no patient/contact payload or provider outbound network',
     response:'Accessible staff-only unavailable notice, zero inbox messages asserted',
     failure:'Signed-out/denied staff access blocked; no inbox fallback or send button active',
-    persistence:'missing-server-adapter',missing:'ASTRA consent/opt-out/retention scoped inbox/outbox + audited send-and-delivery contract with provider approval'
+    persistence:'missing-server-adapter',missing:'MISSING reviewed ASTRA consent/opt-out/retention scoped inbox/outbox + audited send-and-delivery contract with provider approval'
   }
-].map(x=>Object.freeze({...x,reads:Object.freeze(x.reads),writes:Object.freeze(x.writes),migration:Object.freeze(x.migration)})))
+].flatMap(x=>{
+  // The source file groups similar presentation, but every actual user path
+  // receives an independent auditable contract record. No new API is added.
+  if(x.id==='public')return [
+    x,
+    {...x,id:'public-services',path:'/services',title:'Informational service categories',
+      request:'Visit informational Naga care categories; not a published booking catalog',
+      response:'Eight owner-approved category labels; no price, duration or clinical claim'},
+    {...x,id:'public-about',path:'/about',title:'About the clinic',
+      request:'Browse existing branch information',response:'Only approved public branch facts'},
+    {...x,id:'public-location',path:'/location',title:'Clinic locations and maps',
+      request:'Open approved contact and HTTPS Maps URLs on deliberate click',
+      response:'Naga and Cavite addresses, safe outbound links; no geolocation tracking'},
+    {...x,id:'public-contact',path:'/contact',title:'Contact clinic branches',
+      request:'Open existing verified public Facebook link',response:'Contact facts only; no messages sent from the system'}
+  ]
+  if(x.id==='auth')return [
+    x,
+    {...x,id:'auth-signup',path:'/auth/signup',title:'Owner sign-up',
+      request:'Email/password registration; no role claims from metadata',
+      response:'Verified-session access only after GoTrue email confirmation'},
+    {...x,id:'auth-verify',path:'/auth/verify',title:'Email confirmation guidance',
+      request:'Account verification or resend through reviewed GoTrue Auth screen',
+      response:'No portal access without GoTrue getUser-confirmed non-anonymous identity'},
+    {...x,id:'auth-forgot',path:'/auth/forgot',title:'Password-reset request',
+      request:'Account recovery initiation; callback URL contains only allowed return hint',
+      response:'No sensitive account existence disclosure to unauthorized visitors'},
+    {...x,id:'auth-recovery',path:'/auth/recovery',title:'Password recovery',
+      request:'Validated recovery state and password change through Supabase Auth',
+      response:'Password change acknowledged by GoTrue; no owner data in URL'},
+    {...x,id:'auth-callback',path:'/auth/callback',title:'Authentication callback',
+      request:'PKCE callback with safe allowlisted /book route hint only',
+      response:'Verified user identity; service time rechecked after return'}
+  ]
+  return [x]
+}).concat([{
+  id:'not-found',path:'*',surface:'public',title:'Accessible unknown-route handling',
+  role:'anonymous',scope:'No clinic scope or private data',
+  reads:[],writes:[],migration:['None; client-side React Router wildcard'],
+  flag:'none',request:'Unknown browser path or expired bookmark',
+  response:'Semantic Page not found H1 with safe public navigation',
+  failure:'No patient, booking or staff error details are exposed',
+  persistence:'no-frontend-write',missing:'Hosted Pages SPA refresh/deep-link verification before release'
+}]).map(x=>Object.freeze({...x,reads:Object.freeze(x.reads),writes:Object.freeze(x.writes),migration:Object.freeze(x.migration)})))
 
 export const RELEASE_MISSING_OPERATIONS = Object.freeze([
   {id:'clinical-finalization',ui:'Disabled; local draft text explicitly unsaved',contract:'MISSING approved server-side encounter finalization, amendment/audit, patient+branch+author verification',acceptance:'Two vets: successful CAS draft once, stale revision rejected; finalization denied for receptionist, preserves immutable author and signed record'},
