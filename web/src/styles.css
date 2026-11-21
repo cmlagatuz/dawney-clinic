@@ -568,3 +568,21 @@ select:disabled, input:disabled { background: var(--surface-2); color: var(--mut
 .file-button { cursor: pointer; }
 .patient-avatar { overflow: hidden; }
 @media (max-width: 600px) { .attachment-body { flex-direction: column; } .combo-list { top: calc(100% - 1.6rem); } }
+
+/* CLOUD full-clinic route hub: block flow, not Overview's horizontal steps.
+   Each linked action and its explanation must wrap within 360px, including dark mode. */
+.clinic-journey .card { min-width: 0; }
+.clinic-journey-steps { margin: 0; padding-left: 1.5rem; display: grid; gap: 1rem; }
+.clinic-journey-steps li, .clinic-journey .card li { min-width: 0; overflow-wrap: anywhere; }
+.clinic-journey-steps .field-help { margin: .2rem 0 0; }
+.clinic-journey .card > ul { padding-left: 1.5rem; display: grid; gap: .7rem; }
+.clinic-journey .card button { max-width: 100%; white-space: normal; text-align: left; }
+
+/* CLOUD: unavailable communications controls wrap their full accessible labels
+   instead of imposing a 360px minimum width via the shared .button nowrap. */
+.clinic-communications, .clinic-communications .card { min-width: 0; }
+.clinic-communications .cta-row { min-width: 0; }
+.clinic-communications .cta-row > .button {
+  min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere;
+  text-align: center;
+}
