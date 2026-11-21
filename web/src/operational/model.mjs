@@ -37,12 +37,27 @@ export function verifyOperationalReply(kind,x,expected={}){
   if(!uuid.test(x.userId)||expected.userId&&x.userId!==expected.userId||
    !state(x.state)||!role(x.role)||!uniqueUuids(x.branches)||
    !integer(x.revision)||x.revision<1)fail()
+  if(expected.action){
+   const action=expected.action
+   const granting=action==='approve'||action==='role_change'
+   const expectedState=granting?'approved':action==='reject'?'rejected':
+    action==='inactivate'?'inactive':'revoked'
+   const expectedBranches=granting?[...(expected.branches??[])].sort():[]
+   if(x.state!==expectedState||x.revision!==expected.revision+1||
+      x.role!==(granting?expected.role:null)||
+      x.branches.length!==expectedBranches.length||
+      [...x.branches].sort().some((branch,i)=>branch!==expectedBranches[i]))fail()
+  }
   break
  case 'inventory_item':
   if(!uuid.test(x.itemId)||!uuid.test(x.branchId)||expected.branchId&&x.branchId!==expected.branchId||
    !str(x.productCode,40)||expected.productCode&&x.productCode!==expected.productCode||
    !categories.has(x.category)||!str(x.unit,30)||!integer(x.revision)||x.revision<1||
-   !integer(x.onHandUnits,1000000000)||(x.batchId!==null&&!uuid.test(x.batchId)))fail()
+   !integer(x.onHandUnits,1000000000)||(x.batchId!==null&&!uuid.test(x.batchId))||
+   expected.category&&x.category!==expected.category||
+   expected.unit&&x.unit!==expected.unit||
+   expected.openingUnits!==undefined&&x.onHandUnits!==expected.openingUnits||
+   expected.openingUnits===0&&x.batchId!==null)fail()
   break
  case 'stock_received':
   if(!uuid.test(x.branchId)||expected.branchId&&x.branchId!==expected.branchId||
@@ -50,13 +65,19 @@ export function verifyOperationalReply(kind,x,expected={}){
    !uuid.test(x.batchId)||!uuid.test(x.actorId)||expected.actorId&&x.actorId!==expected.actorId||
    !uuid.test(x.eventId)||!integer(x.receivedUnits,1000000000)||x.receivedUnits===0||
    expected.quantity&&x.receivedUnits!==expected.quantity||
+   expected.requestId&&x.eventId!==expected.requestId||
    !integer(x.lotOnHandUnits,1000000000)||x.lotOnHandUnits<x.receivedUnits)fail()
   break
  case 'inventory_item_updated':
   if(!uuid.test(x.branchId)||expected.branchId&&x.branchId!==expected.branchId||
    !uuid.test(x.itemId)||expected.itemId&&x.itemId!==expected.itemId||
    !integer(x.revision)||x.revision<1||!str(x.name,160)||typeof x.description!=='string'||
-   !integer(x.reorderPointUnits,1000000000)||![30,60,90].includes(x.expiryWarningDays))fail()
+   !integer(x.reorderPointUnits,1000000000)||![30,60,90].includes(x.expiryWarningDays)||
+   expected.revision!==undefined&&x.revision!==expected.revision+1||
+   expected.name!==undefined&&x.name!==expected.name||
+   expected.description!==undefined&&x.description!==expected.description||
+   expected.reorderPoint!==undefined&&x.reorderPointUnits!==expected.reorderPoint||
+   expected.warningDays!==undefined&&x.expiryWarningDays!==expected.warningDays)fail()
   break
  case 'inventory_balance':
   if(!uuid.test(x.branchId)||expected.branchId&&x.branchId!==expected.branchId||

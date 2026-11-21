@@ -98,3 +98,42 @@ test('operator forms use verified readback and preserve same payload ID after un
  assert.match(inv,/getCurrentAuthorizations|verifiedStaffNavigationBranches/)
  assert.doesNotMatch(staff+inv,/\.insert\s*\(|\.update\s*\(|\.delete\s*\(|\.rpc\s*\(/)
 })
+
+test('review acknowledgement must match exact requested action, scoped role, branches and CAS revision',()=>{
+ const ack={kind:'staff_review',userId:item,state:'approved',role:'receptionist',
+  branches:[id],revision:2}
+ const expected={userId:item,action:'approve',role:'receptionist',branches:[id],revision:1}
+ assert.equal(verifyOperationalReply('staff_review',ack,expected).state,'approved')
+ assert.throws(()=>verifyOperationalReply('staff_review',{...ack,role:'administrator'},expected))
+ assert.throws(()=>verifyOperationalReply('staff_review',{...ack,branches:[uuid(9)]},expected))
+ assert.throws(()=>verifyOperationalReply('staff_review',{...ack,revision:3},expected))
+ assert.throws(()=>verifyOperationalReply('staff_review',{...ack,state:'rejected'},expected))
+ const revoked={kind:'staff_review',userId:item,state:'revoked',role:null,branches:[],revision:3}
+ assert.equal(verifyOperationalReply('staff_review',revoked,{userId:item,action:'revoke',role:null,branches:[],revision:2}).revision,3)
+ assert.throws(()=>verifyOperationalReply('staff_review',{...revoked,role:'accountant'},{
+  userId:item,action:'revoke',role:null,branches:[],revision:2
+ }))
+})
+test('inventory create and receipt response must match category, unit, zero opening and exact replay ID',()=>{
+ const product={kind:'inventory_item',itemId:item,branchId:id,productCode:'SYN-ITEM',
+  category:'medicine',unit:'vial',revision:1,onHandUnits:0,batchId:null}
+ const expected={branchId:id,productCode:'SYN-ITEM',category:'medicine',unit:'vial',openingUnits:0}
+ assert.equal(verifyOperationalReply('inventory_item',product,expected).unit,'vial')
+ assert.throws(()=>verifyOperationalReply('inventory_item',{...product,category:'supply'},expected))
+ assert.throws(()=>verifyOperationalReply('inventory_item',{...product,unit:'tablet'},expected))
+ assert.throws(()=>verifyOperationalReply('inventory_item',{...product,onHandUnits:10},expected))
+ const receipt={kind:'stock_received',branchId:id,itemId:item,batchId:uuid(5),
+  receivedUnits:10,lotOnHandUnits:10,actorId:actor,eventId:event}
+ assert.equal(verifyOperationalReply('stock_received',receipt,{requestId:event,quantity:10}).eventId,event)
+ assert.throws(()=>verifyOperationalReply('stock_received',receipt,{requestId:uuid(9),quantity:10}))
+})
+test('edit acknowledgement rejects returned fields that disagree with exact CAS edit',()=>{
+ const ack={kind:'inventory_item_updated',branchId:id,itemId:item,revision:2,
+  name:'Synthetic item',description:'Updated',reorderPointUnits:5,expiryWarningDays:30}
+ const expected={branchId:id,itemId:item,revision:1,name:'Synthetic item',description:'Updated',
+  reorderPoint:5,warningDays:30}
+ assert.equal(verifyOperationalReply('inventory_item_updated',ack,expected).revision,2)
+ assert.throws(()=>verifyOperationalReply('inventory_item_updated',{...ack,name:'Other item'},expected))
+ assert.throws(()=>verifyOperationalReply('inventory_item_updated',{...ack,expiryWarningDays:90},expected))
+ assert.throws(()=>verifyOperationalReply('inventory_item_updated',{...ack,revision:1},expected))
+})

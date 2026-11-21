@@ -155,7 +155,7 @@ export function InventoryOperatorForms({user,branch,onDenied}:{user:User;branch:
    p_unit:item.unit,p_formulation:item.type==='medicine'?item.formulation.trim():null,
    p_strength:item.type==='medicine'?item.strength.trim():null,
    p_reorder_point:Number(item.reorder||0),p_lot:null,p_expiry:null,
-   p_supplier:item.supplier.trim()||null,p_opening_units:0
+   p_supplier:null,p_opening_units:0
   }
   setBusy('create');setItemTicket(ticket)
   try{
@@ -175,7 +175,7 @@ export function InventoryOperatorForms({user,branch,onDenied}:{user:User;branch:
    setItemTicket(null)
    setCatalog({kind:'ready',data:snapshot})
    setSelectedId(ack.itemId)
-   setReceipt(r=>({...r,code:ack.productCode,receivedOn:snapshot.today}))
+   setReceipt(r=>({...r,code:ack.productCode,receivedOn:snapshot.today,supplier:item.supplier.trim()}))
    setCreated('Item saved and confirmed on server: '+ack.productCode+' · on hand '+confirmed.onHandUnits)
   }catch(error){
    if(!live.current)return
@@ -335,7 +335,7 @@ export function InventoryOperatorForms({user,branch,onDenied}:{user:User;branch:
       {write&&itemTicket&&<button type="button" className="button button-secondary" disabled={!!busy} onClick={()=>void create()}>
        Retry original Add Item ID</button>}
      </div>
-     {write&&<p className="operator-muted">Add Item commits with zero opening units. Stock is only increased through the separately audited Receive Stock RPC.</p>}
+     {write&&<p className="operator-muted">Add Item commits with zero opening units. Stock is only increased through the separately audited Receive Stock RPC. Supplier details are carried into the Receive Stock draft; the item-only RPC does not save a supplier record.</p>}
      {!write&&checkedItem&&<p role="status" className="operator-summary">{validDraft(itemErrors)?'Item fields look valid locally. Nothing has been saved.':'Correct the highlighted item fields. Nothing has been saved.'}</p>}
      {created&&<p role={itemTicket?'alert':'status'} className="operator-summary">{created}</p>}
     </form>

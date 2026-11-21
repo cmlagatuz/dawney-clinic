@@ -2,6 +2,7 @@ import type {User} from '@supabase/supabase-js'
 import {supabase} from '../lib/supabase'
 import {assertStaffBranch} from '../lib/staff-branch'
 import {RPC,verifyOperationalReply} from './model.mjs'
+import type {OperationalExpected} from './model.mjs'
 import type {MyStaffAccess,StaffRequest,StaffRequestList,StaffReview,ItemResult,ReceiptResult,EditResult,Balance,ReviewArgs,ItemArgs,ReceiptArgs,EditArgs} from './contract'
 
 /**
@@ -35,7 +36,7 @@ export function createOperationalPort(user:User,transport?:RpcTransport):Operati
   const {data,error}=await supabase.rpc(name,args)
   return {data,error}
  })
- const call=async<T>(flag:'staff'|'inventory',name:string,args:Record<string,unknown>|undefined,kind:string,expected?:{branchId?:string;itemId?:string;userId?:string;actorId?:string;productCode?:string;quantity?:number}):Promise<T>=>{
+ const call=async<T>(flag:'staff'|'inventory',name:string,args:Record<string,unknown>|undefined,kind:string,expected?:OperationalExpected):Promise<T>=>{
   if(!operationalFlags[flag])throw unavailable()
   const {data,error}=await rpc(name,args)
   if(error)throw error
@@ -45,10 +46,15 @@ export function createOperationalPort(user:User,transport?:RpcTransport):Operati
   my:()=>call<MyStaffAccess>('staff',RPC.mine,undefined,'my_staff_access'),
   request:(branchId,note)=>call<StaffRequest>('staff',RPC.request,{p_branch:branchId,p_note:note},'staff_request',{branchId}),
   list:branchId=>call<StaffRequestList>('staff',RPC.list,{p_branch:branchId},'staff_requests',{branchId}),
-  review:args=>call<StaffReview>('staff',RPC.review,args,'staff_review',{userId:args.p_target}),
-  create:args=>call<ItemResult>('inventory',RPC.create,args,'inventory_item',{branchId:args.p_branch,productCode:args.p_product_code}),
-  receive:args=>call<ReceiptResult>('inventory',RPC.receive,args,'stock_received',{branchId:args.p_branch,itemId:args.p_medicine,actorId:user.id,quantity:args.p_quantity}),
-  edit:args=>call<EditResult>('inventory',RPC.edit,args,'inventory_item_updated',{branchId:args.p_branch,itemId:args.p_medicine}),
+  review:args=>call<StaffReview>('staff',RPC.review,args,'staff_review',{userId:args.p_target,
+   action:args.p_action,role:args.p_role,branches:args.p_branches??[],revision:args.p_expected_revision}),
+  create:args=>call<ItemResult>('inventory',RPC.create,args,'inventory_item',{branchId:args.p_branch,
+   productCode:args.p_product_code,category:args.p_category,unit:args.p_unit,openingUnits:args.p_opening_units}),
+  receive:args=>call<ReceiptResult>('inventory',RPC.receive,args,'stock_received',{branchId:args.p_branch,
+   itemId:args.p_medicine,actorId:user.id,quantity:args.p_quantity,requestId:args.p_request_id}),
+  edit:args=>call<EditResult>('inventory',RPC.edit,args,'inventory_item_updated',{branchId:args.p_branch,
+   itemId:args.p_medicine,revision:args.p_expected_revision,name:args.p_name,
+   description:args.p_description,reorderPoint:args.p_reorder_point,warningDays:args.p_expiry_warning_days}),
   balance:(branchId,itemId,productCode)=>call<Balance>('inventory',RPC.balance,{p_branch:branchId,p_medicine:itemId},'inventory_balance',{branchId,itemId,productCode}),
   async profile(branchId,itemId){
    if(!operationalFlags.inventory||!supabase)throw unavailable()
