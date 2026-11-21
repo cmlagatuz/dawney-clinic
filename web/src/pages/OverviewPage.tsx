@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { Link } from 'react-router'
 import { useAuth } from '../hooks/AuthProvider'
 import { listAppointments, listPets, type Appointment, type Pet } from '../lib/clinical'
@@ -11,16 +12,23 @@ const when = (iso: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'm
 /** Pet-owner home. Every figure is computed from the signed-in owner's persisted records; nothing is sample data. */
 export function OverviewPage() {
   const { user } = useAuth()
+  if(!user)return <p role="alert">A verified owner account is required to load your overview.</p>
+  // Remount on verified Auth subject change. Never render previous owner's
+  // pet/appointment counts even during one React effect transition.
+  return <OwnerOverview key={user.id} user={user}/>
+}
+function OwnerOverview({user}:{user:User}){
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [attempt,setAttempt]=useState(0)
   useEffect(() => {
-    if (!user) return
     let active = true
+    setData(null);setError(null)
     void Promise.all([readOwner(user), listPets(user), listAppointments(user)])
       .then(([owner, pets, appointments]) => { if (active) setData({ owner, pets, appointments }) })
-      .catch(() => { if (active) setError('Could not load your overview. Please refresh and try again.') })
+      .catch(() => { if (active) {setData(null);setError('Could not verify your overview. No patient or appointment data was assumed.')} })
     return () => { active = false }
-  }, [user])
+  }, [user.id,attempt])
 
   const first = data?.owner?.first_name ?? String(user?.user_metadata?.first_name ?? '')
   const now = Date.now()
@@ -33,9 +41,10 @@ export function OverviewPage() {
 
   return <section className="page" aria-labelledby="overview-heading">
     <PageHeading id="overview-heading" eyebrow="Pet owner portal" title={first ? `Welcome, ${first}` : 'Welcome'}
-      actions={<Link className="button button-primary" to="/app/appointments">Request appointment</Link>}>
+      actions={<Link className="button button-primary" to="/book">Check online booking</Link>}>
       A summary of your patients and visits at Dawney Animal Clinic.</PageHeading>
-    {error && <p role="alert" className="alert alert-error">{error}</p>}
+    {error && <div role="alert" className="alert alert-error"><p>{error}</p>
+      <button className="button button-secondary" type="button" onClick={()=>setAttempt(n=>n+1)}>Retry secure overview</button></div>}
     {!data && !error && <LoadingCard label="Loading your overview…" rows={4} />}
     {data && <>
       <div className="stat-grid">

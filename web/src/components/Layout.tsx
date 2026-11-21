@@ -39,6 +39,7 @@ const nav = [
   { to: '/app/pets', label: 'My patients', icon: 'paw' },
   { to: '/app/appointments', label: 'Appointments', icon: 'calendar' },
   { to: '/app/profile', label: 'My profile', icon: 'user' },
+  { to: '/app/clinic', label: 'Clinic journey', icon: 'pulse' },
 ] as const
 /** All staff shortcuts require *current server-verified* active branch membership. */
 const staffNav = OPS_UI_ENABLED ? [{ to: '/app/ops', label: 'Clinic operations', icon: 'pulse' }] as const : []
@@ -49,6 +50,7 @@ const titles: Record<string, string> = Object.fromEntries([...nav, ...ownerBilli
 if(clinicalPreview)titles['/app/clinical']='Patient charts & encounters'
 if(pharmacyPreview)titles['/app/pharmacy']='Veterinary pharmacy'
 if(billingPreview)titles['/app/billing']='Clinic billing'
+titles['/app/communications']='Communications & consent'
 
 /** Never offer a staff-only shortcut merely because a build flag is enabled.
  * A confirmed account must also have active RLS-backed branch membership. */
@@ -69,10 +71,12 @@ function ClinicalStaffNavigation(){
   if((!OPS_UI_ENABLED&&!clinicalPreview&&!pharmacyPreview&&!billingPreview)||!account||access.account!==account||!access.allowed)return null
   return <nav className="main-nav" aria-label="Clinic staff workspaces">
     <p className="nav-label">Clinic staff · preview</p>
+    <NavLink to="/app/clinic"><Icon name="pulse"/>Clinic workflow</NavLink>
     {OPS_UI_ENABLED&&<NavLink to="/app/ops"><Icon name="calendar"/>Clinic operations</NavLink>}
     {clinicalPreview&&<NavLink to="/app/clinical"><Icon name="pulse"/>Patient charts & encounters</NavLink>}
     {pharmacyPreview&&<NavLink to="/app/pharmacy"><Icon name="shield"/>Veterinary pharmacy</NavLink>}
     {billingPreview&&<NavLink to="/app/billing"><Icon name="calendar"/>Billing & invoices</NavLink>}
+    <NavLink to="/app/communications"><Icon name="shield"/>Communications · unavailable</NavLink>
   </nav>
 }
 
@@ -130,7 +134,7 @@ export function AppLayout() {
         {[...nav,...ownerBillingNav].map(n => <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>)}
       </nav>
       <ClinicalStaffNavigation/>
-      <div className="sidebar-bottom"><small>Signed in as</small><span className="truncate">{email}</span>
+      <div className="sidebar-bottom"><NavLink to="/" className="button button-quiet">Public clinic website</NavLink><small>Signed in as</small><span className="truncate">{email}</span>
         <button type="button" className="button button-secondary" disabled={leaving} onClick={() => void signOut()}>{leaving ? 'Signing out…' : 'Sign out'}</button>
         {error && <p role="alert" className="error-text">{error}</p>}
       </div>
