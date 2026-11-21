@@ -171,12 +171,30 @@ scripts/ci/full_tree_pg17.sh
 scripts/hosted-acceptance/acceptance.mjs
 scripts/hosted-acceptance/tests/acceptance.test.mjs
 FIXTURE_BOUNDARY_CHILD
-) <(git diff --name-only 8dd43037ba830a3b2a63d4c55c8cf710b9ab5d2b "$EXPECTED_HEAD_SHA") ||
- fail 'fixture boundary security child changed outside exactly three authorized source paths'
+) <(git diff --name-only 8dd43037ba830a3b2a63d4c55c8cf710b9ab5d2b 980b7ab94a8f06cb810549a43bee0e6a0f63f789) ||
+ fail 'frozen PR111 four-path immutable fixture child changed'
+git fetch --no-tags origin 'refs/pull/111/head:refs/remotes/origin/frozen-pr111'
+[[ "$(git rev-parse refs/remotes/origin/frozen-pr111)" == 980b7ab94a8f06cb810549a43bee0e6a0f63f789 &&
+   "$(git rev-parse "980b7ab94a8f06cb810549a43bee0e6a0f63f789:scripts/ci/full_tree_pg17.sh")" == 4611b3a71535f173455f3f62dc757eeed150c33d ]] ||
+ fail 'frozen SOL-reviewed PR111 exact head/CI changed'
+git merge-base --is-ancestor 980b7ab94a8f06cb810549a43bee0e6a0f63f789 "$EXPECTED_HEAD_SHA" ||
+ fail 'revoked-veterinarian role child missing exact PR111 ancestry'
+diff -u <(cat <<'REVOKED_CLINICIAN_CHILD_ONLY'
+scripts/ci/full_tree_pg17.sh
+scripts/hosted-acceptance/tests/acceptance.test.mjs
+REVOKED_CLINICIAN_CHILD_ONLY
+) <(git diff --name-only 980b7ab94a8f06cb810549a43bee0e6a0f63f789 "$EXPECTED_HEAD_SHA") ||
+ fail 'test-first revoked veterinarian child path scope widened'
 while read -r path sha;do
  [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
     "$(git hash-object "$path")" == "$sha" ]] ||
- fail "fixture snapshot child exact blob drift: $path"
+ fail "revoked-veterinarian test-first exact blob drift: $path"
+done <<'REVOKED_CLINICIAN_CHILD_BLOBS'
+scripts/hosted-acceptance/tests/acceptance.test.mjs 4d448f7dc1f0301140884506a86b3f4d4cf87c82
+REVOKED_CLINICIAN_CHILD_BLOBS
+while read -r path sha;do
+ [[ "$(git rev-parse "980b7ab94a8f06cb810549a43bee0e6a0f63f789:$path")" == "$sha" ]] ||
+ fail "frozen PR111 fixture snapshot exact blob drift: $path"
 done <<'FIXTURE_SNAPSHOT_BLOBS'
 .github/workflows/phase4-repository-security.yml 20d50851b4b0842bb880591aeadcb78842f6c8e0
 scripts/hosted-acceptance/acceptance.mjs 21846505972dc3f6d68df16113f379fd1762817b

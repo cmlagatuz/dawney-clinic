@@ -723,3 +723,164 @@ test('SOL P2 cross-owner leaked existing synthetic rows cannot hide behind post-
   'id=eq.'+original.ownerB.ownerId)));
  assert.equal(state.appointments.length,0,'failed RLS gate must precede booking writes');
 });
+
+
+/**
+ * SOL PR111 P2: an inactive receptionist is NOT evidence of a revoked
+ * veterinarian. The JWT/auth subject, owned fixture, and returned row must be
+ * the same precise identity AND the expected role, in both directions.
+ */
+test('SOL revoked receptionist substitution is rejected before all booking and Storage writes',async()=>{
+ const {transport,state}=fakeTransport();
+ const input={...base()};
+ input.transport={async request(req){
+  const response=await transport.request(req);
+  if(req.actor==='revoked'&&req.path.startsWith('/rest/v1/staff_memberships?')){
+   assert.equal(req.headers.Authorization,'Bearer '+actors.revoked);
+   return {...response,json:[{...response.json[0],role:'receptionist'}]};
+  }
+  return response;
+ }};
+ const failure=await assert.rejects(runHostedAcceptance(input),
+  /revoked_membership_identity_role_status/);
+ assert.equal(state.appointments.length,0);
+ assert.equal(state.objects.size,0);
+ assert.ok(state.calls.some(x=>x.actor==='revoked'&&x.path.startsWith('/rest/v1/staff_memberships?')));
+ assert.equal(state.calls.some(x=>x.method==='POST'||x.method==='PATCH'),false);
+ const {readdirSync}=await import('node:fs');
+ const files=readdirSync(input.journalDir);
+ assert.equal(files.length,1,'approval journal exists for verified read-only phase');
+ const manifest=JSON.parse(readFileSync(join(input.journalDir,files[0]),'utf8'));
+ assert.deepEqual(manifest.bookingAttempts,[]);
+ assert.deepEqual(manifest.uploadAttempts,[]);
+ assert.equal(manifest.status,'failed');
+});
+
+test('SOL staff exact subject, role and state matrix: no false negative acceptance',async()=>{
+ const bad=[
+  ['staff','staff','role',{role:'receptionist'}],
+  ['staff','staff','wrong-user',{user_id:uid.revoked}],
+  ['staff','staff','inactive',{is_active:false}],
+  ['staff','staff','status-string',{is_active:'true'}],
+  ['staff','staff','role-case',{role:'Veterinarian'}],
+  ['staff','staff','missing-field',{role:undefined}],
+  ['revoked','revoked','role',{role:'receptionist'}],
+  ['revoked','revoked','wrong-user',{user_id:uid.staff}],
+  ['revoked','revoked','active',{is_active:true}],
+  ['revoked','revoked','status-string',{is_active:'false'}],
+  ['revoked','revoked','role-case',{role:'Veterinarian'}],
+  ['revoked','revoked','missing-field',{role:undefined}]
+ ];
+ for(const [actor,which,scenario,override] of bad){
+  const {transport,state}=fakeTransport();
+  const input={...base()};
+  input.transport={async request(req){
+   const response=await transport.request(req);
+   if(req.actor===actor&&req.path.startsWith('/rest/v1/staff_memberships?')){
+    const row={...response.json[0],...override};
+    if(scenario==='missing-field')delete row.role;
+    return {...response,json:[row]};
+   }
+   return response;
+  }};
+  await assert.rejects(runHostedAcceptance(input),/HOSTED_ACCEPTANCE_BLOCKED/,
+   'invalid '+which+' membership must fail: '+scenario);
+  assert.equal(state.appointments.length,0,scenario);
+  assert.equal(state.objects.size,0,scenario);
+  assert.equal(state.calls.some(x=>x.method==='POST'||x.method==='PATCH'),false,scenario);
+ }
+});
+
+test('SOL membership rows must be unique, complete and free of unapproved branch/global claims',async()=>{
+ for(const actor of ['staff','revoked']){
+  const scenarios=[
+   ['missing',[]],
+   ['duplicate',[{user_id:uid[actor],role:'veterinarian',is_active:actor==='staff'},
+      {user_id:uid[actor],role:'veterinarian',is_active:actor==='staff'}]],
+   ['ambiguous-other',[{user_id:uid[actor],role:'veterinarian',is_active:actor==='staff'},
+      {user_id:uid[actor==='staff'?'revoked':'staff'],role:'receptionist',is_active:false}]],
+   ['extra-global-field',[{user_id:uid[actor],role:'veterinarian',
+     is_active:actor==='staff',global_role:'administrator'}]],
+   ['cross-branch-claim',[{user_id:uid[actor],role:'veterinarian',
+     is_active:actor==='staff',branch_id:'aaaaaaaa-0000-4000-8000-aaaaaaaaaaaa'}]],
+   ['null-role',[{user_id:uid[actor],role:null,is_active:actor==='staff'}]],
+   ['null-id',[{user_id:null,role:'veterinarian',is_active:actor==='staff'}]],
+   ['array-row',[['veterinarian',uid[actor],actor==='staff']]],
+   ['inherited-row',[Object.assign(Object.create({role:'veterinarian'}),{
+      user_id:uid[actor],is_active:actor==='staff})]]
+  ];
+  for(const [label,rows] of scenarios){
+   const {transport,state}=fakeTransport();
+   const input={...base()};
+   input.transport={async request(req){
+    const response=await transport.request(req);
+    return req.actor===actor&&req.path.startsWith('/rest/v1/staff_memberships?')
+      ?{...response,json:rows}:response;
+   }};
+   await assert.rejects(runHostedAcceptance(input),/HOSTED_ACCEPTANCE_BLOCKED/,
+    actor+' '+label);
+   assert.equal(state.appointments.length,0,actor+' '+label);
+   assert.equal(state.objects.size,0,actor+' '+label);
+  }
+ }
+});
+
+test('SOL returned membership getter and Proxy cannot substitute identity or role',async()=>{
+ for(const actor of ['staff','revoked']){
+  for(const type of ['getter','proxy']){
+   const {transport,state}=fakeTransport();
+   const input={...base()};
+   let reads=0;
+   input.transport={async request(req){
+    const response=await transport.request(req);
+    if(req.actor!==actor||!req.path.startsWith('/rest/v1/staff_memberships?'))return response;
+    let row={...response.json[0]};
+    if(type==='getter'){
+     Object.defineProperty(row,'role',{enumerable:true,get(){
+      reads++;return reads<=4?'veterinarian':'receptionist';
+     }});
+    }else{
+     row=new Proxy(row,{get(){reads++;throw Error('proxy read');},
+      getPrototypeOf(){reads++;throw Error('proxy prototype');},
+      ownKeys(){reads++;throw Error('proxy keys');},
+      getOwnPropertyDescriptor(){reads++;throw Error('proxy descriptor');}});
+    }
+    return {...response,json:[row]};
+   }};
+   await assert.rejects(runHostedAcceptance(input),/membership_data_only/);
+   assert.equal(reads,0,actor+' '+type+' must not invoke any untrusted accessor/trap');
+   assert.equal(state.appointments.length,0);
+   assert.equal(state.objects.size,0);
+  }
+ }
+});
+
+test('SOL roles remain correlated with verified JWT even if caller mutates actors and fixtures after capture',async()=>{
+ const actorCopy={...actors},fixtureCopy=structuredClone(fixtures);
+ const {transport,state}=fakeTransport();
+ const original={staff:{...fixtures.staff},revoked:{...fixtures.revoked}};
+ let altered=false;
+ const input={...base(),actors:actorCopy,fixtures:fixtureCopy};
+ input.transport={async request(req){
+  const response=await transport.request(req);
+  if(req.actor==='staff'&&req.path==='/auth/v1/user'){
+   altered=true;
+   actorCopy.staff=actors.revoked;
+   actorCopy.revoked=actors.staff;
+   fixtureCopy.staff.userId=uid.revoked;
+   fixtureCopy.staff.expectedRole='receptionist';
+   fixtureCopy.revoked.userId=uid.staff;
+   fixtureCopy.revoked.expectedRole='receptionist';
+  }
+  if(req.path.startsWith('/rest/v1/staff_memberships?')){
+   assert.equal(req.headers.Authorization,'Bearer '+actors[req.actor]);
+   assert.ok(req.path.includes('user_id=eq.'+original[req.actor].userId));
+  }
+  return response;
+ }};
+ const result=await runHostedAcceptance(input);
+ assert.equal(altered,true);
+ assert.equal(result.cleanup.status,'passed');
+ assert.equal(state.appointments.length,2);
+ assert.equal(state.objects.size,3);
+});
