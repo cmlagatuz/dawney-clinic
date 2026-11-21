@@ -122,6 +122,7 @@ test('CLOUD: catalog flag test-only, Chow Chow and three private attachment cate
     await browser.until('!!document.querySelector(".patient-card")',9000)
     await browser.value('document.querySelector(".patient-card button").click();true')
     await browser.until('document.body.textContent.includes("saved documents")&&document.body.textContent.includes("Try again")',9000)
-    assert.equal(await browser.value('document.querySelectorAll(".attachment fieldset:not(:disabled)").length'),0)
+    assert.equal(await browser.value('document.querySelectorAll("fieldset.attachment:not(:disabled)").length'),0)
+    assert.equal(await browser.value('document.querySelectorAll("fieldset.attachment:disabled").length'),3)
     assert.deepEqual(await browser.value('window.__cloudIntegrated.unexpected'),[])
   }))
