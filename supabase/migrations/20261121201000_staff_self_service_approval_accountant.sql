@@ -122,7 +122,7 @@ declare v_actor uuid := (select auth.uid());
  v_claims jsonb := (select auth.jwt()); v_sid text; v_session uuid;
 begin
  if v_actor is null or v_claims->>'role'<>'authenticated'
-  or pg_catalog.coalesce((v_claims->>'is_anonymous')::boolean,false)
+  or coalesce((v_claims->>'is_anonymous')::boolean,false)
   or not clinic_private.is_permanent_user()
   or v_claims->>'exp' is null
   or pg_catalog.to_timestamp((v_claims->>'exp')::bigint)<=pg_catalog.clock_timestamp()
@@ -198,12 +198,12 @@ begin
  select state into v_status from public.staff_access_requests where user_id=v_actor;
  select role into v_role from public.staff_memberships
   where user_id=v_actor and is_active;
- select pg_catalog.coalesce(pg_catalog.jsonb_agg(b.branch_id order by b.branch_id),'[]'::jsonb)
+ select coalesce(pg_catalog.jsonb_agg(b.branch_id order by b.branch_id),'[]'::jsonb)
  into v_branches from public.staff_branch_memberships b
  where b.user_id=v_actor and b.is_active and b.role=v_role
   and clinic_private.has_branch_role(b.branch_id,array[v_role]);
  return pg_catalog.jsonb_build_object('kind','my_staff_access',
-  'state',pg_catalog.coalesce(v_status,'none'),'role',v_role,
+  'state',coalesce(v_status,'none'),'role',v_role,
   'branches',v_branches);
 end;
 $mine$;
@@ -213,7 +213,7 @@ returns jsonb language plpgsql volatile security definer set search_path='' as $
 declare v_actor uuid; v_items jsonb;
 begin
  v_actor:=clinic_private.require_operational_admin(p_branch);
- select pg_catalog.coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+ select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
    'userId',q.user_id,'requestedBranchId',q.requested_branch_id,
    'state',q.state,'revision',q.revision,
    'requestedAt',q.requested_at,'reviewedAt',q.reviewed_at)
@@ -239,7 +239,7 @@ begin
   or p_expected_revision is null or p_expected_revision<1
   or p_action not in ('approve','reject','inactivate','revoke','role_change')
  then raise exception 'Invalid staff review action' using errcode='22023'; end if;
- v_branches:=pg_catalog.coalesce(p_branches,array[]::uuid[]);
+ v_branches:=coalesce(p_branches,array[]::uuid[]);
  if pg_catalog.cardinality(v_branches)>32 then
   raise exception 'Too many target branches' using errcode='22023'; end if;
  if p_action in ('approve','role_change') then
@@ -321,7 +321,7 @@ begin
  where user_id=p_target returning * into v_req;
  select role into v_effective_role from public.staff_memberships
    where user_id=p_target and is_active;
- select pg_catalog.coalesce(pg_catalog.jsonb_agg(b.branch_id order by b.branch_id),'[]'::jsonb)
+ select coalesce(pg_catalog.jsonb_agg(b.branch_id order by b.branch_id),'[]'::jsonb)
   into v_response from public.staff_branch_memberships b
   where b.user_id=p_target and b.is_active;
  v_response:=pg_catalog.jsonb_build_object('kind','staff_review','userId',p_target,
