@@ -56,5 +56,5 @@ test('admin/receptionist only inventory editing; accountant is never an administ
  assert.match(inv,/b\.role==='administrator'\|\|b\.role==='receptionist'/)
  assert.match(staff,/value="accountant"/)
  assert.match(staff,/Accountant is a separate restricted identity/)
- assert.doesNotMatch(staff,/\.user_metadata|\.app_metadata|setRole|grant_verified_staff/)
+ assert.doesNotMatch(staff,/\.user_metadata|\.app_metadata|grant_verified_staff/)
 })

@@ -51,7 +51,7 @@ export function InventoryOperatorForms({user,branch,onDenied}:{user:User;branch:
  const [editReorder,setEditReorder]=useState('0')
  const [editWarning,setEditWarning]=useState<30|60|90>(30)
  const live=useRef(true)
- useEffect(()=>()=>{live.current=false},[])
+ useEffect(()=>{live.current=true;return ()=>{live.current=false}},[])
  const guard=async()=>{
   const branches=await verifiedStaffNavigationBranches(user)
   if(!branches.some(b=>b.id===branch.id&&b.role===branch.role&&

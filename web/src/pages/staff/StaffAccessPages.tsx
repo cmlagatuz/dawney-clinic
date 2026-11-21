@@ -39,7 +39,7 @@ function StaffAccessAccount({user}:{user:User}){
  const [uncertain,setUncertain]=useState<{branchId:string;note:string|null}|null>(null)
  const [notice,setNotice]=useState('')
  const alive=useRef(true)
- useEffect(()=>()=>{alive.current=false},[])
+ useEffect(()=>{alive.current=true;return ()=>{alive.current=false}},[])
  useEffect(()=>{
   let active=true
   setState({kind:'loading'});setNotice('')
@@ -227,7 +227,7 @@ function AdminRoster({user,branch,adminBranches,retryScope,port}:{
  const [pending,setPending]=useState<ReviewArgs|null>(null)
  const [notice,setNotice]=useState('')
  const alive=useRef(true)
- useEffect(()=>()=>{alive.current=false},[])
+ useEffect(()=>{alive.current=true;return ()=>{alive.current=false}},[])
  useEffect(()=>{
   let live=true
   setRoster({kind:'loading'})

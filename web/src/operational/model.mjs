@@ -23,7 +23,7 @@ export function verifyOperationalReply(kind,x,expected={}){
   if(x.state!=='pending'||!uuid.test(x.branchId)||!integer(x.revision)||x.revision<1||expected.branchId&&x.branchId!==expected.branchId)fail()
   break
  case 'my_staff_access':
-  if(!(x.state==='none'||state(x.state))||!role(x.role)||!uniqueUuids(x.branches)||x.state!=='approved'&&x.branches.length>0)fail()
+  if(!(x.state==='none'||state(x.state))||!role(x.role)||!uniqueUuids(x.branches)||((x.state!=='approved'&&x.state!=='none')||!x.role)&&x.branches.length>0)fail()
   break
  case 'staff_requests':
   if(!uuid.test(x.branchId)||expected.branchId&&x.branchId!==expected.branchId||
