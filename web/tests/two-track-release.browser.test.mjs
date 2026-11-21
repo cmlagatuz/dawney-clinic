@@ -10,6 +10,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {withChromium} from '../../scripts/browser/cdp.mjs'
 import {releaseClinicFixture} from './fixtures/release-clinic-http.mjs'
+import {verifyStaticBuild} from '../../scripts/release/verify-static.mjs'
 
 const root=fileURLToPath(new URL('../',import.meta.url))
 const URL_FAKE='https://issue51-fixtures.supabase.co'
@@ -246,5 +247,50 @@ test('CLOUD BUILT PROFILE A: isolated static Vite preview directly loads and ref
     if(site)await new Promise(resolve=>site.httpServer.close(resolve))
     await rm(out,{recursive:true,force:true,maxRetries:5,retryDelay:100})
     for(const [k,v] of Object.entries(prev)){if(v===undefined)delete process.env[k];else process.env[k]=v}
+  }
+})
+
+
+test('CLOUD BUILT PROFILE B: independently compiled static connected candidate preserves server-approved request-only UI', {timeout:155000},async()=>{
+  const keys=['VITE_RELEASE_PROFILE','VITE_SUPABASE_URL','VITE_SUPABASE_PUBLISHABLE_KEY',
+    'VITE_PHASE4_PATIENT_FORM','VITE_PHASE5A_OPS_UI','VITE_CLINICAL_WORKSPACE_UI',
+    'VITE_PHASE5B_PHARMACY_UI','VITE_PHASE5C_BILLING_UI']
+  const previous=Object.fromEntries(keys.map(k=>[k,process.env[k]]))
+  process.env.VITE_RELEASE_PROFILE='connected'
+  process.env.VITE_SUPABASE_URL=URL_FAKE
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY=KEY_FAKE
+  for(const k of keys.filter(k=>k.startsWith('VITE_PHASE')||k==='VITE_CLINICAL_WORKSPACE_UI'))
+    process.env[k]='false'
+  const out=await mkdtemp(join(tmpdir(),'dawney-connected-profile-'))
+  let site
+  try{
+    await build({root,logLevel:'silent',build:{outDir:out,emptyOutDir:true,sourcemap:false}})
+    assert.ok(verifyStaticBuild(out).files>=3,'protected static build has safe public assets')
+    site=await preview({root,build:{outDir:out},preview:{host:'127.0.0.1',port:0,strictPort:false},logLevel:'silent'})
+    const origin='http://127.0.0.1:'+site.httpServer.address().port
+    await withChromium(async browser=>{
+      await browser.send('Page.addScriptToEvaluateOnNewDocument',{source:'('+releaseClinicFixture.toString()+')()'})
+      await browser.goto(origin+'/book?actor=visitor&theme=dark&reset=1')
+      await browser.until('!!document.querySelector("form.book-form")',12000)
+      const state=await browser.value('({service:document.body.textContent.includes("Fixture care"),submit:!!document.querySelector("form.book-form button[type=submit]:not(:disabled)"),calls:window.__cloudIntegrated.rpcs.length,unapproved:window.__cloudIntegrated.unexpected,mutations:window.__cloudIntegrated.directWrites})')
+      assert.equal(state.service,true,'published service comes only from approved fixture')
+      assert.equal(state.submit,false,'guest cannot request an appointment')
+      assert.equal(state.calls,0,'no booking request RPC is sent')
+      assert.deepEqual(state.unapproved,[])
+      assert.deepEqual(state.mutations,[])
+      await browser.goto(origin+'/auth/signin?actor=visitor&next=%2Fbook')
+      await browser.until('!!document.querySelector("form input[name=email]")',9000)
+      await browser.goto(origin+'/app/ops?actor=staff')
+      await browser.until('!!document.querySelector("#main-content h1")',9000)
+      assert.match(await browser.value('document.querySelector("#main-content h1").textContent'),/Page not found/)
+      assert.deepEqual(await browser.value('window.__cloudIntegrated.unexpected'),[])
+    })
+  }finally{
+    if(site)await new Promise(resolve=>site.httpServer.close(resolve))
+    await rm(out,{recursive:true,force:true,maxRetries:5,retryDelay:100})
+    for(const [k,v] of Object.entries(previous)){
+      if(v===undefined)delete process.env[k]
+      else process.env[k]=v
+    }
   }
 })
