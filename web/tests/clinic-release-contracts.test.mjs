@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs'
 import {CLINIC_ROUTE_CONTRACTS,RELEASE_MISSING_OPERATIONS,STAFF_RELEASE_MODULES,routeContract,clinicModuleView} from '../src/release/clinic-contracts.mjs'
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 
-test('22 actual routes have unique source-backed contracts, roles, migrations and negative gates',()=>{
- assert.equal(CLINIC_ROUTE_CONTRACTS.length,25)
- assert.equal(new Set(CLINIC_ROUTE_CONTRACTS.map(r=>r.path)).size,24)
+test('27 actual routes have unique source-backed contracts, roles, migrations and negative gates',()=>{
+ assert.equal(CLINIC_ROUTE_CONTRACTS.length,28)
+ assert.equal(new Set(CLINIC_ROUTE_CONTRACTS.map(r=>r.path)).size,27)
  assert.ok(CLINIC_ROUTE_CONTRACTS.some(r=>r.id==='attachments'&&r.path==='/app/pets'),'private documents share the patient route but require a separate API contract')
  for(const row of CLINIC_ROUTE_CONTRACTS){
   for(const field of ['id','title','role','scope','flag','request','response','failure','persistence','missing'])
@@ -21,7 +21,7 @@ test('22 actual routes have unique source-backed contracts, roles, migrations an
  }
  for(const path of ['/missing','/app/unknown','/admin/diagnostics'])assert.equal(routeContract(path),null)
 })
-test('machine contract registry matches EVERY actual React Router path, including overview and clinic navigator',()=>{
+test('machine contract registry matches EVERY actual React Router path, including staff/inventory operator routes',()=>{
  const app=read('src/App.tsx')
  const routed=[...app.matchAll(/<Route\s+path="([^"]+)"/g)].map(match=>match[1])
  assert.equal(new Set(routed).size,routed.length,'each actual React Route path is unique')
@@ -93,7 +93,8 @@ test('chart and finance never write; pharmacy adapter uses only bounded, branch-
 test('owner, clinical and consent paths are guarded and private document, booking match authoritative rows',()=>{
  const routes=read('src/App.tsx')
  for(const p of ['/app/overview','/app/profile','/app/pets','/app/appointments','/app/clinic',
-  '/app/communications','/app/ops','/app/clinical','/app/pharmacy','/app/billing','/app/invoices'])
+  '/app/communications','/app/ops','/app/clinical','/app/pharmacy','/app/billing','/app/invoices',
+  '/app/staff-access','/app/staff-management','/app/inventory'])
   assert.ok(routes.includes('path="'+p+'"'),p)
  assert.match(routes,/<Route element={<Guard\/>}>/)
  assert.match(routes,/phase4PatientForm\?<PetsPageCatalog\/>:<PetsPage\/>/)

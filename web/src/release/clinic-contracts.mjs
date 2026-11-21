@@ -120,6 +120,39 @@ export const CLINIC_ROUTE_CONTRACTS = Object.freeze([
     persistence:'provider-unverified',missing:'Hosted JWT role/branch/250-251 and staff queue read acceptance'
   },
   {
+    id:'staff-access',path:'/app/staff-access',surface:'owner',title:'Staff access and approval status',
+    role:'verified signed-in identity',scope:'GoTrue confirmed subject and independently asserted active staff branches',
+    reads:['verifiedStaffNavigationBranches existing read-only staff and branch checks'],
+    writes:[],migration:['20261113074938 verified auth bootstrap','20261117233500 branch membership'],
+    flag:'request writer OFF; always-visible pending-status information only',
+    request:'Verified identity requests current existing membership checks; desired role never grants access',
+    response:'Approved role displayed only from server asserted branches; pending never claimed without a server request row',
+    failure:'Denied/empty/error do not imply pending approval; account switch clears previously authorized staff scopes',
+    persistence:'missing-server-adapter',missing:'MISSING approved self-service staff access request and status reader, safe role workflow'
+  },
+  {
+    id:'staff-management',path:'/app/staff-management',surface:'staff',title:'Administrator approval workspace',
+    role:'active administrator',scope:'fresh verified administrator role with an independently asserted approved clinic branch',
+    reads:['verifiedStaffNavigationBranches for own administrator branches'],
+    writes:[],migration:['20261113074938 trusted-only staff bootstrap','20261117233500 branch roles'],
+    flag:'staff review and approval writers OFF until ASTRA contracts approved',
+    request:'Administrator opens staff review; no pending applicant or sensitive roster data is fetched without a secure reader',
+    response:'Authorized administrator branch evidence only; request roster explicitly unavailable rather than empty',
+    failure:'Receptionist, veterinarian, accountant, revoked, wrong branch or unconfirmed denied with zero leaked requests',
+    persistence:'missing-server-adapter',missing:'MISSING scoped pending staff requests, approve/reject/revoke/role update audit API and accountant grant'
+  },
+  {
+    id:'inventory-operator',path:'/app/inventory',surface:'staff',title:'Inventory product and receipt workspace',
+    role:'active receptionist or administrator',scope:'verified account and independently asserted eligible branch; per-read RLS and per-write future validation',
+    reads:['verifiedStaffNavigationBranches','existing medicine_catalog and branch FEFO readers behind pharmacy read flag'],
+    writes:[],migration:['20261118225000 issue78 read-only pharmacy foundation (unapplied)'],
+    flag:'item and stock write actions OFF; existing pharmacy reader independently OFF by default',
+    request:'Local item and lot validation for medicines, consumables and supplies; no product or receipt write submitted',
+    response:'Valid input only acknowledged as unsaved draft; quantity and ledger display exclusively trusted branch reads',
+    failure:'Unconfirmed, wrong role, revoked, cross-branch, missing server reader and network errors deny without fake save',
+    persistence:'missing-server-adapter',missing:'MISSING backend item catalog for all types, idempotent transactional receive, immutable stock event reader, edit permission'
+  },
+  {
     id:'clinical',path:'/app/clinical',surface:'staff',title:'Patient chart and encounter drafts',
     role:'active receptionist appointments only; vet/administrator draft access if approved',scope:'verified branch, owner, pet, appointment and account',
     reads:['assert_staff_branch RPC','branch-filtered appointments','ChartIntegration unconnectedClinicalPort.read => unavailable'],
