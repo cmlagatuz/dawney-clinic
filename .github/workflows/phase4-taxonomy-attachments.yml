@@ -1,0 +1,135 @@
+name: Phase 4 taxonomy and clinical attachment contracts (isolated)
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql'
+      - 'supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql'
+      - 'supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql'
+      - 'supabase/tests/phase4_taxonomy_p0_*.sql'
+      - 'supabase/tests/phase4_isolated_taxonomy_*.sql'
+      - 'web/src/lib/taxonomy.ts'
+      - 'web/src/lib/pet-attachments.ts'
+      - 'web/src/lib/staff-clinic.ts'
+      - 'web/src/attachment-policy.mjs'
+      - 'web/tests/attachment-policy.test.mjs'
+      - '.github/workflows/phase4-taxonomy-attachments.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql'
+      - 'supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql'
+      - 'supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql'
+      - 'supabase/tests/phase4_taxonomy_p0_*.sql'
+      - 'supabase/tests/phase4_isolated_taxonomy_*.sql'
+      - 'web/src/lib/taxonomy.ts'
+      - 'web/src/lib/pet-attachments.ts'
+      - 'web/src/attachment-policy.mjs'
+      - 'web/tests/attachment-policy.test.mjs'
+      - '.github/workflows/phase4-taxonomy-attachments.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-postgres-rls:
+    strategy:
+      fail-fast: false
+      matrix:
+        repair_missing_trigger: [false, true]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-test-only
+          POSTGRES_DB: clinic_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clinic_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: isolated-test-only
+      PGDATABASE: clinic_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure PostgreSQL client installed
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+      - name: Run isolated fixture, additive migrations and denial assertions
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_isolated_taxonomy_bootstrap.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_taxonomy_p0_fixture.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261113211600_phase4_taxonomy_attachments.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261113211700_phase4_animal_catalog_seed.sql
+          # One matrix variant simulates the historical partial rollout with no trigger.
+          if [[ "${{ matrix.repair_missing_trigger }}" == "true" ]]; then
+            psql -v ON_ERROR_STOP=1 -c 'drop trigger pet_taxonomy_before_write on public.pets'
+          fi
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql
+          # Validate replay remains safe in disposable CI (never replay migration history live).
+          if [[ "${{ matrix.repair_missing_trigger }}" == "false" ]]; then
+            psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql
+          fi
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_isolated_taxonomy_regression.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase4_taxonomy_p0_regression.sql
+          # Negative integrity test: a same-name, enabled, same-function trigger
+          # must be rejected if event timing or UPDATE OF columns were altered.
+          # Only on one matrix variant; all data is disposable PG17.
+          if [[ "${{ matrix.repair_missing_trigger }}" == "false" ]]; then
+            guard=supabase/migrations/20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql
+            psql -v ON_ERROR_STOP=1 -c '
+              drop trigger pet_taxonomy_before_write on public.pets;
+              create trigger pet_taxonomy_before_write
+                after insert or update of species,breed,species_id,breed_id on public.pets
+                for each row execute function clinic_private.resolve_pet_taxonomy();'
+            if psql -v ON_ERROR_STOP=1 -f "$guard" > "$RUNNER_TEMP/taxonomy-invalid-trigger.log" 2>&1; then
+              echo "FAIL: AFTER-trigger variant bypassed taxonomy guard"; exit 1
+            fi
+            grep -F 'Patient taxonomy trigger timing/columns mismatch' "$RUNNER_TEMP/taxonomy-invalid-trigger.log"
+            psql -v ON_ERROR_STOP=1 -c '
+              drop trigger pet_taxonomy_before_write on public.pets;
+              create trigger pet_taxonomy_before_write
+                before insert or update of species,breed,species_id on public.pets
+                for each row execute function clinic_private.resolve_pet_taxonomy();'
+            if psql -v ON_ERROR_STOP=1 -f "$guard" > "$RUNNER_TEMP/taxonomy-invalid-trigger.log" 2>&1; then
+              echo "FAIL: incomplete UPDATE OF variant bypassed taxonomy guard"; exit 1
+            fi
+            grep -F 'Patient taxonomy trigger timing/columns mismatch' "$RUNNER_TEMP/taxonomy-invalid-trigger.log"
+            psql -v ON_ERROR_STOP=1 -c '
+              drop trigger pet_taxonomy_before_write on public.pets;
+              create trigger pet_taxonomy_before_write
+                before insert or update of species,breed,species_id,breed_id on public.pets
+                for each row execute function clinic_private.resolve_pet_taxonomy();'
+            psql -v ON_ERROR_STOP=1 -f "$guard"
+          fi
+  browser-adapter-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      VITE_SUPABASE_URL: https://lgimhirgvresvbsdugac.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_phase4_offline_dummy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install locked dependencies
+        working-directory: web
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run Node validators and existing web regression suite
+        working-directory: web
+        run: npm test
+      - name: Validate TypeScript and Vite build without real secrets
+        working-directory: web
+        run: npm run build

@@ -1,0 +1,49 @@
+name: Phase 3 React web
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - '.github/workflows/phase3-web.yml'
+  push:
+    branches:
+      - 'master'
+    paths:
+      - 'web/**'
+      - '.github/workflows/phase3-web.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Reproducible dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Domain unit tests
+        run: npm test
+      - name: Validate opt-in HTTP security smoke syntax (no network or writes)
+        run: node --check tests/integration/smoke.mjs
+      - name: Typecheck and production Vite build
+        run: npm run build
+      - name: Assert no backend credentials shipped
+        shell: bash
+        run: |
+          if grep -RE '(service_role|sb_secret_|SUPABASE_SERVICE_ROLE_KEY)' dist; then
+            echo "A privileged credential marker is present in frontend bundle"
+            exit 1
+          fi
+          test -s dist/index.html
