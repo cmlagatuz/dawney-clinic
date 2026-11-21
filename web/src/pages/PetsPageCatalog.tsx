@@ -75,8 +75,13 @@ function OwnerPetsPageCatalog({ user }: { user: User }) {
   const [formOpen, setFormOpen] = useState(false)
   const [uploads, setUploads] = useState<Uploads>(emptyUploads)
   const att = usePatientAttachments(user, editing)
-  const existing = attachmentsForPet(att, editing ?? '')
-  const locked = documentsLocked(editing, att)
+  const authorizedRows = attachmentsForPet(att, editing ?? '')
+  // Ignore private metadata that claims this patient but references a
+  // different patient's Storage path; never show its filename or downloads.
+  const malformedMetadata = Boolean(editing && authorizedRows.some(row =>
+    typeof row.object_path !== 'string' || !row.object_path.startsWith('pets/' + editing + '/')))
+  const existing = malformedMetadata ? [] : authorizedRows
+  const locked = documentsLocked(editing, att) || malformedMetadata
   const userId = user?.id ?? null
   const accountRef = useRef(userId) // latest signed-in account id; async work that started under another account checks it before writing
   accountRef.current = userId
@@ -249,6 +254,7 @@ function OwnerPetsPageCatalog({ user }: { user: User }) {
             <div className="attachment-group"><h3>Documents <span className="tag">All optional</span></h3>
               {editing && att.status === 'loading' && <p role="status" className="field-help"><Spinner /> Checking this patient’s saved documents…</p>}
               {editing && att.status === 'error' && <p role="alert" className="alert alert-error">{attachmentErrorText()} <button type="button" className="button-quiet" onClick={att.reload}>Try again</button></p>}
+              {editing && malformedMetadata && <p role="alert" className="alert alert-error">This patient's private document references could not be verified. Downloads and replacements are unavailable. <button type="button" className="button-quiet" onClick={att.reload}>Retry document verification</button></p>}
               <p className="field-help">Files are uploaded to private storage when you save and are visible only to you and authorized clinic staff.</p>
               {categories.map(c => <AttachmentField key={`${editing ?? 'new'}:${c.category}`} {...c} state={uploads[c.category]} existing={currentAttachment(existing, c.category)} disabled={saving || locked} documentsStatus={editing ? att.status : 'idle'}
                 onSelect={file => dispatch(c.category, { type: 'select', file })} onInvalid={message => dispatch(c.category, { type: 'invalid', message })}
