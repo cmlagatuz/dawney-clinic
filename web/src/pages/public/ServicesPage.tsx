@@ -6,9 +6,30 @@ import { BranchCard, MessageButton } from '../../components/SiteLayout'
 import { PageHeading } from '../../components/ui'
 import { saveBookingIntent } from '../../booking-contract.mjs'
 import { NAGA, NAGA_SERVICE_CATEGORIES } from '../../public-site/clinic-info.mjs'
+import { release } from '../../release-mode'
 
 export function ServicesPage() {
-  usePageMeta('Services — Dawney Animal Clinic', 'Service categories at Dawney Animal Clinic, Naga Branch. Message our Naga Facebook page to ask about care for your animal.')
+  usePageMeta('Services — Dawney Animal Clinic', 'Informational care categories and approved branch contacts. Online booking options, if any, require current clinic approval.')
+  return release.mayCheckBooking ? <ConnectedServicesPage /> : <InformationalServicesPage />
+}
+function InformationalServicesPage() {
+  return <div className="page">
+    <PageHeading id="services-heading" eyebrow="Dawney Animal Clinic — Naga Branch" title="Services" actions={<MessageButton />}>
+      Informational categories for our Naga Branch. Contact the clinic about care for your animal; no online treatment, availability or price is promised here.
+    </PageHeading>
+    <section className="section" aria-labelledby="cat-heading">
+      <h2 id="cat-heading">Service categories</h2>
+      <ul className="service-grid">{NAGA_SERVICE_CATEGORIES.map(c => <li key={c} className="card service-card"><h3>{c}</h3></li>)}</ul>
+      <p className="field-help">These categories are for information only, not a published bookable catalog, procedure list, treatment guarantee or price list.</p>
+    </section>
+    <section className="section" aria-labelledby="online-heading"><h2 id="online-heading">Online booking</h2>
+      <p role="status" className="alert alert-info">Online appointment requests are unavailable on this informational website. Please contact Naga directly about a visit; Cavite remains contact-only.</p>
+      <Link to="/book">Booking information</Link>
+    </section>
+    <section className="section" aria-labelledby="svc-contact"><h2 id="svc-contact">Questions about a service?</h2><BranchCard branch={NAGA} primary headingLevel={3}/></section>
+  </div>
+}
+function ConnectedServicesPage() {
   const { options, reload } = useBranchBooking()
   const navigate = useNavigate()
   function request(serviceId: string) {

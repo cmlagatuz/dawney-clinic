@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router'
+import { BrowserRouter, Link, Navigate, Outlet, Route, Routes } from 'react-router'
 import { AuthProvider, useAuth } from './hooks/AuthProvider'
 import { AppLayout, PublicLayout } from './components/Layout'
 import { SiteLayout } from './components/SiteLayout'
@@ -13,7 +13,7 @@ import { ProfilePage } from './pages/ProfilePage'
 import { PetsPage } from './pages/PetsPage'
 import { PetsPageCatalog } from './pages/PetsPageCatalog'
 import { AppointmentsPage } from './pages/AppointmentsPage'
-import { configured } from './lib/supabase'
+import { release } from './release-mode'
 import { OPS_UI_ENABLED } from './ops/flag'
 import { OpsPage } from './pages/staff/OpsPage'
 import { ClinicalWorkspacePage } from './pages/staff/ClinicalWorkspacePage'
@@ -36,14 +36,31 @@ const pharmacyPreview = import.meta.env.VITE_PHASE5B_PHARMACY_UI === 'true'
 /** Financial backend is unapproved; preview stays OFF by default. */
 const billingPreview = import.meta.env.VITE_PHASE5C_BILLING_UI === 'true'
 
-export function App() {
-  if(!configured) return <main className="config-error"><h1>Clinic setup required</h1>
-    <p>This preview needs the public Supabase URL and publishable API key. No secret keys are needed.</p>
-    <p>Ask the administrator to configure <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> before publishing.</p></main>
-  return <BrowserRouter><AuthProvider><a className="skip-link" href="#main-content">Skip to main content</a><Routes>
-    <Route element={<SiteLayout />}><Route path="/" element={<HomePage/>}/><Route path="/services" element={<ServicesPage/>}/>
+function UnavailableOnlineAccess() {
+  return <section className="page" aria-labelledby="online-unavailable-heading">
+    <h1 id="online-unavailable-heading">Online account access is unavailable</h1>
+    <p role="status">This informational website cannot sign you in, manage patient files, or request an appointment. No records have been changed.</p>
+    <p><Link to="/contact">Contact our branches</Link></p>
+  </section>
+}
+
+/** Routes are React Router Route elements, not a nested custom React component. */
+function publicRoutes(informational: boolean) {
+  return <Route element={<SiteLayout informational={informational} />}><Route path="/" element={<HomePage/>}/><Route path="/services" element={<ServicesPage/>}/>
       <Route path="/about" element={<AboutPage/>}/><Route path="/location" element={<AboutPage/>}/><Route path="/contact" element={<AboutPage/>}/>
-      <Route path="/book" element={<BookPage/>}/><Route path="*" element={<NotFoundPage/>}/></Route>
+      <Route path="/book" element={<BookPage/>}/>{informational && <Route path="/auth/*" element={<UnavailableOnlineAccess/>}/>}
+      {informational && <Route path="/app/*" element={<UnavailableOnlineAccess/>}/>}
+      <Route path="*" element={<NotFoundPage/>}/></Route>
+}
+
+/** Profile A never mounts AuthProvider or backend-dependent form components. */
+export function App() {
+  if (!release.mayRenderOwnerAccess) {
+    return <BrowserRouter><a className="skip-link" href="#main-content">Skip to main content</a>
+      <Routes>{publicRoutes(true)}</Routes></BrowserRouter>
+  }
+  return <BrowserRouter><AuthProvider><a className="skip-link" href="#main-content">Skip to main content</a><Routes>
+    {publicRoutes(false)}
     <Route element={<PublicLayout />}><Route path="/auth/signin" element={<LoginPage/>}/><Route path="/auth/signup" element={<SignUpPage/>}/>
       <Route path="/auth/verify" element={<VerifyPage/>}/><Route path="/auth/forgot" element={<ForgotPasswordPage/>}/>
       <Route path="/auth/recovery" element={<RecoveryPage/>}/><Route path="/auth/callback" element={<CallbackPage/>}/></Route>

@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import { usePageMeta } from '../../public-site/usePageMeta'
 import { BranchCard, DirectionsButton, MessageButton } from '../../components/SiteLayout'
 import { Icon } from '../../components/ui'
+import { release } from '../../release-mode'
 import { CAVITE, NAGA, NAGA_SERVICE_CATEGORIES } from '../../public-site/clinic-info.mjs'
 
 export function HomePage() {
@@ -24,7 +25,7 @@ export function HomePage() {
     <section className="section" aria-labelledby="svc-heading">
       <div className="section-heading"><h2 id="svc-heading">Services at our Naga Branch</h2><Link to="/services">All services</Link></div>
       <ul className="service-grid">{NAGA_SERVICE_CATEGORIES.map(c => <li key={c} className="card"><h3>{c}</h3></li>)}</ul>
-      <p className="alert alert-info"><Icon name="shield" width={18} height={18} /><span>This is a list of the kinds of care offered. For details about your animal, please message our Facebook page. Online appointment booking is not open yet.</span></p>
+      <p className="alert alert-info"><Icon name="shield" width={18} height={18} /><span>This is a list of the kinds of care offered. For details about your animal, please message our Facebook page. {release.mayCheckBooking ? 'Visit booking information to check whether the clinic has approved any online request options.' : 'Online appointment requests are not available on this informational website.'}</span></p>
     </section>
 
     <section className="section find-us" aria-labelledby="find-heading">

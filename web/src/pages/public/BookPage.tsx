@@ -19,6 +19,7 @@ import { firstEligibleId } from '../../public-site/eligibility.mjs'
 import { applyServiceSpecies, canBookPet, serviceSpeciesErrorText } from '../../public-site/service-eligibility.mjs'
 import { useServiceSpecies } from '../../public-site/useServiceSpecies'
 import { PageHeading, Spinner, StatusBadge } from '../../components/ui'
+import { release } from '../../release-mode'
 
 function safeIntent(): PublicBookingIntent | null {
   try { return readBookingIntent(window.sessionStorage) } catch { return null }
@@ -27,7 +28,22 @@ function safeIntent(): PublicBookingIntent | null {
 const contact = <div className="cta-row"><MessageButton /><DirectionsButton secondary /><Link className="button button-secondary" to="/about#contact">All branches</Link></div>
 
 export function BookPage() {
-  usePageMeta('Book an appointment — Dawney Animal Clinic', 'Check online booking for Dawney Animal Clinic, Naga Branch, or message the clinic to arrange a visit.')
+  usePageMeta('Booking information — Dawney Animal Clinic', 'Check clinic-approved Naga online requests when available, or use verified Naga and Cavite contact links.')
+  return release.mayCheckBooking ? <ConnectedBookPage /> : <InformationalBookPage />
+}
+function InformationalBookPage() {
+  return <div className="page">
+    <PageHeading id="book-heading" eyebrow="Dawney Animal Clinic" title="Booking information">
+      Online appointment requests are not available on this informational website. No appointment has been submitted, reserved or confirmed.
+    </PageHeading>
+    <section className="card" aria-labelledby="booking-contact-heading">
+      <h2 id="booking-contact-heading">Contact a branch about a visit</h2>
+      <p role="status">Please message our Naga Branch to check availability. Cavite Main Branch is contact-only. Neither branch offers online booking in this release profile.</p>
+      {contact}
+    </section>
+  </div>
+}
+function ConnectedBookPage() {
   const { options, reload } = useBranchBooking()
   const { user } = useAuth()
   return <div className="page">

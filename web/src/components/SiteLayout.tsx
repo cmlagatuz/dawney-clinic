@@ -40,10 +40,16 @@ export function BranchDirectory({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) 
 }
 export { CAVITE, NAGA }
 
-const links = [{ to: '/', label: 'Home', end: true }, { to: '/services', label: 'Services' }, { to: '/about', label: 'About & location' }] as const
+const links = [{ to: '/', label: 'Home', end: true }, { to: '/services', label: 'Services' }, { to: '/about', label: 'About & location' }, { to: '/contact', label: 'Contact' }] as const
 
-export function SiteLayout() {
+export function SiteLayout({ informational = false }: { informational?: boolean }) {
+  return informational ? <SiteFrame informational signedIn={false}/> : <ConnectedSiteFrame/>
+}
+function ConnectedSiteFrame() {
   const { user } = useAuth()
+  return <SiteFrame informational={false} signedIn={Boolean(user)}/>
+}
+function SiteFrame({ informational, signedIn }: { informational: boolean; signedIn: boolean }) {
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
   const toggle = useRef<HTMLButtonElement>(null)
@@ -65,11 +71,11 @@ export function SiteLayout() {
       <Link to="/" className="brand-link" aria-label="Dawney Animal Clinic, Naga Branch — home"><Brand compact /></Link>
       <nav ref={navRef} id="site-nav" className={open ? 'site-nav is-open' : 'site-nav'} aria-label="Main">
         {links.map(l => <NavLink key={l.to} to={l.to} end={'end' in l}>{l.label}</NavLink>)}
-        <NavLink to="/book" className="button button-primary button-small nav-book">Book an appointment</NavLink>
+        <NavLink to="/book" className="button button-primary button-small nav-book">{informational ? 'Booking information' : 'Request appointment'}</NavLink>
       </nav>
       <div className="site-actions">
         <ThemeToggle />
-        <Link className="site-account" to={user ? '/app/overview' : '/auth/signin'}>{user ? 'My account' : 'Sign in'}</Link>
+        {!informational && <Link className="site-account" to={signedIn ? '/app/overview' : '/auth/signin'}>{signedIn ? 'My account' : 'Sign in'}</Link>}
         <button ref={toggle} type="button" className="icon-button site-menu" aria-expanded={open} aria-controls="site-nav" aria-label={open ? 'Close menu' : 'Open menu'} onClick={() => setOpen(!open)}><Icon name={open ? 'close' : 'menu'} /></button>
       </div>
     </header>
@@ -78,8 +84,8 @@ export function SiteLayout() {
       <div className="site-footer-grid">
         <div><strong>{NAGA.name}</strong><p>{NAGA.address}</p><p className="small-help">{NAGA.hours[0]}</p><div className="cta-row"><MessageButton secondary /><DirectionsButton secondary /></div>
           <p className="small-help"><strong>Also:</strong> {CAVITE.name}, {CAVITE.address}. <a href={CAVITE.facebookUrl} target="_blank" rel="noopener noreferrer">Cavite Facebook page<span className="visually-hidden"> (opens in a new tab)</span></a> · <a href={CAVITE.mapsUrl} target="_blank" rel="noopener noreferrer">Cavite directions<span className="visually-hidden"> (opens Google Maps in a new tab)</span></a></p></div>
-        <nav aria-label="Footer"><Link to="/services">Services</Link><Link to="/about">About & location</Link><Link to="/book">Book an appointment</Link><Link to="/auth/signin">Sign in</Link></nav>
-        <p className="small-help">Online requests are not confirmed appointments until the clinic confirms them. Never enter private medical details in public pages.</p>
+        <nav aria-label="Footer"><Link to="/services">Services</Link><Link to="/about">About & location</Link><Link to="/contact">Contact</Link><Link to="/book">{informational ? 'Booking information' : 'Request appointment'}</Link>{!informational && <Link to="/auth/signin">Sign in</Link>}</nav>
+        <p className="small-help">{informational ? 'Online appointment requests are not available on this informational website.' : 'Online requests are not confirmed appointments until the clinic confirms them.'} Never enter private medical details in public pages.</p>
       </div>
     </footer>
   </div>
