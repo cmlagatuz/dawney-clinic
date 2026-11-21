@@ -22,7 +22,7 @@ test('CLOUD full-clinic: all actual public, Auth, owner, staff, finance and comm
 test('CLOUD full-clinic: protected features are still individually OFF by default',()=>{
   for(const flag of ['VITE_PHASE4_PATIENT_FORM','VITE_PHASE5A_OPS_UI','VITE_CLINICAL_WORKSPACE_UI',
     'VITE_PHASE5B_PHARMACY_UI','VITE_PHASE5C_BILLING_UI']){
-    assert.match(app+nav+hub,new RegExp(flag))
+    assert.match(app+nav+hub+source('src/ops/flag.ts'),new RegExp(flag))
     assert.doesNotMatch(app+nav+hub,new RegExp(flag+'\\s*=\\s*true'))
     assert.ok(matrix.includes(flag),'documented preview flag '+flag)
   }
@@ -30,6 +30,7 @@ test('CLOUD full-clinic: protected features are still individually OFF by defaul
   assert.match(app,/return user \? <Outlet \/> : <Navigate to="\/auth\/signin" replace \/>/)
   assert.match(hub,/createClinicalReadPort\(account\)/)
   assert.match(hub,/assertStaffBranch\(account,branch\.id\)/)
+  assert.match(nav,/assertStaffBranch\(user,branch\.id\)/)
   assert.match(hub,/Promise\.allSettled\(branches\.map/)
   assert.match(hub,/staffPreviewRequested&&access\.kind==='allowed'/)
 })

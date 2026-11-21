@@ -47,14 +47,14 @@ function Journey({account}:{account:User}){
     return()=>{current=false}
   },[port,attempt,staffPreviewRequested])
   const staffAllowed=staffPreviewRequested&&access.kind==='allowed'
-  return <section className="page" aria-labelledby="clinic-journey-heading">
+  return <section className="page clinic-journey" aria-labelledby="clinic-journey-heading">
     <PageHeading id="clinic-journey-heading" eyebrow="Verified account · clinic workflow" title="Clinic journeys">
       Follow the real owner and staff routes. This guide does not create a patient,
       confirm a visit, publish clinical records, or grant staff permissions.
     </PageHeading>
     <section className="card" aria-labelledby="owner-journey-heading">
       <h2 id="owner-journey-heading">Owner and patient care</h2>
-      <ol className="steps">
+      <ol className="clinic-journey-steps">
         <li><Link to="/app/profile">1. Verify my profile</Link><p className="field-help">Owner identity and profile are checked using your signed-in account.</p></li>
         <li><Link to="/app/pets">2. Manage my patients</Link><p className="field-help">{patientCatalog
           ?'Catalog-based species, breed and private photo, health card and vaccination card are available only with approved Phase 4 Storage/RLS.'

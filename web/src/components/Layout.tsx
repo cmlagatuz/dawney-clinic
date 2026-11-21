@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { Icon, ThemeToggle, initials } from './ui'
 import { OPS_UI_ENABLED } from '../ops/flag'
 import { createClinicalReadPort } from '../clinical/port'
+import { assertStaffBranch } from '../lib/staff-branch'
 
 /**
  * Owner-supplied Dawney Animal Clinic logo (original artwork, unmodified, 1:1 with built-in margin).
@@ -63,8 +64,13 @@ function ClinicalStaffNavigation(){
     setAccess({account,allowed:false})
     if(!user||!account||(!OPS_UI_ENABLED&&!clinicalPreview&&!pharmacyPreview&&!billingPreview))return ()=>{live=false}
     const port=createClinicalReadPort(user)
-    void port.loadBranches().then(branches=>{
-      if(live)setAccess({account,allowed:branches.length>0})
+    void port.loadBranches().then(async branches=>{
+      // A current membership row is not sufficient: the server RPC must
+      // independently assert each offered branch before navigation is shown.
+      // A failed/revoked assertion never grants a staff shortcut.
+      const evidence=await Promise.allSettled(branches.map(async branch=>
+        (await assertStaffBranch(user,branch.id))===branch.id))
+      if(live)setAccess({account,allowed:evidence.some(item=>item.status==='fulfilled'&&item.value===true)})
     },()=>{if(live)setAccess({account,allowed:false})})
     return ()=>{live=false}
   },[account])
