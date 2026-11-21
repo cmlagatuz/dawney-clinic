@@ -3,6 +3,7 @@ import {Link} from 'react-router'
 import type {User} from '@supabase/supabase-js'
 import {useAuth} from '../hooks/AuthProvider'
 import {createClinicalReadPort} from '../clinical/port'
+import {assertStaffBranch} from '../lib/staff-branch'
 import {PageHeading,LoadingCard} from '../components/ui'
 import {OPS_UI_ENABLED} from '../ops/flag'
 
@@ -31,8 +32,17 @@ function Journey({account}:{account:User}){
   useEffect(()=>{
     let current=true
     setAccess(staffPreviewRequested?{kind:'checking'}:{kind:'unavailable'})
-    if(port)void port.loadBranches().then(branches=>{
-      if(current)setAccess(branches.length?{kind:'allowed',branches:branches.length}:{kind:'denied'})
+    if(port)void port.loadBranches().then(async branches=>{
+      // Active membership alone is insufficient for a staff shortcut:
+      // also require the existing server-side assert_staff_branch RPC for
+      // every offered branch. Revoked/denied responses never expose links.
+      const checked=await Promise.allSettled(branches.map(async branch=>{
+        const confirmed=await assertStaffBranch(account,branch.id)
+        return confirmed===branch.id
+      }))
+      if(!current)return
+      const verified=checked.filter(x=>x.status==='fulfilled'&&x.value===true).length
+      setAccess(verified?{kind:'allowed',branches:verified}:{kind:'denied'})
     },()=>{if(current)setAccess({kind:'denied'})})
     return()=>{current=false}
   },[port,attempt,staffPreviewRequested])
