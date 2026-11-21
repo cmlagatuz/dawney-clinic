@@ -39,8 +39,8 @@ test('CLOUD default-release: valid staff cannot activate hidden Ops, chart, stoc
    for(const route of ['/app/ops','/app/clinical','/app/pharmacy','/app/billing','/app/invoices']){
     await b.goto(origin+route+'?actor=staff&case=administrator')
     await b.until('!!document.querySelector("#main-content h1")',10000)
-    assert.equal(await b.value('document.querySelector("#main-content")?.textContent.includes("Page not found")'),false,
-      'NotFound uses public route and is not a staff module')
+    assert.equal(await b.value('document.querySelector("#main-content")?.textContent.includes("Page not found")'),true,
+      'Feature-OFF direct staff URL must render accessible 404, not a staff module')
     const page=await b.value('({h1:document.querySelector("#main-content h1")?.textContent,patient:!!document.querySelector(".clinical-chart-gateway"),stock:!!document.querySelector(".pharmacy-body"),finance:!!document.querySelector(".billing-workspace")})')
     assert.equal(page.patient,false,route)
     assert.equal(page.stock,false,route)
