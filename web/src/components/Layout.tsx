@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/AuthProvider'
 import { supabase } from '../lib/supabase'
 import { Icon, ThemeToggle, initials } from './ui'
 import { OPS_UI_ENABLED } from '../ops/flag'
-import { createClinicalReadPort } from '../clinical/port'
+import { verifiedStaffNavigationBranches } from '../release/verified-staff-branches'
 
 /**
  * Owner-supplied Dawney Animal Clinic logo (original artwork, unmodified, 1:1 with built-in margin).
@@ -62,8 +62,7 @@ function ClinicalStaffNavigation(){
     let live=true
     setAccess({account,allowed:false})
     if(!user||!account||(!OPS_UI_ENABLED&&!clinicalPreview&&!pharmacyPreview&&!billingPreview))return ()=>{live=false}
-    const port=createClinicalReadPort(user)
-    void port.loadBranches().then(branches=>{
+    void verifiedStaffNavigationBranches(user).then(branches=>{
       if(live)setAccess({account,allowed:branches.length>0})
     },()=>{if(live)setAccess({account,allowed:false})})
     return ()=>{live=false}

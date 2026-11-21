@@ -1,9 +1,9 @@
-import {useEffect,useMemo,useState} from 'react'
+import {useEffect,useState} from 'react'
 import type {User} from '@supabase/supabase-js'
 import {Link} from 'react-router'
 import {useAuth} from '../hooks/AuthProvider'
 import {EmptyState,LoadingCard,PageHeading} from '../components/ui'
-import {createClinicalReadPort} from '../clinical/port'
+import {verifiedStaffNavigationBranches} from '../release/verified-staff-branches'
 import {classifyOpsError} from '../ops/ops-model.mjs'
 import {OPS_UI_ENABLED} from '../ops/flag'
 import type {OpsBranch} from '../ops/branch-model.mjs'
@@ -37,7 +37,7 @@ export function CommunicationsUnavailablePage(){
 }
 
 function ClinicAccount({user,mode}:{user:User;mode:Mode}){
-  const port=useMemo(()=>createClinicalReadPort(user),[user.id])
+
   const [attempt,setAttempt]=useState(0)
   const key=user.id+':'+attempt
   const [raw,setRaw]=useState<{key:string;access:Access}>({key,access:{kind:'loading'}})
@@ -46,7 +46,7 @@ function ClinicAccount({user,mode}:{user:User;mode:Mode}){
   useEffect(()=>{
     let active=true
     setRaw({key,access:{kind:'loading'}})
-    void port.loadBranches().then(branches=>{
+    void verifiedStaffNavigationBranches(user).then(branches=>{
       if(!active)return
       if(!branches.length){setRaw({key,access:{kind:'failed',reason:'denied'}});return}
       setRaw({key,access:{kind:'ready',branches}})
@@ -54,7 +54,7 @@ function ClinicAccount({user,mode}:{user:User;mode:Mode}){
       if(active)setRaw({key,access:{kind:'failed',reason:classifyOpsError(error)}})
     })
     return()=>{active=false}
-  },[port,key])
+  },[user.id,key])
 
   const authorized=state.kind==='ready'
   return <section className="page clinic-release" aria-labelledby="clinic-release-heading">
