@@ -278,6 +278,60 @@ begin
  then raise exception 'OPS_FAIL: rolled back stock became durable';end if;
 end $rollback_proof$;
 
+
+-- Adversarial transactional denies for a once-authorized branch receptionist.
+begin;
+update public.staff_memberships set is_active=false
+ where user_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+set local role authenticated;
+set local request.jwt.claim.sub='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c3333333-aaaa-4aaa-8aaa-333333333333"}';
+do $revoked_staff$
+begin
+ begin
+  perform public.receive_branch_inventory_stock(
+   '22222222-0000-4000-8000-000000000077',
+   (select id from public.medicine_catalog where product_code='OPS-SUP-001'),
+   gen_random_uuid(),'LOT-OPS-1',date '2028-12-31','Synthetic Supplier',1);
+  raise exception 'OPS_FAIL: revoked receptionist still received stock';
+ exception when insufficient_privilege then null;end;
+end $revoked_staff$;
+rollback;
+
+begin;
+update public.medicine_catalog set is_controlled=true where product_code='OPS-SUP-001';
+set local role authenticated;
+set local request.jwt.claim.sub='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c3333333-aaaa-4aaa-8aaa-333333333333"}';
+do $controlled$
+begin
+ begin
+  perform public.receive_branch_inventory_stock(
+   '22222222-0000-4000-8000-000000000077',
+   (select id from public.medicine_catalog where product_code='OPS-SUP-001'),
+   gen_random_uuid(),'LOT-OPS-1',date '2028-12-31','Synthetic Supplier',1);
+  raise exception 'OPS_FAIL: controlled product was received without policy';
+ exception when insufficient_privilege then null;end;
+end $controlled$;
+rollback;
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c3333333-aaaa-4aaa-8aaa-333333333333"}';
+do $direct_dml$
+begin
+ begin
+  insert into public.branch_stock_batches
+   (branch_id,medicine_id,lot_number,received_on,expiry_date)
+  values('22222222-0000-4000-8000-000000000077',
+   (select id from public.medicine_catalog where product_code='OPS-SUP-001'),
+   'FORBIDDEN-DIRECT',current_date,date '2028-12-31');
+  raise exception 'OPS_FAIL: direct authenticated batch insert succeeded';
+ exception when insufficient_privilege then null;end;
+end $direct_dml$;
+rollback;
+
 set role authenticated;
 set request.jwt.claim.sub='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 set request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c2222222-aaaa-4aaa-8aaa-222222222222"}';

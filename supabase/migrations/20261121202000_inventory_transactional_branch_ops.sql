@@ -235,7 +235,7 @@ begin
   or p_name is null or length(btrim(p_name)) not between 2 and 160
   or p_description is null or length(p_description)>2000
   or p_reorder_point is null or p_reorder_point not between 0 and 1000000000
-  or p_expiry_warning_days not in (30,60,90) then
+  or p_expiry_warning_days is null or p_expiry_warning_days not in (30,60,90) then
   raise exception 'Invalid branch product edits' using errcode='22023'; end if;
  select r.profile_revision into v_current from public.branch_medicine_rules r
  join public.medicine_catalog m on m.id=r.medicine_id

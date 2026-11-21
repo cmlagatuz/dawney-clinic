@@ -131,9 +131,11 @@ begin
  if v_sid is null or v_sid !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
  then raise exception 'Live session required' using errcode='42501'; end if;
  v_session:=v_sid::uuid;
- if not exists(select 1 from auth.sessions s
-    where s.id=v_session and s.user_id=v_actor)
- then raise exception 'Session no longer active' using errcode='42501'; end if;
+ -- Hold the live session row through commit; concurrent signout/revoke DELETE
+ -- cannot race after this check into a privileged inventory/staff mutation.
+ perform 1 from auth.sessions s where s.id=v_session and s.user_id=v_actor for share;
+ if not found then
+  raise exception 'Session no longer active' using errcode='42501'; end if;
  return v_actor;
 end;
 $actor$;
