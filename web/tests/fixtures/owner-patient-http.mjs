@@ -79,7 +79,8 @@ export function ownerPatientHttpFixture() {
     }
     if(path==='/rest/v1/pet_attachments'){
       if(mode==='attachments-denied'&&method==='GET')return reply({code:'42501',message:'Private metadata denied'},403)
-      const exact=filter(url,'pet_id')||petId
+      const payload=method==='POST'?await req.clone().json():null
+      const exact=filter(url,'pet_id')||payload?.pet_id||petId
       if(![petId,...read('pets').filter(p=>p.owner_id===owner).map(p=>p.id)].includes(exact))
         return reply({code:'42501',message:'Foreign patient'},403)
       if(method==='GET'){
@@ -90,7 +91,7 @@ export function ownerPatientHttpFixture() {
         return reply(single?all[0]??null:all)
       }
       if(method==='POST'){
-        const body=await req.json()
+        const body=payload
         if(mode==='metadata-fail'&&body.category==='health_card'&&!window.__qaPatient.failedMetadataOnce){
           window.__qaPatient.failedMetadataOnce=true
           return reply({code:'08006',message:'Synthetic metadata finalization failed'},503)
