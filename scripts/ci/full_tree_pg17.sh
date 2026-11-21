@@ -194,15 +194,17 @@ git merge-base --is-ancestor 87a84c2c11a1994028246b8e393917e49812cbdb "$EXPECTED
  fail 'revoked private RLS child must descend from frozen PR115'
 diff -u <(cat <<'REVOKED_PRIVATE_CHILD_ONLY'
 scripts/ci/full_tree_pg17.sh
+scripts/hosted-acceptance/acceptance.mjs
 scripts/hosted-acceptance/tests/acceptance.test.mjs
 REVOKED_PRIVATE_CHILD_ONLY
 ) <(git diff --name-only 87a84c2c11a1994028246b8e393917e49812cbdb "$EXPECTED_HEAD_SHA") ||
- fail 'pre-fix revoked private RLS test must change only CI and tests'
+ fail 'revoked private RLS child changed beyond 3 exact source/test/CI paths'
 while read -r path sha;do
  [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
     "$(git hash-object "$path")" == "$sha" ]] ||
  fail "revoked private test-first source blob drift: $path"
 done <<'REVOKED_PRIVATE_CHILD_BLOBS'
+scripts/hosted-acceptance/acceptance.mjs ca6489bee35eaa60639ef775fa9c2478d68b9d65
 scripts/hosted-acceptance/tests/acceptance.test.mjs 5c47cbefe90f5402994e199899b00e5acd49b75e
 REVOKED_PRIVATE_CHILD_BLOBS
 while read -r path sha;do
