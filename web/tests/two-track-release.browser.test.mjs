@@ -143,7 +143,7 @@ test('CLOUD PROFILE A remains public-only when dummy backend env exists; missing
       for(const path of ['/services','/book','/auth/signin','/app/pets']){
         await browser.goto(origin+path+'?theme=light')
         await browser.until('!!document.querySelector("#main-content h1")',9000)
-        const state=await browser.value('({form:document.querySelectorAll("#main-content form").length,remote:window.__cloudPublicProfile.outbound,heading:document.querySelector("h1").textContent,links:[...document.querySelectorAll("a")].some(a=>a.href.includes("/auth/signin"))})')
+        const state=await browser.value('({form:document.querySelectorAll("#main-content form").length,remote:window.__cloudPublicProfile.outbound,heading:document.querySelector("h1").textContent,links:[...document.querySelectorAll("a")].some(a=>a.getAttribute("href")==="/auth/signin")})')
         assert.equal(state.form,0)
         assert.deepEqual(state.remote,[])
         assert.equal(state.links,false,JSON.stringify({profile,configured,path,state}))
