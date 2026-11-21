@@ -48,7 +48,7 @@ async function waitState(browser,expression,timeout){
 }
 async function createItem(browser){
  await waitState(browser,'!!document.querySelector("#add-item-heading")&&!!document.querySelector("[aria-label^=Live] select")',15000)
- const prefix='section:has(#add-item-heading) '
+ const prefix='section[aria-labelledby="add-item-heading"] '
  await setValue(browser,prefix+'input[placeholder="MED-001"]','QA-NEW-1')
  await setValue(browser,prefix+'input[placeholder="Item name"]','Synthetic Test Medicine')
  await setValue(browser,prefix+'input[placeholder="each"]','vial')
@@ -63,7 +63,7 @@ async function createItem(browser){
  assert.equal(s.products[0].catalog.product_code,'QA-NEW-1')
 }
 async function receiptTen(browser){
- const prefix='section:has(#receive-heading) '
+ const prefix='section[aria-labelledby="receive-heading"] '
  await waitState(browser,'!!document.querySelector('+css(prefix+'select')+')&&[...document.querySelectorAll('+css(prefix+'select option')+')].some(x=>x.value==="QA-NEW-1")',12000)
  assert.equal(await browser.value('document.querySelector('+css(prefix+'select')+').value'),'QA-NEW-1',
   'a freshly created item is selected by its authoritative item UUID')
@@ -164,7 +164,7 @@ test('lost receipt acknowledgement retries EXACT SAME UUID and never receives tw
  let state=await browser.value('window.__operationalMock.getDb()')
  assert.equal(state.products[0].stock,10,'server may already have committed despite lost ACK')
  assert.equal(state.events.length,1)
- await click(browser,'section:has(#receive-heading) button:nth-of-type(2)')
+ await click(browser,'section[aria-labelledby="receive-heading"] .operator-actions button:nth-of-type(2)')
  await waitState(browser,'document.querySelector("#main-content")?.textContent.includes("Received 10 units")',14000)
  state=await browser.value('window.__operationalMock.getDb()')
  const calls=state.calls.filter(x=>x.rpc==='receive_branch_inventory_stock')
