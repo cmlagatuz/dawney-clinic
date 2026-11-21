@@ -21,6 +21,8 @@ import { PharmacyPage } from './pages/staff/PharmacyPage'
 import { BillingPage } from './pages/staff/BillingPage'
 import { OwnerBillingPage } from './billing/OwnerBillingPage'
 import { ClinicReleasePage, CommunicationsUnavailablePage } from './pages/ClinicReleasePage'
+import {StaffAccessPage,StaffManagementPage} from './pages/staff/StaffAccessPages'
+import {InventoryOperatorPage} from './pages/staff/InventoryOperatorPage'
 
 function Guard() {
   const { checking, user, error, refresh } = useAuth()
@@ -52,6 +54,9 @@ export function App() {
       <Route path="/app/pets" element={phase4PatientForm?<PetsPageCatalog/>:<PetsPage/>}/>
       <Route path="/app/appointments" element={<AppointmentsPage/>}/>
       <Route path="/app/clinic" element={<ClinicReleasePage/>}/>
+      <Route path="/app/staff-access" element={<StaffAccessPage/>}/>
+      <Route path="/app/staff-management" element={<StaffManagementPage/>}/>
+      <Route path="/app/inventory" element={<InventoryOperatorPage/>}/>
       <Route path="/app/communications" element={<CommunicationsUnavailablePage/>}/>
       {OPS_UI_ENABLED && <Route path="/app/ops" element={<OpsPage/>}/>}
       {clinicalWorkspacePreview && <Route path="/app/clinical" element={<ClinicalWorkspacePage/>}/>}

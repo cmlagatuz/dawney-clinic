@@ -40,6 +40,7 @@ const nav = [
   { to: '/app/appointments', label: 'Appointments', icon: 'calendar' },
   { to: '/app/profile', label: 'My profile', icon: 'user' },
   { to: '/app/clinic', label: 'Clinic journey', icon: 'pulse' },
+  { to: '/app/staff-access', label: 'My staff access', icon: 'shield' },
 ] as const
 /** All staff shortcuts require *current server-verified* active branch membership. */
 const staffNav = OPS_UI_ENABLED ? [{ to: '/app/ops', label: 'Clinic operations', icon: 'pulse' }] as const : []
@@ -51,23 +52,27 @@ if(clinicalPreview)titles['/app/clinical']='Patient charts & encounters'
 if(pharmacyPreview)titles['/app/pharmacy']='Veterinary pharmacy'
 if(billingPreview)titles['/app/billing']='Clinic billing'
 titles['/app/communications']='Communications & consent'
+titles['/app/staff-management']='Staff management'
+titles['/app/inventory']='Inventory management'
 
 /** Never offer a staff-only shortcut merely because a build flag is enabled.
  * A confirmed account must also have active RLS-backed branch membership. */
 function ClinicalStaffNavigation(){
   const {user}=useAuth()
   const account=user?.id??null
-  const [access,setAccess]=useState<{account:string|null;allowed:boolean}>({account:null,allowed:false})
+  const [access,setAccess]=useState<{account:string|null;allowed:boolean;admin:boolean;inventory:boolean}>({account:null,allowed:false,admin:false,inventory:false})
   useEffect(()=>{
     let live=true
-    setAccess({account,allowed:false})
-    if(!user||!account||(!OPS_UI_ENABLED&&!clinicalPreview&&!pharmacyPreview&&!billingPreview))return ()=>{live=false}
+    setAccess({account,allowed:false,admin:false,inventory:false})
+    if(!user||!account)return ()=>{live=false}
     void verifiedStaffNavigationBranches(user).then(branches=>{
-      if(live)setAccess({account,allowed:branches.length>0})
-    },()=>{if(live)setAccess({account,allowed:false})})
+      if(live)setAccess({account,allowed:branches.length>0,
+        admin:branches.some(branch=>branch.role==='administrator'),
+        inventory:branches.some(branch=>branch.role==='administrator'||branch.role==='receptionist')})
+    },()=>{if(live)setAccess({account,allowed:false,admin:false,inventory:false})})
     return ()=>{live=false}
   },[account])
-  if((!OPS_UI_ENABLED&&!clinicalPreview&&!pharmacyPreview&&!billingPreview)||!account||access.account!==account||!access.allowed)return null
+  if(!account||access.account!==account||!access.allowed)return null
   return <nav className="main-nav" aria-label="Clinic staff workspaces">
     <p className="nav-label">Clinic staff · preview</p>
     <NavLink to="/app/clinic"><Icon name="pulse"/>Clinic workflow</NavLink>
@@ -75,6 +80,8 @@ function ClinicalStaffNavigation(){
     {clinicalPreview&&<NavLink to="/app/clinical"><Icon name="pulse"/>Patient charts & encounters</NavLink>}
     {pharmacyPreview&&<NavLink to="/app/pharmacy"><Icon name="shield"/>Veterinary pharmacy</NavLink>}
     {billingPreview&&<NavLink to="/app/billing"><Icon name="calendar"/>Billing & invoices</NavLink>}
+    {access.inventory&&<NavLink to="/app/inventory"><Icon name="pulse"/>Inventory management · preview</NavLink>}
+    {access.admin&&<NavLink to="/app/staff-management"><Icon name="shield"/>Staff management · preview</NavLink>}
     <NavLink to="/app/communications"><Icon name="shield"/>Communications · unavailable</NavLink>
   </nav>
 }
