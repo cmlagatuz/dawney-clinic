@@ -56,6 +56,26 @@ BEGIN
    AND b.role='veterinarian' AND b.is_active)<>1
  THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: unconfirmed veterinarian state or insert guard incorrect'; END IF;
 END $verify_unconfirmed_fixture$;
+
+-- Dedicated NEW branch-attributed appointment, created after the restore.
+-- This appointment and all subsequent RPC writes roll back with this script.
+INSERT INTO public.appointments(id,owner_id,pet_id,resource_id,starts_at,ends_at,status,concern,created_by)
+VALUES ('a7171717-7777-4717-8717-171717171717','11111111-1111-4111-8111-111111111111',
+ '33333333-3333-4333-8333-333333333333',
+ '11111111-7777-4777-8777-111111111111',
+ now()+interval '400 days',now()+interval '400 days 30 minutes',
+ 'requested','RESTORE17 disposable first-draft visit',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+DO $fresh_baseline$
+BEGIN
+ IF (SELECT count(*) FROM public.appointments WHERE id='a7171717-7777-4717-8717-171717171717'
+   AND branch_id='11111111-0000-4000-8000-000000000077'
+   AND pet_id='33333333-3333-4333-8333-333333333333')<>1
+ OR EXISTS(SELECT 1 FROM public.clinical_encounter_drafts WHERE appointment_id='a7171717-7777-4717-8717-171717171717')
+ OR EXISTS(SELECT 1 FROM clinic_private.clinical_draft_audit WHERE appointment_id='a7171717-7777-4717-8717-171717171717')
+ OR EXISTS(SELECT 1 FROM clinic_private.clinical_draft_requests WHERE appointment_id='a7171717-7777-4717-8717-171717171717')
+ THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: fresh appointment/branch or zero-draft preflight'; END IF;
+END $fresh_baseline$;
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 SET LOCAL request.jwt.claims='{"role":"authenticated","is_anonymous":false}';
@@ -104,7 +124,64 @@ BEGIN
   RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: wrong-branch draft accepted';
  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $draft_creation$;
+
+-- Explicit restored INSERT path (expected revision zero), not the archived draft.
+DO $fresh_insert$
+DECLARE first_result jsonb; replay_result jsonb;
+BEGIN
+ first_result:=public.save_staff_clinical_encounter_draft(
+ '11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333',
+ 'a7171717-7777-4717-8717-171717171717','a8171717-7777-4717-8717-171717171717',0,
+ 'FRESH RESTORED DRAFT','First examination','Observe','Return');
+ replay_result:=public.save_staff_clinical_encounter_draft(
+ '11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333',
+ 'a7171717-7777-4717-8717-171717171717','a8171717-7777-4717-8717-171717171717',0,
+ 'FRESH RESTORED DRAFT','First examination','Observe','Return');
+ IF first_result IS DISTINCT FROM replay_result
+ OR first_result->>'kind'<>'saved' OR first_result->>'id' IS NULL
+ OR (first_result->>'revision')::integer<>1
+ OR first_result->>'appointmentId'<>'a7171717-7777-4717-8717-171717171717'
+ OR first_result->>'branchId'<>'11111111-0000-4000-8000-000000000077'
+ OR first_result->>'petId'<>'33333333-3333-4333-8333-333333333333'
+ OR first_result->>'authorId'<>'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+ OR first_result->>'editorId'<>'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+ THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: fresh create/replay response or attribution'; END IF;
+ BEGIN
+  PERFORM public.save_staff_clinical_encounter_draft(
+   '11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333',
+   'a7171717-7777-4717-8717-171717171717','a8171717-7777-4717-8717-171717171717',0,
+   'CHANGED REPLAY PAYLOAD','First examination','Observe','Return');
+  RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: changed fresh nonce replay accepted';
+ EXCEPTION WHEN unique_violation THEN NULL; END;
+END $fresh_insert$;
 RESET ROLE;
+
+-- Private-row checks execute as PG17 superuser after role RESET; no extra grants.
+DO $fresh_insert_fidelity$
+DECLARE d public.clinical_encounter_drafts%rowtype;
+BEGIN
+ SELECT * INTO d FROM public.clinical_encounter_drafts WHERE appointment_id='a7171717-7777-4717-8717-171717171717';
+ IF NOT FOUND OR d.revision<>1 OR d.status<>'draft'
+ OR d.author_id<>'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+ OR d.last_edited_by<>'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+ OR d.branch_id<>'11111111-0000-4000-8000-000000000077'
+ OR d.pet_id<>'33333333-3333-4333-8333-333333333333'
+ OR d.complaint<>'FRESH RESTORED DRAFT'
+ OR (SELECT count(*) FROM public.clinical_encounter_drafts WHERE appointment_id='a7171717-7777-4717-8717-171717171717')<>1
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_audit
+ WHERE appointment_id='a7171717-7777-4717-8717-171717171717' AND draft_id=d.id AND revision=1
+  AND action='created' AND actor_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  AND request_id='a8171717-7777-4717-8717-171717171717')<>1
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_audit
+ WHERE appointment_id='a7171717-7777-4717-8717-171717171717')<>1
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_requests
+ WHERE appointment_id='a7171717-7777-4717-8717-171717171717' AND actor_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  AND request_id='a8171717-7777-4717-8717-171717171717' AND payload->>'expectedRevision'='0'
+  AND response->>'id'=d.id::text AND response->>'revision'='1')<>1
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_requests
+ WHERE appointment_id='a7171717-7777-4717-8717-171717171717')<>1
+ THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: fresh creator/editor/created audit/one receipt'; END IF;
+END $fresh_insert_fidelity$;
 DO $editor_fixture$
 BEGIN
  -- A different previously revoked veterinarian is activated only inside the
@@ -138,6 +215,34 @@ BEGIN
   OR a->>'editorId'<>'ffffffff-ffff-4fff-8fff-ffffffffffff'
   OR (a->>'revision')::integer<>3
  THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: changed editor/immutable author'; END IF;
+
+ -- Independently prove the SECOND authorized veterinarian revises FRESH draft.
+ a:=public.save_staff_clinical_encounter_draft(
+  '11111111-0000-4000-8000-000000000077',
+  '33333333-3333-4333-8333-333333333333',
+  'a7171717-7777-4717-8717-171717171717','b8171717-7777-4717-8717-171717171717',1,
+  'FRESH SECOND VET REVISION','Second examination','Review','Return');
+ IF a->>'kind'<>'saved' OR (a->>'revision')::integer<>2
+ OR a->>'appointmentId'<>'a7171717-7777-4717-8717-171717171717'
+ OR a->>'authorId'<>'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+ OR a->>'editorId'<>'ffffffff-ffff-4fff-8fff-ffffffffffff'
+ THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: fresh second editor revision/creator'; END IF;
+ BEGIN
+  PERFORM public.save_staff_clinical_encounter_draft(
+   '11111111-0000-4000-8000-000000000077',
+   '33333333-3333-4333-8333-333333333333',
+   'a7171717-7777-4717-8717-171717171717','c8171717-7777-4717-8717-171717171717',1,
+   'STALE FRESH REVISION','Second examination','Review','Return');
+  RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: stale freshly created revision accepted';
+ EXCEPTION WHEN serialization_failure THEN NULL; END;
+ BEGIN
+  PERFORM public.save_staff_clinical_encounter_draft(
+   '22222222-0000-4000-8000-000000000077',
+   '33333333-3333-4333-8333-333333333333',
+   'a7171717-7777-4717-8717-171717171717','d8171717-7777-4717-8717-171717171717',2,
+   'FOREIGN BRANCH','Second examination','Review','Return');
+  RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: wrong branch freshly created draft accepted';
+ EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $second_editor$;
 RESET ROLE;
 DO $post_edit$
@@ -160,6 +265,22 @@ BEGIN
    WHERE actor_id='ffffffff-ffff-4fff-8fff-ffffffffffff'
      AND request_id='d3939393-2222-4222-8222-333333333333'
      AND response->>'kind'='saved')<>1
+ OR (SELECT count(*) FROM public.clinical_encounter_drafts
+  WHERE appointment_id='a7171717-7777-4717-8717-171717171717' AND revision=2
+   AND author_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+   AND last_edited_by='ffffffff-ffff-4fff-8fff-ffffffffffff'
+   AND complaint='FRESH SECOND VET REVISION')<>1
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_audit
+  WHERE appointment_id='a7171717-7777-4717-8717-171717171717' AND revision=2 AND action='revised'
+   AND actor_id='ffffffff-ffff-4fff-8fff-ffffffffffff'
+   AND request_id='b8171717-7777-4717-8717-171717171717')<>1
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_audit
+  WHERE appointment_id='a7171717-7777-4717-8717-171717171717')<>2
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_requests
+  WHERE appointment_id='a7171717-7777-4717-8717-171717171717' AND actor_id='ffffffff-ffff-4fff-8fff-ffffffffffff'
+   AND request_id='b8171717-7777-4717-8717-171717171717' AND response->>'revision'='2')<>1
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_requests
+  WHERE appointment_id='a7171717-7777-4717-8717-171717171717')<>2
  THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: draft audit receipt or immutable attribution'; END IF;
  -- Restore F to original revoked security subject BEFORE testing rejection.
  UPDATE public.staff_memberships SET is_active=false
@@ -198,6 +319,15 @@ BEGIN
     'UNAUTHORIZED '||label,'','','');
    RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: % wrote prohibited draft',label;
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+
+  BEGIN
+   PERFORM public.save_staff_clinical_encounter_draft(
+    '11111111-0000-4000-8000-000000000077',
+    '33333333-3333-4333-8333-333333333333',
+    'a7171717-7777-4717-8717-171717171717',gen_random_uuid(),2,
+    'UNAUTHORIZED FRESH '||label,'','','');
+   RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: % edited new restored draft',label;
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   BEGIN
    PERFORM public.create_staff_appointment_clinical_record(
     'aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',gen_random_uuid(),
@@ -221,11 +351,11 @@ END $denied$;
 RESET ROLE;
 DO $after_denials$
 BEGIN
- IF (SELECT count(*) FROM public.clinical_encounter_drafts)<>1
- OR (SELECT count(*) FROM clinic_private.clinical_draft_audit)<>3
- OR (SELECT count(*) FROM clinic_private.clinical_draft_requests)<>3
+ IF (SELECT count(*) FROM public.clinical_encounter_drafts)<>2
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_audit)<>5
+ OR (SELECT count(*) FROM clinic_private.clinical_draft_requests)<>5
  OR (SELECT count(*) FROM clinic_private.clinical_record_provenance)<>1
  THEN RAISE EXCEPTION 'CLINICAL_RESTORE_FAIL: negative probe persisted private writes'; END IF;
 END $after_denials$;
 ROLLBACK;
-\echo 'PASS: exact actor fixture validation, real unconfirmed veterinarian denied, restored draft create/replay/mismatch/stale/second vet attribution/audit/nonce and no unauthorized persistence';
+\echo 'PASS: exact actor fixture validation, real unconfirmed veterinarian denied, archived-draft revision plus FRESH restored insert/replay/nonce/revision/second vet/stale/branch/role/audit/receipt and rollback';
