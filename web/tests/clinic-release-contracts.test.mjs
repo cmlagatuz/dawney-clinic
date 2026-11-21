@@ -6,8 +6,8 @@ import {CLINIC_ROUTE_CONTRACTS,RELEASE_MISSING_OPERATIONS,STAFF_RELEASE_MODULES,
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 
 test('22 actual routes have unique source-backed contracts, roles, migrations and negative gates',()=>{
- assert.equal(CLINIC_ROUTE_CONTRACTS.length,23)
- assert.equal(new Set(CLINIC_ROUTE_CONTRACTS.map(r=>r.path)).size,22)
+ assert.equal(CLINIC_ROUTE_CONTRACTS.length,25)
+ assert.equal(new Set(CLINIC_ROUTE_CONTRACTS.map(r=>r.path)).size,24)
  assert.ok(CLINIC_ROUTE_CONTRACTS.some(r=>r.id==='attachments'&&r.path==='/app/pets'),'private documents share the patient route but require a separate API contract')
  for(const row of CLINIC_ROUTE_CONTRACTS){
   for(const field of ['id','title','role','scope','flag','request','response','failure','persistence','missing'])
@@ -21,6 +21,27 @@ test('22 actual routes have unique source-backed contracts, roles, migrations an
  }
  for(const path of ['/missing','/app/unknown','/admin/diagnostics'])assert.equal(routeContract(path),null)
 })
+test('machine contract registry matches EVERY actual React Router path, including overview and clinic navigator',()=>{
+ const app=read('src/App.tsx')
+ const routed=[...app.matchAll(/<Route\s+path="([^"]+)"/g)].map(match=>match[1])
+ assert.equal(new Set(routed).size,routed.length,'each actual React Route path is unique')
+ const contracted=[...new Set(CLINIC_ROUTE_CONTRACTS.map(row=>row.path))]
+ assert.deepEqual(contracted.sort(),routed.sort(),'a new actual route must never omit the release API/role/migration contract')
+ assert.deepEqual(CLINIC_ROUTE_CONTRACTS.filter(x=>x.path==='/app/pets').map(x=>x.id),['patients','attachments'],
+   'patient documents share the real pet route but need a separate private-storage contract')
+ const overview=routeContract('/app/overview')
+ assert.equal(overview.id,'owner-overview')
+ assert.equal(overview.persistence,'provider-unverified')
+ assert.deepEqual(overview.writes,[])
+ assert.match(overview.failure,/late responses ignored/)
+ const clinic=routeContract('/app/clinic')
+ assert.equal(clinic.id,'clinic-journey')
+ assert.equal(clinic.persistence,'no-frontend-write')
+ assert.deepEqual(clinic.writes,[])
+ assert.ok(clinic.reads.some(name=>name.includes('assert_staff_branch')))
+ assert.match(clinic.failure,/partially revoked/)
+})
+
 test('communications and finance have no imagined SQL/RPC contract or active client transport',()=>{
  for(const path of ['/app/communications','/app/billing','/app/invoices']){
   const row=routeContract(path)

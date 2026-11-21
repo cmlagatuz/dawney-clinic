@@ -28,6 +28,16 @@ export const CLINIC_ROUTE_CONTRACTS = Object.freeze([
     persistence:'provider-unverified',missing:'Hosted OTP/PKCE/recovery/expiry and two-user JWT acceptance'
   },
   {
+    id:'owner-overview',path:'/app/overview',surface:'owner',title:'Owner overview and verified patient counts',
+    role:'verified owner',scope:'current GoTrue subject, owners.user_id and RLS-filtered owner_id',
+    reads:['readOwner: owners SELECT by verified user_id','listPets: pets SELECT by owner_id','listAppointments: appointments SELECT by owner_id'],
+    writes:[],migration:['20261113070302 phase2 core data security','20261113095318 phase3 appointment lifecycle'],
+    flag:'none',request:'Current verified account; account-keyed owner, patient and appointment read with retry',
+    response:'Server-returned patient totals, upcoming requested/confirmed visits and pending count; never fixture totals',
+    failure:'Loading, denied or failed read clears previous account rows; empty counts only after complete authorized reads; late responses ignored',
+    persistence:'provider-unverified',missing:'Hosted owner A/B JWT and RLS SELECT, account switch, delayed response and refresh acceptance'
+  },
+  {
     id:'owner-profile',path:'/app/profile',surface:'owner',title:'Owner profile',
     role:'verified owner',scope:'owners.user_id equals verified Auth subject',
     reads:['owners SELECT by user_id'],
@@ -85,6 +95,18 @@ export const CLINIC_ROUTE_CONTRACTS = Object.freeze([
     response:'Server-authorized requested/confirmed/cancelled status; returned ID must match',
     failure:'Failed history refresh clears stale data; cancelled/confirmed not inferred from clicking',
     persistence:'provider-unverified',missing:'Hosted requested→confirmed staff-only transition and exact retry under slot conflict'
+  },
+  {
+    id:'clinic-journey',path:'/app/clinic',surface:'owner',title:'Verified owner and staff clinic workflow navigator',
+    role:'verified account; staff shortcuts require active receptionist, veterinarian or administrator',
+    scope:'current account ID, all RLS active staff branch memberships and server assertion for each displayed branch',
+    reads:['verifiedStaffSession backed by staff_memberships','staff_branch_memberships and clinic_branches through createClinicalReadPort.loadBranches','assert_staff_branch RPC for every offered branch'],
+    writes:[],migration:['20261113074938 verified staff bootstrap','20261117233500 issue77 branch foundation','20261118215500 issue58 staff branch read contract'],
+    flag:'hub always available after Auth Guard; VITE_PHASE5A_OPS_UI, VITE_CLINICAL_WORKSPACE_UI, VITE_PHASE5B_PHARMACY_UI and VITE_PHASE5C_BILLING_UI OFF for preview links',
+    request:'Authenticated user requests journey view; staff-only links require all current branch server assertions',
+    response:'Owner navigation for verified account; verified branch labels and feature-gated staff shortcuts only after every assertion succeeds',
+    failure:'No, partially revoked, denied or network-error branch assertion hides ALL staff shortcuts; account or retry change discards late responses',
+    persistence:'no-frontend-write',missing:'Hosted staff JWT, all-branch revocation, wrong-role and account/branch-switch acceptance'
   },
   {
     id:'operations',path:'/app/ops',surface:'staff',title:'Operations queue and day/week',
