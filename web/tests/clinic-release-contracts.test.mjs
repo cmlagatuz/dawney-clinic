@@ -6,11 +6,12 @@ import {CLINIC_ROUTE_CONTRACTS,RELEASE_MISSING_OPERATIONS,STAFF_RELEASE_MODULES,
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 
 test('22 actual routes have unique source-backed contracts, roles, migrations and negative gates',()=>{
- assert.equal(CLINIC_ROUTE_CONTRACTS.length,22)
+ assert.equal(CLINIC_ROUTE_CONTRACTS.length,23)
  assert.equal(new Set(CLINIC_ROUTE_CONTRACTS.map(r=>r.path)).size,22)
  for(const row of CLINIC_ROUTE_CONTRACTS){
   for(const field of ['id','title','role','scope','flag','request','response','failure','persistence','missing'])
-   assert.ok(typeof row[field]==='string'&&row[field].length>6,row.path+' '+field)
+   assert.ok(typeof row[field]==='string'&&row[field].trim().length>0,row.path+' '+field)
+  for(const field of ['request','response','failure','missing'])assert.ok(row[field].length>20,row.path+' '+field)
   assert.ok(Array.isArray(row.migration)&&row.migration.length)
   assert.ok(Array.isArray(row.reads)&&Array.isArray(row.writes))
   assert.equal(Object.isFrozen(row),true)

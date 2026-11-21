@@ -138,7 +138,7 @@ export const CLINIC_ROUTE_CONTRACTS = Object.freeze([
     request:'No request sent; show owner-specific unavailable state',
     response:'No published finance information',
     failure:'No fabricated charges/receipts/payment successful notice',
-    persistence:'missing-server-adapter',missing:'Owner-bound, publication-controlled invoice and receipt read API'
+    persistence:'missing-server-adapter',missing:'MISSING owner-bound, publication-controlled invoice and receipt read API'
   },
   {
     id:'communications',path:'/app/communications',surface:'staff',title:'Consent-bound communications',
