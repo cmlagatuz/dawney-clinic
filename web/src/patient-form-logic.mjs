@@ -66,8 +66,9 @@ export function uploadReducer(state, action) {
     case 'invalid': return { status: 'error', file: null, message: action.message, objectPath: null }
     case 'remove': return emptyUpload
     case 'start': return { ...state, status: 'uploading', message: '' }
+    case 'ack': return { ...state, attachmentId: action.attachmentId }
     case 'saved': return { status: 'saved', file: state.file, message: '', objectPath: null,
-      ...(action.attachmentId ? { attachmentId: action.attachmentId } : {}) }
+      ...(state.attachmentId || action.attachmentId ? { attachmentId: state.attachmentId || action.attachmentId } : {}) }
     case 'unindexed': return { status: 'unindexed', file: state.file, message: 'The file reached private storage but could not be recorded. Retry to finish.', objectPath: action.objectPath }
     case 'error': return { ...state, status: 'error', message: action.message }
     default: return state
