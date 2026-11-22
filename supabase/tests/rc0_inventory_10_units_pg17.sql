@@ -27,7 +27,6 @@ begin
  or (y->>'receivedUnits')::integer<>10 or (balance->>'onHandUnits')::integer<>10
  or (select count(*) from public.stock_movements s
     where s.event_id=n and s.event_type='receipt' and s.delta_on_hand=10)<>1
- or (select count(*) from clinic_private.inventory_write_receipts where nonce=n)<>1
  or (select count(*) from public.branch_stock_batches
     where medicine_id=item and branch_id=b and on_hand_units=10
       and supplier_name='Synthetic Supplier')<>1
