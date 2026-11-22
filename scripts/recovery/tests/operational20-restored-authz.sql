@@ -188,7 +188,7 @@ begin
     'public.review_staff_access(uuid,text,text,uuid[],integer,uuid)'::regprocedure,
     'public.receive_branch_inventory_stock(uuid,uuid,uuid,text,date,text,bigint)'::regprocedure])
  loop
-  if not f.prosecdef or not coalesce('search_path='=any(f.proconfig),false) then
+  if not f.prosecdef or not coalesce((select bool_or(v in ('search_path=', 'search_path=""')) from unnest(f.proconfig) v),false) then
    raise exception 'OPS_RESTORE_FAIL: privileged routine search_path/definer lost: %',f.proname;
   end if;
  end loop;
