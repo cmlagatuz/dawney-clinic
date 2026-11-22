@@ -423,8 +423,8 @@ PR92_PINNED_CONTENT
    "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:scripts/ci/pr88_frontend_pins.sh")" == d4d4531a56abf28605530e8f7573e710b4b9fa44 &&
    "$(git rev-parse "10650396dc968a4685f8f6ba1c6d5f932df117a9:scripts/ci/pr88_frontend_pins.sh")" == 2a9f2ba92baab119c2d781b63063b676eb02fa56 &&
    "$(git rev-parse "$RC0_BACKEND:scripts/ci/pr88_frontend_pins.sh")" == 75af9ae159488b4cf7f6111fb93b760968359dee &&
-   "$(git rev-parse HEAD:scripts/ci/pr88_frontend_pins.sh)" == 840acbfb7272f7c50d76534aa1928e7a112bbae1 &&
-   "$(git hash-object scripts/ci/pr88_frontend_pins.sh)" == 840acbfb7272f7c50d76534aa1928e7a112bbae1 ]] ||
+   "$(git rev-parse HEAD:scripts/ci/pr88_frontend_pins.sh)" == c8a49e08c5e46f2f1636d4161387775a315b10f3 &&
+   "$(git hash-object scripts/ci/pr88_frontend_pins.sh)" == c8a49e08c5e46f2f1636d4161387775a315b10f3 ]] ||
  fail 'historical or PR94-approved source-pin script changed'
 bash scripts/ci/pr88_frontend_pins.sh
 # The combined commit is based on the exact P1-repaired backend and imports
