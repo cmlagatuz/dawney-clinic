@@ -93,6 +93,7 @@ web/src/release/clinic-contracts.mjs
 web/src/release/clinic-release.css
 web/src/release/verified-staff-branches.ts
 web/tests/billing-model.test.mjs
+web/tests/branch-booking.browser.mjs
 web/tests/billing-workspace.browser.test.mjs
 web/tests/clinic-release-contracts.test.mjs
 web/tests/clinic-release-flags.browser.test.mjs
@@ -257,6 +258,12 @@ RC0_SOL_PRIVACY
 [[ "$(git rev-parse "HEAD:supabase/tests/rc0_inventory_10_units_pg17.sql")" == 50e8bdda3cee3cf33fa47e76749254e100e213b2 &&
    "$(git hash-object "supabase/tests/rc0_inventory_10_units_pg17.sql")" == aca09cd3c0b8bdcecc11a61aa1da4eda5e881104 ]] ||
  fail 'RC0 ten-unit PG17 test source drift'
+# The original PR94 Chromium fixture remains frozen in its historical commit.
+# This narrowly adapted combined-React fixture allows owner-only no-role
+# membership SELECT to return [] rather than treating it as an unknown URL.
+[[ "$(git rev-parse "HEAD:web/tests/branch-booking.browser.mjs")" == c2ea66a76bc2361d6aa7c14daf67d4c45dd396d2 &&
+   "$(git hash-object web/tests/branch-booking.browser.mjs)" == c2ea66a76bc2361d6aa7c14daf67d4c45dd396d2 ]] ||
+ fail 'one reviewed RC0 owner-vs-staff Chromium fixture changed'
 # All 20 historical/proposed migrations remain exactly as accepted in PR128.
 test "$(git ls-tree -r --name-only HEAD supabase/migrations | grep -Ec '^supabase/migrations/[0-9]+.*\.sql$')" = 20 ||
  fail 'unexpected migration count'
