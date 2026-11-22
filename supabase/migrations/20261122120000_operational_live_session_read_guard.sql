@@ -16,7 +16,7 @@ declare
  v_sid text;
 begin
  if v_actor is null
-  or v_claims->>'role' <> 'authenticated'
+  or v_claims->>'role' is distinct from 'authenticated'
   or coalesce((v_claims->>'is_anonymous')::boolean,false)
   or not clinic_private.is_permanent_user()
   or v_claims->>'exp' is null
