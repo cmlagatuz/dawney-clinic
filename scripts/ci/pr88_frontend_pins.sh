@@ -26,8 +26,8 @@ while read -r path sha; do
   [[ "$(git rev-parse "961ee716316720821e1ce159815977743b823cee:$path")" == "$sha" &&
      "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:$path")" == db91b57c285f80fa24c4487de9c652f4fd04957f &&
      "$(git rev-parse "10650396dc968a4685f8f6ba1c6d5f932df117a9:$path")" == 3b1fffccd16d002cb02b08e44c932442bd34d66e &&
-     "$(git rev-parse "HEAD:$path")" == 3b1fffccd16d002cb02b08e44c932442bd34d66e &&
-     "$(git hash-object "$path")" == 3b1fffccd16d002cb02b08e44c932442bd34d66e ]] ||
+     "$(git rev-parse "HEAD:$path")" == c2ea66a76bc2361d6aa7c14daf67d4c45dd396d2 &&
+     "$(git hash-object "$path")" == c2ea66a76bc2361d6aa7c14daf67d4c45dd396d2 ]] ||
    fail "CLOUD PR88 ancestor, PR91 browser extension, or reviewed PR94 correction changed: $path"
  else
   [[ "$(git rev-parse "HEAD:$path" 2>/dev/null)" == "$sha" &&
@@ -63,9 +63,9 @@ while read -r path sha; do
  if [[ "$path" == web/tests/branch-booking.browser.mjs ]]; then
   [[ "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:$path")" == db91b57c285f80fa24c4487de9c652f4fd04957f &&
      "$(git rev-parse "10650396dc968a4685f8f6ba1c6d5f932df117a9:$path")" == "$sha" &&
-     "$(git rev-parse "HEAD:$path")" == "$sha" &&
-     "$(git hash-object "$path")" == "$sha" ]] ||
-   fail "CLOUD reviewed PR94 browser correction changed: $path"
+     "$(git rev-parse "HEAD:$path")" == c2ea66a76bc2361d6aa7c14daf67d4c45dd396d2 &&
+     "$(git hash-object "$path")" == c2ea66a76bc2361d6aa7c14daf67d4c45dd396d2 ]] ||
+   fail "CLOUD reviewed PR94 ancestor and exact integrated RC0 browser fixture correction drift: $path"
  else
   [[ "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:$path")" == "$sha" &&
      "$(git rev-parse "10650396dc968a4685f8f6ba1c6d5f932df117a9:$path")" == "$sha" &&
