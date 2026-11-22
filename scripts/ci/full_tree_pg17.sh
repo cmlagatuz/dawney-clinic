@@ -22,7 +22,7 @@ rc0_privacy_blob(){
 rc0_is_reviewed_delta(){
  # Filename-exact new source guard allowlist: no web/** or other wildcards.
  local p="$1"
- awk '/^RC0_EXACT_ALLOWED_PATHS$/{flag=!flag;next} flag{print}' \
+ awk '/^\.github\/workflows\/operational-p2-recovery-pg17\.yml$/{flag=1} flag&&/^RC0_EXACT_ALLOWED_PATHS$/{exit} flag{print}' \
     scripts/ci/rc0_source_guard.sh | grep -Fxq "$p"
 }
 
