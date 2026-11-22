@@ -51,7 +51,7 @@ while read -r path sha;do
 done <<'P2_SOURCE_BLOBS'
 .github/workflows/operational-p2-recovery-pg17.yml 8bbdc94b047ba555ce62cbc3383546428d1d9ab6
 docs/OPERATIONAL_P2_RECOVERY_AND_RLS.md 055efcc67ad5ee0f72767ef5513915214ab2ea03
-scripts/recovery/tests/operational20-restored-authz.sql 1be627b295f791fc8c29a6f809182dfa0079bde9
+scripts/recovery/tests/operational20-restored-authz.sql b928dc91fd753d31b6aa6c89c9ec2489366cd489
 scripts/recovery/tests/operational20-signed-restore.sh a396092687301d1f3b1cbf2b0ea573aae3d42cb6
 supabase/migrations/20261122120000_operational_live_session_read_guard.sql c96ab853629a6abb05518697b5c4f1a7b1e4fd5e
 supabase/tests/operational20_before_fix_repro.sql 7a2fde3978036e863b525b2b92483e05da73cce0
