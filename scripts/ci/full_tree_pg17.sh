@@ -308,7 +308,12 @@ git merge-base --is-ancestor ebe6caf8a1f9f17fb00739986b1ebdb83e2d9d0d "$EXPECTED
  fail 'operational child missing exact frozen PR124 ancestor'
 [[ "$(git rev-parse HEAD:scripts/ci/operational_source_guard.sh)" == b43652ee31c9f8b4f11260e1c82907907e17cfea ]] ||
  fail 'operational guard blob changed'
-bash scripts/ci/operational_source_guard.sh
+# The original PR126 guard is immutable and pinned above. This correction
+# inherits every original PR126 blob, then enforces an exact nine-path child.
+[[ "$(git rev-parse "HEAD:scripts/ci/pr126_p2_source_guard.sh")" == 8b04508dff9fee8fb7ec74738102c955d0a25b6f &&
+   "$(git hash-object scripts/ci/pr126_p2_source_guard.sh)" == 8b04508dff9fee8fb7ec74738102c955d0a25b6f ]] ||
+ fail 'P2 child exact source guard blob drifted'
+bash scripts/ci/pr126_p2_source_guard.sh
 while read -r path sha;do
  [[ "$(git rev-parse "f9b2ad473ab2b379a48050eaea5678fe0644c40b:$path")" == "$sha" ]] ||
  fail "frozen PR113 clinical ACL recovery blob drift: $path"
@@ -570,7 +575,15 @@ while IFS= read -r path; do
   supabase/migrations/20261121201000_staff_self_service_approval_accountant.sql|\
   supabase/migrations/20261121202000_inventory_transactional_branch_ops.sql|\
   supabase/tests/operational_staff_inventory_pg17.sql|\
-  web/src/lib/operational-rpcs.ts) ;;
+  web/src/lib/operational-rpcs.ts|\
+   .github/workflows/operational-p2-recovery-pg17.yml|\
+   docs/OPERATIONAL_P2_RECOVERY_AND_RLS.md|\
+   scripts/ci/pr126_p2_source_guard.sh|\
+   scripts/recovery/tests/operational20-restored-authz.sql|\
+   scripts/recovery/tests/operational20-signed-restore.sh|\
+   supabase/migrations/20261122120000_operational_live_session_read_guard.sql|\
+   supabase/tests/operational20_before_fix_repro.sql|\
+   supabase/tests/operational20_session_rls_pg17.sql) ;;
  *) fail "unexpected source change against PR69: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
