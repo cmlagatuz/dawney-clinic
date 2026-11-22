@@ -2,6 +2,30 @@
 # CI-only, real local PG17: reviewed PR69+PR70+PR71 staff+PR68 security source.
 set -Eeuo pipefail
 fail(){ echo "FULL_TREE_GATE_BLOCKED: $*" >&2; exit 1; }
+# Historic release SHA/ancestry, SQL, booking and recovery pins remain enforced.
+# The single approved newer frontend + privacy source is separately pinned.
+RC0_BACKEND=5bb687ee33a670618b1eb60762b1a5625a810bf4
+RC0_CLOUD=930a7c7a13cf1d5516f04ea024e68dfabd5df064
+RC0_PRIVACY=2e06b9b16866e16e551d3bb9e9e0f3f38e102e33
+rc0_cloud_blob(){
+ local p="$1" got reviewed
+ got="$(git rev-parse "HEAD:$p" 2>/dev/null)" || return 1
+ reviewed="$(git rev-parse "$RC0_CLOUD:$p" 2>/dev/null)" || return 1
+ [[ "$got" == "$reviewed" && "$(git hash-object "$p")" == "$reviewed" ]]
+}
+rc0_privacy_blob(){
+ local p="$1" got reviewed
+ got="$(git rev-parse "HEAD:$p" 2>/dev/null)" || return 1
+ reviewed="$(git rev-parse "$RC0_PRIVACY:$p" 2>/dev/null)" || return 1
+ [[ "$got" == "$reviewed" && "$(git hash-object "$p")" == "$reviewed" ]]
+}
+rc0_is_reviewed_delta(){
+ # Filename-exact new source guard allowlist: no web/** or other wildcards.
+ local p="$1"
+ awk '/^RC0_EXACT_ALLOWED_PATHS$/{flag=!flag;next} flag{print}' \
+    scripts/ci/rc0_source_guard.sh | grep -Fxq "$p"
+}
+
 [[ "$GITHUB_ACTIONS" == true && "$GITHUB_EVENT_NAME" == pull_request &&
    "$GITHUB_REPOSITORY" == cmlagatuz/dawney-clinic &&
    "$PGHOST" == 127.0.0.1 && "$PGPORT" == 5432 &&
@@ -313,7 +337,8 @@ git merge-base --is-ancestor ebe6caf8a1f9f17fb00739986b1ebdb83e2d9d0d "$EXPECTED
 [[ "$(git rev-parse "HEAD:scripts/ci/pr126_p2_source_guard.sh")" == 3d547abce1b6e2f3560e9dc4fbe9e8597e78933e &&
    "$(git hash-object scripts/ci/pr126_p2_source_guard.sh)" == 3d547abce1b6e2f3560e9dc4fbe9e8597e78933e ]] ||
  fail 'P2 child exact source guard blob drifted'
-bash scripts/ci/pr126_p2_source_guard.sh
+# The original PR128 corrected gate remains immutable, protected by the unified exact-tree guard.
+bash scripts/ci/rc0_source_guard.sh
 while read -r path sha;do
  [[ "$(git rev-parse "f9b2ad473ab2b379a48050eaea5678fe0644c40b:$path")" == "$sha" ]] ||
  fail "frozen PR113 clinical ACL recovery blob drift: $path"
@@ -397,8 +422,9 @@ PR92_PINNED_CONTENT
 [[ "$(git rev-parse "961ee716316720821e1ce159815977743b823cee:scripts/ci/pr88_frontend_pins.sh")" == d4d4531a56abf28605530e8f7573e710b4b9fa44 &&
    "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:scripts/ci/pr88_frontend_pins.sh")" == d4d4531a56abf28605530e8f7573e710b4b9fa44 &&
    "$(git rev-parse "10650396dc968a4685f8f6ba1c6d5f932df117a9:scripts/ci/pr88_frontend_pins.sh")" == 2a9f2ba92baab119c2d781b63063b676eb02fa56 &&
-   "$(git rev-parse HEAD:scripts/ci/pr88_frontend_pins.sh)" == 75af9ae159488b4cf7f6111fb93b760968359dee &&
-   "$(git hash-object scripts/ci/pr88_frontend_pins.sh)" == 75af9ae159488b4cf7f6111fb93b760968359dee ]] ||
+   "$(git rev-parse "$RC0_BACKEND:scripts/ci/pr88_frontend_pins.sh")" == 75af9ae159488b4cf7f6111fb93b760968359dee &&
+   "$(git rev-parse HEAD:scripts/ci/pr88_frontend_pins.sh)" == 840acbfb7272f7c50d76534aa1928e7a112bbae1 &&
+   "$(git hash-object scripts/ci/pr88_frontend_pins.sh)" == 840acbfb7272f7c50d76534aa1928e7a112bbae1 ]] ||
  fail 'historical or PR94-approved source-pin script changed'
 bash scripts/ci/pr88_frontend_pins.sh
 # The combined commit is based on the exact P1-repaired backend and imports
@@ -426,7 +452,8 @@ while IFS= read -r path; do
    ;;
   *)
    [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$EXPECTED_FRONTEND_SHA:$path")" ]] ||
-    fail "untouched PR70 frontend source drift: $path"
+    rc0_cloud_blob "$path" ||
+    fail "unreviewed PR70 frontend source drift: $path"
    ;;
  esac
 done <<'CLAUDE'
@@ -440,8 +467,14 @@ web/tests/owner-booking-view.test.mjs
 CLAUDE
 # Every imported Grok-accepted PR68 source blob must remain unchanged.
 while IFS= read -r path; do
- [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$EXPECTED_SECURITY_SHA:$path")" ]] ||
- fail "Grok-accepted hosted harness drift: $path"
+ case "$path" in
+  scripts/hosted-acceptance/acceptance.mjs|scripts/hosted-acceptance/guards.mjs|scripts/hosted-acceptance/tests/acceptance.test.mjs)
+   rc0_privacy_blob "$path" ||
+    fail "SOL-accepted PR119 revoked-vet security source drift: $path";;
+  *)
+   [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$EXPECTED_SECURITY_SHA:$path")" ]] ||
+    fail "Grok-accepted unchanged hosted source drift: $path";;
+ esac
 done <<'GROK'
 .github/workflows/hosted-security-acceptance-source.yml
 docs/HOSTED_SECURITY_ACCEPTANCE.md
@@ -457,8 +490,12 @@ while read -r path sha; do
   fail "original reviewed PR71 staff UI source drift: $path"
  case "$path" in
   web/src/ops/port-adapter.d.mts|web/src/ops/port-adapter.mjs|web/src/pages/staff/OpsPage.tsx)
-    # PR81 exact reviewed replacements pinned below; no unreviewed exception.
+    # PR81 pins remain; newer OpsPage checked through exact PR127 blob later.
     ;;
+  web/src/ops/port.ts|web/tests/ops-port.test.mjs)
+    rc0_cloud_blob "$path" ||
+     fail "unreviewed PR127 ops port/test replacement";;
+
   *)
     [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
        "$(git hash-object "$path")" == "$sha" ]] ||
@@ -584,7 +621,8 @@ while IFS= read -r path; do
    supabase/migrations/20261122120000_operational_live_session_read_guard.sql|\
    supabase/tests/operational20_before_fix_repro.sql|\
    supabase/tests/operational20_session_rls_pg17.sql) ;;
- *) fail "unexpected source change against PR69: $path";;
+ *) rc0_is_reviewed_delta "$path" ||
+      fail "source not in exact PR127/PR119+CI filename manifest: $path";;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
 # Public site files must be identical to BOTH exact PR79 and PR81 source
@@ -620,10 +658,10 @@ NAGA_PUBLIC_BLOBS
 # PR81-only staff changes and additions are separately exact-pinned; this
 # replaces no other PR71 invariant and cannot authorize additional paths.
 while read -r path sha; do
- [[ "$(git rev-parse "$EXPECTED_BRANCH_UI_SHA:$path")" == "$sha" &&
-    "$(git rev-parse "HEAD:$path")" == "$sha" &&
-    "$(git hash-object "$path")" == "$sha" ]] ||
-  fail "reviewed PR81 branch selector source drift: $path"
+ [[ "$(git rev-parse "$EXPECTED_BRANCH_UI_SHA:$path")" == "$sha" ]] &&
+ { [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
+        "$(git hash-object "$path")" == "$sha" ]] || rc0_cloud_blob "$path"; } ||
+  fail "reviewed PR81 or exact PR127 branch source drift: $path"
 done <<'BRANCH_UI_BLOBS'
 web/src/ops/branch-model.d.mts dd33df741e89f2d354a676d471b39b5c947fc8e4
 web/src/ops/branch-model.mjs c3927986e90c555490985fa886df5fa546401ed2
