@@ -310,8 +310,8 @@ git merge-base --is-ancestor ebe6caf8a1f9f17fb00739986b1ebdb83e2d9d0d "$EXPECTED
  fail 'operational guard blob changed'
 # The original PR126 guard is immutable and pinned above. This correction
 # inherits every original PR126 blob, then enforces an exact nine-path child.
-[[ "$(git rev-parse "HEAD:scripts/ci/pr126_p2_source_guard.sh")" == 8b04508dff9fee8fb7ec74738102c955d0a25b6f &&
-   "$(git hash-object scripts/ci/pr126_p2_source_guard.sh)" == 8b04508dff9fee8fb7ec74738102c955d0a25b6f ]] ||
+[[ "$(git rev-parse "HEAD:scripts/ci/pr126_p2_source_guard.sh")" == b90027ccba437c83ff0d2e723e1c5583ba2e759d &&
+   "$(git hash-object scripts/ci/pr126_p2_source_guard.sh)" == b90027ccba437c83ff0d2e723e1c5583ba2e759d ]] ||
  fail 'P2 child exact source guard blob drifted'
 bash scripts/ci/pr126_p2_source_guard.sh
 while read -r path sha;do
