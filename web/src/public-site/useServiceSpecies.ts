@@ -8,7 +8,7 @@ import { serviceSpeciesView, type ServiceSpeciesEntry, type ServiceSpeciesView }
  * Refetches on service change; the view is derived against the current service so stale responses cannot apply.
  */
 export function useServiceSpecies(user: User | null, serviceId: string): ServiceSpeciesView & { reload: () => void } {
-  const [entry, setEntry] = useState<ServiceSpeciesEntry | null>(null)
+  const [entry, setEntry] = useState<(ServiceSpeciesEntry & { accountId: string; revision: number }) | null>(null)
   const [n, setN] = useState(0)
   const uid = user?.id ?? null // see usePatientEligibility: key on the account, not the object
   useEffect(() => {
@@ -16,11 +16,11 @@ export function useServiceSpecies(user: User | null, serviceId: string): Service
     if (!user || !serviceId) return
     let live = true
     listServiceSpeciesIds(serviceId)
-      .then(ids => { if (live) setEntry({ serviceId, status: 'ready', ids }) })
-      .catch(err => { if (live) setEntry({ serviceId, status: 'error', message: err instanceof Error ? err.message : '' }) })
+      .then(ids => { if (live) setEntry({ accountId: uid!, revision: n, serviceId, status: 'ready', ids }) })
+      .catch(err => { if (live) setEntry({ accountId: uid!, revision: n, serviceId, status: 'error', message: err instanceof Error ? err.message : '' }) })
     return () => { live = false }
   }, [uid, serviceId, n])
   const reload = useCallback(() => setN(v => v + 1), [])
   const signedIn = Boolean(user)
-  return useMemo(() => ({ ...serviceSpeciesView(signedIn ? serviceId : '', entry), reload }), [signedIn, serviceId, entry, reload])
+  return useMemo(() => ({ ...serviceSpeciesView(signedIn ? serviceId : '', entry?.accountId === uid && entry.revision === n ? entry : null), reload }), [signedIn, uid, n, serviceId, entry, reload])
 }

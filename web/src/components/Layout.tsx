@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/AuthProvider'
 import { supabase } from '../lib/supabase'
 import { Icon, ThemeToggle, initials } from './ui'
 import { OPS_UI_ENABLED } from '../ops/flag'
+import { verifiedStaffNavigationBranches } from '../release/verified-staff-branches'
 
 /**
  * Owner-supplied Dawney Animal Clinic logo (original artwork, unmodified, 1:1 with built-in margin).
@@ -32,15 +33,58 @@ export function PublicLayout() {
     <footer className="public-footer">Dawney Animal Clinic · Secure account access</footer></div>
 }
 
+const billingPreview = import.meta.env.VITE_PHASE5C_BILLING_UI === 'true'
 const nav = [
   { to: '/app/overview', label: 'Overview', icon: 'home' },
   { to: '/app/pets', label: 'My patients', icon: 'paw' },
   { to: '/app/appointments', label: 'Appointments', icon: 'calendar' },
   { to: '/app/profile', label: 'My profile', icon: 'user' },
+  { to: '/app/clinic', label: 'Clinic journey', icon: 'pulse' },
+  { to: '/app/staff-access', label: 'My staff access', icon: 'shield' },
 ] as const
-/** Feature-OFF staff preview link: only present when VITE_PHASE5A_OPS_UI=true at build time. */
+/** All staff shortcuts require *current server-verified* active branch membership. */
 const staffNav = OPS_UI_ENABLED ? [{ to: '/app/ops', label: 'Clinic operations', icon: 'pulse' }] as const : []
-const titles: Record<string, string> = Object.fromEntries([...nav, ...staffNav].map(n => [n.to, n.label]))
+const ownerBillingNav = billingPreview ? [{ to: '/app/invoices', label: 'My invoices', icon: 'calendar' }] as const : []
+const clinicalPreview = import.meta.env.VITE_CLINICAL_WORKSPACE_UI === 'true'
+const pharmacyPreview = import.meta.env.VITE_PHASE5B_PHARMACY_UI === 'true'
+const titles: Record<string, string> = Object.fromEntries([...nav, ...ownerBillingNav, ...staffNav].map(n => [n.to, n.label]))
+if(clinicalPreview)titles['/app/clinical']='Patient charts & encounters'
+if(pharmacyPreview)titles['/app/pharmacy']='Veterinary pharmacy'
+if(billingPreview)titles['/app/billing']='Clinic billing'
+titles['/app/communications']='Communications & consent'
+titles['/app/staff-management']='Staff management'
+titles['/app/inventory']='Inventory management'
+
+/** Never offer a staff-only shortcut merely because a build flag is enabled.
+ * A confirmed account must also have active RLS-backed branch membership. */
+function ClinicalStaffNavigation(){
+  const {user}=useAuth()
+  const account=user?.id??null
+  const [access,setAccess]=useState<{account:string|null;allowed:boolean;admin:boolean;inventory:boolean}>({account:null,allowed:false,admin:false,inventory:false})
+  useEffect(()=>{
+    let live=true
+    setAccess({account,allowed:false,admin:false,inventory:false})
+    if(!user||!account)return ()=>{live=false}
+    void verifiedStaffNavigationBranches(user).then(branches=>{
+      if(live)setAccess({account,allowed:branches.length>0,
+        admin:branches.some(branch=>branch.role==='administrator'),
+        inventory:branches.some(branch=>branch.role==='administrator'||branch.role==='receptionist')})
+    },()=>{if(live)setAccess({account,allowed:false,admin:false,inventory:false})})
+    return ()=>{live=false}
+  },[account])
+  if(!account||access.account!==account||!access.allowed)return null
+  return <nav className="main-nav" aria-label="Clinic staff workspaces">
+    <p className="nav-label">Clinic staff · preview</p>
+    <NavLink to="/app/clinic"><Icon name="pulse"/>Clinic workflow</NavLink>
+    {OPS_UI_ENABLED&&<NavLink to="/app/ops"><Icon name="calendar"/>Clinic operations</NavLink>}
+    {clinicalPreview&&<NavLink to="/app/clinical"><Icon name="pulse"/>Patient charts & encounters</NavLink>}
+    {pharmacyPreview&&<NavLink to="/app/pharmacy"><Icon name="shield"/>Veterinary pharmacy</NavLink>}
+    {billingPreview&&<NavLink to="/app/billing"><Icon name="calendar"/>Billing & invoices</NavLink>}
+    {access.inventory&&<NavLink to="/app/inventory"><Icon name="pulse"/>Inventory management · preview</NavLink>}
+    {access.admin&&<NavLink to="/app/staff-management"><Icon name="shield"/>Staff management · preview</NavLink>}
+    <NavLink to="/app/communications"><Icon name="shield"/>Communications · unavailable</NavLink>
+  </nav>
+}
 
 export function AppLayout() {
   const { user } = useAuth()
@@ -93,13 +137,10 @@ export function AppLayout() {
       <Brand />
       <nav className="main-nav" aria-label="Pet owner portal">
         <p className="nav-label">Pet owner portal</p>
-        {nav.map(n => <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>)}
+        {[...nav,...ownerBillingNav].map(n => <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>)}
       </nav>
-      {staffNav.length > 0 && <nav className="main-nav" aria-label="Clinic staff preview">
-        <p className="nav-label">Clinic staff (preview)</p>
-        {staffNav.map(n => <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>)}
-      </nav>}
-      <div className="sidebar-bottom"><small>Signed in as</small><span className="truncate">{email}</span>
+      <ClinicalStaffNavigation/>
+      <div className="sidebar-bottom"><NavLink to="/" className="button button-quiet">Public clinic website</NavLink><small>Signed in as</small><span className="truncate">{email}</span>
         <button type="button" className="button button-secondary" disabled={leaving} onClick={() => void signOut()}>{leaving ? 'Signing out…' : 'Sign out'}</button>
         {error && <p role="alert" className="error-text">{error}</p>}
       </div>

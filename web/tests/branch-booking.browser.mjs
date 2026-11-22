@@ -105,6 +105,12 @@ async function fixture(browser, account, width = 768, theme = 'light') {
         ])
       case 'appointment_resources':
         return json(route, [ids.room, ids.secondRoom].map(id => ({ id, branch_id: filter('branch_id'), is_active: true })))
+      // Current PR127 staff/owner shell asks for the CURRENT global membership
+      // while deciding whether staff navigation is permitted. This owner
+      // fixture has NO staff role; return a real 200/empty authorized result,
+      // never invent a membership or treat a denied read as a privilege.
+      case 'staff_memberships':
+        return json(route, [])
       case 'owners':
         return json(route, account && filter('user_id') === account.owner.user_id ? [account.owner] : [])
       case 'pets': {

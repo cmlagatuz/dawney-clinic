@@ -13,14 +13,21 @@ fail(){ echo "PR88_CLOUD_SOURCE_BLOCKED: $*" >&2; exit 1; }
 # This CI-only child DESCENDS from the exact PR88 source commit.
 # Full-tree PG17 separately verifies exact ancestry and unchanged prior source.
 while read -r path sha; do
- if [[ "$path" == web/tests/branch-booking.browser.mjs ]]; then
+ if [[ "$path" == web/src/pages/AppointmentsPage.tsx ]]; then
+  # Preserve the historical CLOUD PR88 expected blob and require the exact
+  # newer PR127 owner/history appointment page, separately frozen by RC0 gate.
+  [[ "$sha" == 63c25a2d3725f9f2d712568533429663ce97b0ca &&
+     "$(git rev-parse "HEAD:$path")" == 9c8a1a17ba916449c056f8c4765094239ba01c9f &&
+     "$(git hash-object "$path")" == 9c8a1a17ba916449c056f8c4765094239ba01c9f ]] ||
+    fail "approved PR127 AppointmentsPage drift: $path"
+ elif [[ "$path" == web/tests/branch-booking.browser.mjs ]]; then
   # Preserve the original PR88 test at PR90 and CLOUD's reviewed PR91 extension.
   # PR94 changes only this test again; SOL independently accepted exact blob 3b1fffccd16d002cb02b08e44c932442bd34d66e.
   [[ "$(git rev-parse "961ee716316720821e1ce159815977743b823cee:$path")" == "$sha" &&
      "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:$path")" == db91b57c285f80fa24c4487de9c652f4fd04957f &&
      "$(git rev-parse "10650396dc968a4685f8f6ba1c6d5f932df117a9:$path")" == 3b1fffccd16d002cb02b08e44c932442bd34d66e &&
-     "$(git rev-parse "HEAD:$path")" == 3b1fffccd16d002cb02b08e44c932442bd34d66e &&
-     "$(git hash-object "$path")" == 3b1fffccd16d002cb02b08e44c932442bd34d66e ]] ||
+     "$(git rev-parse "HEAD:$path")" == c2ea66a76bc2361d6aa7c14daf67d4c45dd396d2 &&
+     "$(git hash-object "$path")" == c2ea66a76bc2361d6aa7c14daf67d4c45dd396d2 ]] ||
    fail "CLOUD PR88 ancestor, PR91 browser extension, or reviewed PR94 correction changed: $path"
  else
   [[ "$(git rev-parse "HEAD:$path" 2>/dev/null)" == "$sha" &&
@@ -56,9 +63,9 @@ while read -r path sha; do
  if [[ "$path" == web/tests/branch-booking.browser.mjs ]]; then
   [[ "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:$path")" == db91b57c285f80fa24c4487de9c652f4fd04957f &&
      "$(git rev-parse "10650396dc968a4685f8f6ba1c6d5f932df117a9:$path")" == "$sha" &&
-     "$(git rev-parse "HEAD:$path")" == "$sha" &&
-     "$(git hash-object "$path")" == "$sha" ]] ||
-   fail "CLOUD reviewed PR94 browser correction changed: $path"
+     "$(git rev-parse "HEAD:$path")" == c2ea66a76bc2361d6aa7c14daf67d4c45dd396d2 &&
+     "$(git hash-object "$path")" == c2ea66a76bc2361d6aa7c14daf67d4c45dd396d2 ]] ||
+   fail "CLOUD reviewed PR94 ancestor and exact integrated RC0 browser fixture correction drift: $path"
  else
   [[ "$(git rev-parse "c3ab821bc4cf359a7ea2929356dd035c540d6eb6:$path")" == "$sha" &&
      "$(git rev-parse "10650396dc968a4685f8f6ba1c6d5f932df117a9:$path")" == "$sha" &&
