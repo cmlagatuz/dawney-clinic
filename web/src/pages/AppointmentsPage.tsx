@@ -38,7 +38,10 @@ function OwnerAppointments({ user }: { user: User }) {
     // Token refreshes may supply a new User object without changing the account.
     const account = userRef.current
     let active = true
+    // A failed or revoked read cannot leave the previous history visible.
+    // Only an authoritative new response can restore appointment rows.
     setLoading(true)
+    setList(null)
     setLoadFailed(false)
     void Promise.all([readOwner(account), listPets(account), listAppointments(account)])
       .then(([owner, pets, appointments]) => { if (active) setList({ ownerReady: Boolean(owner), pets, appointments }) })
@@ -60,9 +63,12 @@ function OwnerAppointments({ user }: { user: User }) {
     setError(null)
     setNotice(null)
     try {
-      await cancelAppointment(user, id)
+      const confirmed = await cancelAppointment(user, id)
+      if (confirmed.id !== id || confirmed.status !== 'cancelled') {
+        throw new Error('Cancellation not verified')
+      }
       setAttempt(n => n + 1)
-      setNotice('The appointment has been cancelled.')
+      setNotice('The clinic recorded the cancellation. Refreshing your appointment history…')
     } catch {
       setError('Unable to cancel this booking. Its status may have changed.')
     } finally {

@@ -6,20 +6,33 @@ import { annotatePets, type Eligibility } from './eligibility.mjs'
 export type EligiblePet = CatalogPet & { eligibility: Eligibility }
 export type PatientEligibility = { status: 'loading' | 'ready' | 'error'; pets: EligiblePet[]; reload: () => void }
 
-/** Owner-scoped (RLS) patients + the typed species catalog. Read-only; legacy records are annotated, never modified. */
+type ScopedResult = { accountId: string; revision: number; status: 'ready' | 'error'; pets: EligiblePet[] }
+
+/**
+ * Derive the view against the CURRENT signed-in account and fetch revision.
+ * An old owner's settled pets must never become visible for even one render
+ * while React has not yet run the new account's cleanup effect.
+ */
 export function usePatientEligibility(user: User | null): PatientEligibility {
-  const [s, setS] = useState<{ status: 'loading' | 'ready' | 'error'; pets: EligiblePet[] }>({ status: 'loading', pets: [] })
-  const [n, setN] = useState(0)
-  const uid = user?.id ?? null // new user object on every token refresh must not refetch; a new account id must
+  const accountId = user?.id ?? null
+  const [entry, setEntry] = useState<ScopedResult | null>(null)
+  const [revision, setRevision] = useState(0)
   useEffect(() => {
-    if (!user) { setS({ status: 'loading', pets: [] }); return }
+    if (!user || !accountId) return
     let live = true
-    setS(x => ({ ...x, status: 'loading' }))
     Promise.all([listCatalogPets(user), listAnimalTypes()])
-      .then(([pets, species]) => { if (live) setS({ status: 'ready', pets: annotatePets(pets, species) as EligiblePet[] }) })
-      .catch(() => { if (live) setS({ status: 'error', pets: [] }) })
+      .then(([pets, species]) => {
+        if (live) setEntry({ accountId, revision, status: 'ready', pets: annotatePets(pets, species) as EligiblePet[] })
+      })
+      .catch(() => {
+        if (live) setEntry({ accountId, revision, status: 'error', pets: [] })
+      })
     return () => { live = false }
-  }, [uid, n])
-  const reload = useCallback(() => setN(v => v + 1), [])
-  return { ...s, reload }
+    // Auth token refresh may replace the User object; only the account ID scopes this lookup.
+  }, [accountId, revision])
+  const reload = useCallback(() => setRevision(n => n + 1), [])
+  if (!accountId || entry?.accountId !== accountId || entry.revision !== revision) {
+    return { status: 'loading', pets: [], reload }
+  }
+  return { status: entry.status, pets: entry.pets, reload }
 }

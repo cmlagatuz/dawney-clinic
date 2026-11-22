@@ -4,12 +4,103 @@
  * All I/O must be injected by a SEPARATELY REVIEWED future staging adapter.
  */
 import {randomUUID} from 'node:crypto';
+import {isProxy} from 'node:util/types';
 import {openSync,closeSync,writeFileSync,fsyncSync,renameSync,lstatSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {resolve,join} from 'node:path';
 import {assertFixtures,ensure,isUuid,sha256,storageKey,verifyOwnerGate,verifySignedJwt,PROTECTED_PROJECT_REF} from './guards.mjs';
 
 const roles=['ownerA','ownerB','staff','revoked','anonymousAuth'];
+
+/**
+ * Caller-owned actor tokens are untrusted even after a valid signed approval.
+ * The SAME immutable string must be verified against JWKS/Auth and placed in
+ * every future Authorization header. Never inspect proxies or invoke getters.
+ */
+function ownedActorTokens(actors){
+ ensure(actors!==null&&typeof actors==='object'&&!isProxy(actors)&&
+  !Array.isArray(actors),'actor_tokens_data_only');
+ const proto=Object.getPrototypeOf(actors);
+ ensure(proto===Object.prototype||proto===null,'actor_tokens_data_only');
+ const props=Object.getOwnPropertyDescriptors(actors);
+ const keys=Reflect.ownKeys(props);
+ ensure(keys.length===roles.length&&keys.every(key=>typeof key==='string'&&
+  roles.includes(key)&&props[key].enumerable&&
+  Object.hasOwn(props[key],'value')&&typeof props[key].value==='string'&&
+  props[key].value.length>0&&props[key].value.length<32768),
+  'actor_tokens_data_only');
+ return Object.freeze(Object.fromEntries(roles.map(role=>[role,props[role].value])));
+}
+/**
+ * This manifest chooses which EXISTING foreign rows acceptance probes.
+ * Merely validating caller-owned fixtures leaves a validation-to-use race:
+ * a getter could pass four reads, then substitute nonexistent UUIDs for
+ * cross-owner RLS negatives. Capture all nested values exactly once.
+ *
+ * A plain-data descriptor is required at EVERY depth. Proxy detection occurs
+ * before any reflective operation; getters/setters and exotic prototypes are
+ * never executed. The result owns only immutable scalar strings.
+ */
+const fixtureShape=Object.freeze({
+ ownerA:Object.freeze(['userId','ownerId','petId']),
+ ownerB:Object.freeze(['userId','ownerId','petId']),
+ staff:Object.freeze(['userId','expectedRole']),
+ revoked:Object.freeze(['userId','expectedRole']),
+ anonymousAuth:Object.freeze(['userId']),
+ serviceId:null,resourceId:null,slotA:null,slotB:null
+});
+function fixtureRecord(source,keys){
+ ensure(source!==null&&typeof source==='object'&&!Array.isArray(source)&&
+  !isProxy(source),'fixture_data_only');
+ const proto=Object.getPrototypeOf(source);
+ ensure(proto===Object.prototype||proto===null,'fixture_data_only');
+ const props=Object.getOwnPropertyDescriptors(source);
+ const own=Reflect.ownKeys(props);
+ ensure(own.length===keys.length&&own.every(key=>typeof key==='string'&&
+  keys.includes(key)&&props[key].enumerable&&
+  Object.hasOwn(props[key],'value')),'fixture_data_only');
+ return props;
+}
+function ownedFixtures(source){
+ const names=Object.keys(fixtureShape);
+ const props=fixtureRecord(source,names);
+ const copy={};
+ for(const name of names){
+  const expected=fixtureShape[name];
+  const value=props[name].value;
+  if(expected===null){
+   ensure(typeof value==='string','fixture_data_only');
+   copy[name]=value;
+   continue;
+  }
+  const nested=fixtureRecord(value,expected);
+  const part={};
+  for(const field of expected){
+   ensure(typeof nested[field].value==='string','fixture_data_only');
+   part[field]=nested[field].value;
+  }
+  copy[name]=Object.freeze(part);
+ }
+ const owned=Object.freeze(copy);
+ // Validation now and all future reads consume the SAME owned identity bytes.
+ assertFixtures(owned);
+ const ids=[
+  owned.ownerA.userId,owned.ownerA.ownerId,owned.ownerA.petId,
+  owned.ownerB.userId,owned.ownerB.ownerId,owned.ownerB.petId,
+  owned.staff.userId,owned.revoked.userId,owned.anonymousAuth.userId,
+  owned.serviceId,owned.resourceId
+ ];
+ ensure(ids.every(isUuid)&&new Set(ids).size===ids.length,'fixture_identity_collision');
+ ensure(owned.staff.expectedRole==='veterinarian'&&
+  owned.revoked.expectedRole==='veterinarian','staff_role_fixture');
+ // The original signed plan has only two UTC slots. Refuse ambiguous time
+ // zones or shortened timestamps even if Date.parse accepts them.
+ ensure([owned.slotA,owned.slotB].every(v=>
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v)&&
+  Number.isFinite(Date.parse(v))&&new Date(v).toISOString()===v),
+  'approved_slot_fixture_missing');
+ return owned;
+}
 const allowed=(method,path)=>{
  const exact=['/auth/v1/.well-known/jwks.json','/auth/v1/user'];
  if(method==='GET'&&exact.includes(path))return true;
@@ -35,6 +126,39 @@ const expectRow=(r,label)=>{
  ensure(rows.length===1,'expected_one_'+label);
  return rows[0];
 };
+/**
+ * The checked security subject is an *exact* role/identity tuple, not merely
+ * a row returned by an untrusted query filter. A revoked receptionist proves
+ * nothing about a revoked veterinarian. Reject malformed/ambiguous response
+ * rows before any booking or private Storage mutation.
+ *
+ * The expected userId is the immutable owned fixture AND the JWT subject
+ * already verified against trusted staging JWKS and /auth/v1/user.
+ */
+function expectStaffMembership(response,actor,expected,verifiedSub,active){
+ const label=actor+'_membership';
+ const row=expectRow(response,label);
+ ensure(row!==null&&typeof row==='object'&&!Array.isArray(row)&&
+  !isProxy(row),'membership_data_only');
+ const proto=Object.getPrototypeOf(row);
+ ensure(proto===Object.prototype||proto===null,'membership_data_only');
+ const descriptors=Object.getOwnPropertyDescriptors(row);
+ const keys=Reflect.ownKeys(descriptors);
+ const fields=['user_id','role','is_active'];
+ ensure(keys.length===fields.length&&keys.every(key=>
+  typeof key==='string'&&fields.includes(key)&&
+  descriptors[key].enumerable&&Object.hasOwn(descriptors[key],'value')),
+  'membership_data_only');
+ const userId=descriptors.user_id.value;
+ const role=descriptors.role.value;
+ const enabled=descriptors.is_active.value;
+ ensure(isUuid(userId)&&userId===expected.userId&&
+  userId===verifiedSub&&
+  role===expected.expectedRole&&role==='veterinarian'&&
+  typeof enabled==='boolean'&&enabled===active,
+  label+'_identity_role_status');
+ return Object.freeze({userId,role,isActive:enabled});
+}
 function payloadPdf(runId){
  return Buffer.from('%PDF-1.4\n%DAWNEY_STAGE_'+runId+'\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n','utf8');
 }
@@ -87,17 +211,22 @@ function openRunJournal(directory,gate){
  return {manifest,save};
 }
 
-export async function runHostedAcceptance({
- transport,approval,trust,staging,actors,fixtures,publishableKey,journalDir,now=Date.now()
-}={}){
+export async function runHostedAcceptance(options={}){
+ // Public runtime never accepts any caller-supplied authorization clock. Offline
+ // tests control Date.now only inside their own Node test process.
+ ensure(options!==null&&typeof options==='object'&&!Object.hasOwn(options,'now'),
+   'caller_time_forbidden');
+ const {transport,approval,trust,staging,actors,fixtures:callerFixtures,publishableKey,journalDir}=options;
+ // Both actor and fixture authority is snapped BEFORE owner authorization,
+ // JWT verification, journal creation or injected transport use.
+ const actorTokens=ownedActorTokens(actors);
+ const fixtures=ownedFixtures(callerFixtures);
+ const now=Date.now();
  // No invocation of an injected transport may occur until every safety gate succeeds.
  ensure(transport&&typeof transport.request==='function','no_transport_injected');
  const gate=verifyOwnerGate({approval,trust,staging,now});
  ensure(typeof publishableKey==='string'&&/^sb_publishable_[A-Za-z0-9_-]{4,}$/.test(publishableKey),
    'publishable_key_only');
- assertFixtures(fixtures);
- ensure(actors&&roles.every(a=>typeof actors[a]==='string'&&actors[a].length>0),
-   'signed_test_jwts_required');
  ensure(Date.parse(fixtures.slotA)>now+60000&&Date.parse(fixtures.slotB)>now+60000,
    'expired_staging_slots');
  // Exclusive runId claim happens before ANY injected HTTP call, even JWKS.
@@ -106,7 +235,8 @@ export async function runHostedAcceptance({
 
  async function request(actor,method,path,{body,headers={}}={}){
   ensure(allowed(method,path),'unapproved_http_operation');
-  const token=actors[actor];
+  const token=actor==='anonymous'?null:actorTokens[actor];
+  ensure(actor==='anonymous'||Object.hasOwn(actorTokens,actor),'actor_not_authorized');
   const req={
    origin:gate.origin,actor,method,path,
    headers:{
@@ -165,7 +295,7 @@ export async function runHostedAcceptance({
   ['anonymousAuth',fixtures.anonymousAuth.userId]
  ]);
  for(const [actor,sub] of subjects){
-  verifySignedJwt(actors[actor],jwks,{origin:gate.origin,expectedSub:sub,
+  verifySignedJwt(actorTokens[actor],jwks,{origin:gate.origin,expectedSub:sub,
    anonymous:actor==='anonymousAuth',now});
   const authReply=await request(actor,'GET','/auth/v1/user');
   ensure(authReply.status===200,'auth_user_http_status');
@@ -199,14 +329,21 @@ export async function runHostedAcceptance({
   ensure(denyRead(await select(actor,'pets','id','id=eq.'+owners.petId)),
    'anonymous_patient_leak');
  }
- const staff=expectRow(await select('staff','staff_memberships','user_id,role,is_active',
-  'user_id=eq.'+fixtures.staff.userId),'staff_membership');
- ensure(staff.is_active===true&&staff.role===fixtures.staff.expectedRole,
-  'staff_membership_missing');
- const revoked=expectRow(await select('revoked','staff_memberships','user_id,role,is_active',
-  'user_id=eq.'+fixtures.revoked.userId),'revoked_membership');
- ensure(revoked.is_active===false,'revoked_membership_still_active');
- checked.push('two_owners_anonymous_and_active_revoked_staff_rls');
+ expectStaffMembership(await select('staff','staff_memberships','user_id,role,is_active',
+  'user_id=eq.'+fixtures.staff.userId),'staff',fixtures.staff,subjects.get('staff'),true);
+ expectStaffMembership(await select('revoked','staff_memberships','user_id,role,is_active',
+  'user_id=eq.'+fixtures.revoked.userId),'revoked',fixtures.revoked,subjects.get('revoked'),false);
+ // A revoked staff JWT MUST NOT see either already-verified existing owner
+ // or patient row. Nonexistent UUIDs would falsely pass a broken RLS policy.
+ // These are immutable, owned fixture IDs established by positive owner
+ // reads above; execute before journal mutation, booking or Storage writes.
+ for(const f of [owners,other]){
+  ensure(denyRead(await select('revoked','owners','id','id=eq.'+f.ownerId)),
+   'revoked_owner_leak');
+  ensure(denyRead(await select('revoked','pets','id','id=eq.'+f.petId)),
+   'revoked_patient_leak');
+ }
+ checked.push('two_owners_anonymous_active_revoked_staff_and_revoked_private_owner_patient_rls');
 
  const marker='DAWNEY_STAGE_'+gate.runId;
  const requestNonceA=randomUUID(),requestNonceB=randomUUID();
