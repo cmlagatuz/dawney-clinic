@@ -34,6 +34,7 @@ scripts/ci/rc0_source_guard.sh
 scripts/hosted-acceptance/acceptance.mjs
 scripts/hosted-acceptance/guards.mjs
 scripts/hosted-acceptance/tests/acceptance.test.mjs
+supabase/tests/rc0_inventory_10_units_pg17.sql
 web/src/App.tsx
 web/src/billing/ASTRA_CONTRACT.md
 web/src/billing/OwnerBillingPage.tsx
@@ -253,6 +254,9 @@ scripts/hosted-acceptance/acceptance.mjs ca6489bee35eaa60639ef775fa9c2478d68b9d6
 scripts/hosted-acceptance/guards.mjs 58d5fd6e2444ecd018c21f76b770269ac6ac04a9
 scripts/hosted-acceptance/tests/acceptance.test.mjs 5c47cbefe90f5402994e199899b00e5acd49b75e
 RC0_SOL_PRIVACY
+[[ "$(git rev-parse "HEAD:supabase/tests/rc0_inventory_10_units_pg17.sql")" == aca09cd3c0b8bdcecc11a61aa1da4eda5e881104 &&
+   "$(git hash-object "supabase/tests/rc0_inventory_10_units_pg17.sql")" == aca09cd3c0b8bdcecc11a61aa1da4eda5e881104 ]] ||
+ fail 'RC0 ten-unit PG17 test source drift'
 # All 20 historical/proposed migrations remain exactly as accepted in PR128.
 test "$(git ls-tree -r --name-only HEAD supabase/migrations | grep -Ec '^supabase/migrations/[0-9]+.*\.sql$')" = 20 ||
  fail 'unexpected migration count'
