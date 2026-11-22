@@ -35,23 +35,6 @@ begin
  then raise exception 'OPS_RESTORE_FAIL: accountant/active/revoked membership';end if;
 end $baseline$;
 
--- Stored receipt replay must return EXACT immutable response, never write a lot.
-begin;
-set local role authenticated;
-set local request.jwt.claim.sub='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c3333333-aaaa-4aaa-8aaa-333333333333"}';
-do $received$
-declare item uuid;r jsonb;receipt jsonb;
-begin
- select id into item from public.medicine_catalog where product_code='OPS-SUP-001';
- select response into receipt from clinic_private.inventory_write_receipts
- where actor_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc'
-  and nonce='f2222222-2222-4222-8222-222222222222';
- -- Protected receipt is intentionally only inspected through the current
- -- SECURITY DEFINER RPC below; direct browser SELECT stays unavailable.
-end $received$;
-rollback;
-
 -- Exact persisted inventory receipt replay, zero additional inventory movement.
 begin;
 set local role authenticated;
@@ -205,7 +188,7 @@ begin
     'public.review_staff_access(uuid,text,text,uuid[],integer,uuid)'::regprocedure,
     'public.receive_branch_inventory_stock(uuid,uuid,uuid,text,date,text,bigint)'::regprocedure])
  loop
-  if not f.prosecdef or not ('search_path='=any(f.proconfig)) then
+  if not f.prosecdef or not coalesce('search_path='=any(f.proconfig),false) then
    raise exception 'OPS_RESTORE_FAIL: privileged routine search_path/definer lost: %',f.proname;
   end if;
  end loop;
