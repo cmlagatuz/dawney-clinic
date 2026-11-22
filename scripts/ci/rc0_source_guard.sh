@@ -93,8 +93,8 @@ web/src/release/clinic-contracts.mjs
 web/src/release/clinic-release.css
 web/src/release/verified-staff-branches.ts
 web/tests/billing-model.test.mjs
-web/tests/branch-booking.browser.mjs
 web/tests/billing-workspace.browser.test.mjs
+web/tests/branch-booking.browser.mjs
 web/tests/clinic-release-contracts.test.mjs
 web/tests/clinic-release-flags.browser.test.mjs
 web/tests/clinic-release-train.browser.test.mjs
