@@ -1,0 +1,140 @@
+name: Operational P2 — deleted-session RLS + signed complete PG17 restore
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/operational-p2-recovery-pg17.yml'
+      - 'supabase/migrations/20261122120000_operational_live_session_read_guard.sql'
+      - 'supabase/tests/operational20_before_fix_repro.sql'
+      - 'supabase/tests/operational20_session_rls_pg17.sql'
+      - 'scripts/recovery/tests/operational20-signed-restore.sh'
+      - 'scripts/recovery/tests/operational20-restored-authz.sql'
+      - 'scripts/ci/pr126_p2_source_guard.sh'
+      - 'scripts/ci/full_tree_pg17.sh'
+      - 'docs/OPERATIONAL_P2_RECOVERY_AND_RLS.md'
+permissions:
+  contents: read
+jobs:
+  operational-p2-pg17:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: operational-p2-ci-only
+          POSTGRES_DB: operational20_ci
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d operational20_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: operational-p2-ci-only
+      PGDATABASE: operational20_ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact frozen PR126 SHA and additive source path / blob pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          bash scripts/ci/pr126_p2_source_guard.sh
+          bash -n scripts/recovery/tests/operational20-signed-restore.sh
+          bash -n scripts/ci/full_tree_pg17.sh
+      - name: Check PostgreSQL clients, OpenSSL, GPG, real disposable PG17
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+          command -v openssl
+          command -v gpg
+          command -v docker
+          psql -XAt -c "show server_version_num" | grep -E '^17[0-9]{4}$'
+      - name: Apply exact original ordered migrations 1–17 with original synthetic history
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
+          pg supabase/tests/phase5a_staff_pg17_bootstrap.sql
+          pg supabase/tests/phase4_combined_provider_upgrade.sql
+          for file in \
+            20261113070302_phase2_core_data_security.sql \
+            20261113070834_phase2_index_and_policy_tuning.sql \
+            20261113074938_phase2_verified_auth_and_staff_bootstrap.sql \
+            20261113095318_phase3_appointment_lifecycle.sql \
+            20261113100958_phase3_clinical_storage_policies.sql \
+            20261113101626_phase3_staff_membership_audit.sql \
+            20261113211600_phase4_taxonomy_attachments.sql \
+            20261113211700_phase4_animal_catalog_seed.sql \
+            20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql \
+            20261114090000_phase4_public_booking_contract.sql \
+            20261116002500_phase3_storage_outer_object_path_rls_fix.sql; do
+              pg "supabase/migrations/$file"
+          done
+          pg supabase/tests/phase3_storage_outer_path_synthetic_records.sql
+          psql -X -v ON_ERROR_STOP=1 -q <<'PRE12'
+          create table clinic_ci.issue77_original_pets as select id,to_jsonb(p) old_row from public.pets p;
+          create table clinic_ci.issue77_original_appointments as select id,to_jsonb(a) old_row from public.appointments a;
+          PRE12
+          pg supabase/migrations/20261117233500_issue77_four_branch_foundation.sql
+          pg supabase/tests/issue77_four_branch_pg17_denials.sql
+          # Keep the reviewed synthetic legacy unknown-branch history case.
+          psql -X -v ON_ERROR_STOP=1 -q <<'LEGACY_UNKNOWN'
+          alter table public.clinical_records disable trigger clinical_branch_guard;
+          insert into public.clinical_records(pet_id,branch_id,procedure,authored_by)
+          values('33333333-3333-4333-8333-333333333333',
+           null,'CLINICAL16 old unknown branch record',
+           'dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+          alter table public.clinical_records enable trigger clinical_branch_guard;
+          LEGACY_UNKNOWN
+          pg supabase/tests/issue58_staff_branch_queue_fixture.sql
+          pg supabase/migrations/20261118203500_issue51_branch_booking_security.sql
+          pg supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql
+          pg supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql
+          pg supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql
+          pg supabase/tests/clinical_chart_encounter_pg17.sql
+          pg supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql
+          pg supabase/tests/clinical_provenance_pagination_pg17.sql
+          echo 'PASS: #1–17 ordered PG17 with preserved Chow Chow/patient appointment and clinical draft security'
+      - name: Original #18/#19 — operational positive fixtures then RED deleted-session reproduction
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -q <<'AUTH_SESSION_SHIM'
+          -- Only provider-owned Auth semantics represented in disposable CI.
+          create table auth.sessions (
+           id uuid primary key,
+           user_id uuid not null references auth.users(id) on delete cascade
+          );
+          AUTH_SESSION_SHIM
+          for migration in \
+            supabase/migrations/20261121201000_staff_self_service_approval_accountant.sql \
+            supabase/migrations/20261121202000_inventory_transactional_branch_ops.sql;do
+            psql -X -q -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          psql -X -q -v ON_ERROR_STOP=1 -f supabase/tests/operational_staff_inventory_pg17.sql
+          psql -X -q -v ON_ERROR_STOP=1 -f supabase/tests/operational20_before_fix_repro.sql
+          echo 'PASS: P2-A RED reproduced against real synthetic branch rows and unexpired deleted-session JWT'
+      - name: Add #20, verify GREEN direct SELECT/RPC denial and source authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -q -v ON_ERROR_STOP=1 -f supabase/migrations/20261122120000_operational_live_session_read_guard.sql
+          psql -X -q -v ON_ERROR_STOP=1 -f supabase/tests/operational20_session_rls_pg17.sql
+          echo 'PASS: P2-A GREEN, all five protected tables fail-closed after committed deleted session'
+      - name: Sign and encrypt PG17 full operational database, restore twice and verify invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/recovery/tests/operational20-signed-restore.sh
+          echo 'PASS: P2-B signed complete #1–20 operational restore, grants, RLS, source definition, nonce, audit and stock'
