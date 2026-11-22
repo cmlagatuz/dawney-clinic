@@ -256,7 +256,7 @@ scripts/hosted-acceptance/guards.mjs 58d5fd6e2444ecd018c21f76b770269ac6ac04a9
 scripts/hosted-acceptance/tests/acceptance.test.mjs 5c47cbefe90f5402994e199899b00e5acd49b75e
 RC0_SOL_PRIVACY
 [[ "$(git rev-parse "HEAD:supabase/tests/rc0_inventory_10_units_pg17.sql")" == 50e8bdda3cee3cf33fa47e76749254e100e213b2 &&
-   "$(git hash-object "supabase/tests/rc0_inventory_10_units_pg17.sql")" == aca09cd3c0b8bdcecc11a61aa1da4eda5e881104 ]] ||
+   "$(git hash-object "supabase/tests/rc0_inventory_10_units_pg17.sql")" == 50e8bdda3cee3cf33fa47e76749254e100e213b2 ]] ||
  fail 'RC0 ten-unit PG17 test source drift'
 # The original PR94 Chromium fixture remains frozen in its historical commit.
 # This narrowly adapted combined-React fixture allows owner-only no-role
