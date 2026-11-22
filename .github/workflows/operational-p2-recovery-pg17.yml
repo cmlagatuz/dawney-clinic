@@ -132,6 +132,12 @@ jobs:
           psql -X -q -v ON_ERROR_STOP=1 -f supabase/migrations/20261122120000_operational_live_session_read_guard.sql
           psql -X -q -v ON_ERROR_STOP=1 -f supabase/tests/operational20_session_rls_pg17.sql
           echo 'PASS: P2-A GREEN, all five protected tables fail-closed after committed deleted session'
+      - name: Actual integrated RC0 Add Item, receive TEN units, replay and ledger (rollback)
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -q -v ON_ERROR_STOP=1 -f supabase/tests/rc0_inventory_10_units_pg17.sql
+          echo 'PASS: integrated RC0 Add Item and exact ten-unit receive, nonce/ledger proof and rollback'
       - name: Sign and encrypt PG17 full operational database, restore twice and verify invariants
         shell: bash
         run: |
