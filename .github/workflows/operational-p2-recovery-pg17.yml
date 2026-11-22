@@ -48,7 +48,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
-          bash scripts/ci/pr126_p2_source_guard.sh
+          bash scripts/ci/rc0_source_guard.sh
           bash -n scripts/recovery/tests/operational20-signed-restore.sh
           bash -n scripts/ci/full_tree_pg17.sh
       - name: Check PostgreSQL clients, OpenSSL, GPG, real disposable PG17
