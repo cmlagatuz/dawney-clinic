@@ -136,16 +136,26 @@ begin
   -- Serialize current authorization against a concurrent role/branch revocation.
   -- Lock the actual membership rows through transaction commit; a reviewer
   -- cannot revoke access between the authorization read and appointment write.
+  -- Lock the verified Auth identity too: require_operational_actor() holds
+  -- the session row, but its earlier active-user check does not lock auth.users.
+  -- A concurrent ban/delete must therefore wait until this transaction ends,
+  -- or, if the ban won first, these fresh predicates fail authorization.
+  -- Match the existing inventory writer's verified Auth-user lock contract.
   perform 1 from public.staff_memberships sm
    join public.staff_branch_memberships bm on bm.user_id=sm.user_id
+   join auth.users u on u.id=sm.user_id
     where sm.user_id=v_actor and sm.is_active
       and bm.branch_id=p_branch and bm.is_active and bm.role=sm.role
       and bm.role=any(case when p_action='complete'
          then array['veterinarian','administrator']::text[]
          else array['receptionist','veterinarian','administrator']::text[] end)
-    for share of sm,bm;
+      and u.email_confirmed_at is not null and not u.is_anonymous
+      and u.deleted_at is null
+      and (u.banned_until is null or u.banned_until<=pg_catalog.now())
+    for share of sm,bm,u;
   if not found then
-    raise exception 'Current staff membership was revoked' using errcode='42501'; end if;
+    raise exception 'Current verified Auth user or staff membership revoked'
+      using errcode='42501'; end if;
 
   v_payload:=pg_catalog.jsonb_build_object('appointmentId',p_appointment,
      'branchId',p_branch,'action',p_action,'expectedRevision',p_expected_revision);
