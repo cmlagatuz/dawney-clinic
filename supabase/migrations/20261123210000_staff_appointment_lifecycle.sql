@@ -133,6 +133,19 @@ begin
       then array['veterinarian','administrator']::text[]
       else array['receptionist','veterinarian','administrator']::text[] end)
   then raise exception 'Current branch staff authorization required' using errcode='42501'; end if;
+  -- Serialize current authorization against a concurrent role/branch revocation.
+  -- Lock the actual membership rows through transaction commit; a reviewer
+  -- cannot revoke access between the authorization read and appointment write.
+  perform 1 from public.staff_memberships sm
+   join public.staff_branch_memberships bm on bm.user_id=sm.user_id
+    where sm.user_id=v_actor and sm.is_active
+      and bm.branch_id=p_branch and bm.is_active and bm.role=sm.role
+      and bm.role=any(case when p_action='complete'
+         then array['veterinarian','administrator']::text[]
+         else array['receptionist','veterinarian','administrator']::text[] end)
+    for share of sm,bm;
+  if not found then
+    raise exception 'Current staff membership was revoked' using errcode='42501'; end if;
 
   v_payload:=pg_catalog.jsonb_build_object('appointmentId',p_appointment,
      'branchId',p_branch,'action',p_action,'expectedRevision',p_expected_revision);
