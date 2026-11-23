@@ -14,6 +14,7 @@ git fetch --no-tags origin 'refs/pull/129/head:refs/remotes/origin/frozen-rc0-pr
  fail 'frozen PR129 changed during test'
 diff -u <(cat <<'EXPECTED'
 .github/workflows/staff-appointment-lifecycle-pg17.yml
+.github/workflows/operational-p2-recovery-pg17.yml
 docs/AI_HANDOFF.md
 docs/STAFF_APPOINTMENT_LIFECYCLE_CONTRACT.md
 scripts/ci/full_tree_pg17.sh
@@ -39,4 +40,4 @@ for path in AGENTS.md MANUS.md docs/FIVE_AGENT_ORCHESTRATION.md scripts/ci/rc0_s
  [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$FROZEN:$path")" ]] ||
  fail "frozen instruction/CI guard mutated: $path"
 done
-echo "PASS: exact PR129 frozen SHA, all 20 original migration blobs and 8-file additive child only"
+echo "PASS: exact PR129 frozen SHA, all 20 original migration blobs and 9-file additive child only"
