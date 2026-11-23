@@ -1,0 +1,198 @@
+name: ASTRA #21 — staff appointment lifecycle PG17 security + restore
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/staff-appointment-lifecycle-pg17.yml'
+      - 'supabase/migrations/20261123210000_staff_appointment_lifecycle.sql'
+      - 'supabase/tests/staff_appointment_lifecycle_pg17.sql'
+      - 'scripts/ci/staff_appointment_source_guard.sh'
+      - 'scripts/recovery/tests/appointment21-signed-restore.sh'
+      - 'docs/STAFF_APPOINTMENT_LIFECYCLE_CONTRACT.md'
+      - 'docs/AI_HANDOFF.md'
+permissions:
+  contents: read
+jobs:
+  appointment21-pg17:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: appointment21-ci-only
+          POSTGRES_DB: appointment21_ci
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d appointment21_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: appointment21-ci-only
+      PGDATABASE: appointment21_ci
+      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact PR129 ancestry and unmodified all 20 historical migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/ci/staff_appointment_source_guard.sh
+          bash -n scripts/recovery/tests/appointment21-signed-restore.sh
+          tmp="$(mktemp -d)"; trap 'git worktree remove --force "$tmp/rc0" >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
+          git worktree add --detach "$tmp/rc0" 078053120774e856c9ddaa8c8027b3c891e9e8f6
+          ( cd "$tmp/rc0"; bash scripts/ci/rc0_source_guard.sh )
+          echo 'PASS: frozen RC0 source guard and #21 isolated 7-path guard'
+      - name: Confirm real disposable PostgreSQL17
+        shell: bash
+        run: |
+          command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'show server_version_num')" -ge 170000
+      - name: Apply original frozen #1–17 and synthetic historical patient
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pg(){ psql -X -q -v ON_ERROR_STOP=1 -f "$1"; }
+          pg supabase/tests/phase5a_staff_pg17_bootstrap.sql
+          pg supabase/tests/phase4_combined_provider_upgrade.sql
+          for file in \
+            20261113070302_phase2_core_data_security.sql \
+            20261113070834_phase2_index_and_policy_tuning.sql \
+            20261113074938_phase2_verified_auth_and_staff_bootstrap.sql \
+            20261113095318_phase3_appointment_lifecycle.sql \
+            20261113100958_phase3_clinical_storage_policies.sql \
+            20261113101626_phase3_staff_membership_audit.sql \
+            20261113211600_phase4_taxonomy_attachments.sql \
+            20261113211700_phase4_animal_catalog_seed.sql \
+            20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql \
+            20261114090000_phase4_public_booking_contract.sql \
+            20261116002500_phase3_storage_outer_object_path_rls_fix.sql;do
+            pg "supabase/migrations/$file"
+          done
+          pg supabase/tests/phase3_storage_outer_path_synthetic_records.sql
+          psql -X -v ON_ERROR_STOP=1 <<'HISTORY'
+          create table clinic_ci.issue77_original_pets as select id,to_jsonb(p) old_row from public.pets p;
+          create table clinic_ci.issue77_original_appointments as select id,to_jsonb(a) old_row from public.appointments a;
+          HISTORY
+          pg supabase/migrations/20261117233500_issue77_four_branch_foundation.sql
+          pg supabase/tests/issue77_four_branch_pg17_denials.sql
+          psql -X -v ON_ERROR_STOP=1 <<'UNKNOWN'
+          alter table public.clinical_records disable trigger clinical_branch_guard;
+          insert into public.clinical_records(pet_id,branch_id,procedure,authored_by)
+          values('33333333-3333-4333-8333-333333333333',
+           null,'CLINICAL16 old unknown branch record',
+           'dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+          alter table public.clinical_records enable trigger clinical_branch_guard;
+          UNKNOWN
+          pg supabase/tests/issue58_staff_branch_queue_fixture.sql
+          pg supabase/migrations/20261118203500_issue51_branch_booking_security.sql
+          pg supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql
+          pg supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql
+          pg supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql
+          pg supabase/tests/clinical_chart_encounter_pg17.sql
+          pg supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql
+          pg supabase/tests/clinical_provenance_pagination_pg17.sql
+          echo 'PASS: historical #1–17, unchanged Chow Chow, requested UNKNOWN branch and clinical provenance'
+      - name: Original #18–20 session and operational guards
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pg(){ psql -X -q -v ON_ERROR_STOP=1 -f "$1"; }
+          psql -X -v ON_ERROR_STOP=1 <<'SESSIONS'
+          create table auth.sessions (
+            id uuid primary key,
+            user_id uuid not null references auth.users(id) on delete cascade
+          );
+          SESSIONS
+          pg supabase/migrations/20261121201000_staff_self_service_approval_accountant.sql
+          pg supabase/migrations/20261121202000_inventory_transactional_branch_ops.sql
+          pg supabase/tests/operational_staff_inventory_pg17.sql
+          pg supabase/migrations/20261122120000_operational_live_session_read_guard.sql
+          pg supabase/tests/operational20_session_rls_pg17.sql
+          echo 'PASS: original #18–20 operational live-session/RLS/accountant source'
+      - name: Apply #21 additive and adversarial staff lifecycle fixtures
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          psql -X -q -v ON_ERROR_STOP=1 -f supabase/migrations/20261123210000_staff_appointment_lifecycle.sql
+          psql -X -q -v ON_ERROR_STOP=1 -f supabase/tests/staff_appointment_lifecycle_pg17.sql
+          echo 'PASS: #21 transition, actor, nonce, revision, branch and historical fixture'
+      - name: Independent PG17 race tests — same nonce and conflicting nonces
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          actor(){
+            local id="$1" nonce="$2"
+            psql -XAtq -v ON_ERROR_STOP=1 <<SQL
+          set role authenticated;
+          set request.jwt.claim.sub='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+          set request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c2222222-aaaa-4aaa-8aaa-222222222222"}';
+          select public.transition_staff_appointment(
+          '$id','22222222-0000-4000-8000-000000000077','confirm',1,'$nonce');
+          SQL
+          }
+          tmp="$(mktemp -d)";trap 'rm -rf "$tmp"' EXIT
+          # Identical concurrently retried nonce returns the same receipt once.
+          actor 'a1210000-0000-4000-8000-000000000006' 'a1400000-0000-4000-8000-000000000001' > "$tmp/same1" 2>&1 & a=$!
+          actor 'a1210000-0000-4000-8000-000000000006' 'a1400000-0000-4000-8000-000000000001' > "$tmp/same2" 2>&1 & b=$!
+          wait "$a"; wait "$b"
+          cmp "$tmp/same1" "$tmp/same2"
+          test "$(psql -XAtq -c "select count(*) from clinic_private.appointment_transition_events where appointment_id='a1210000-0000-4000-8000-000000000006'")" = 1
+          test "$(psql -XAtq -c "select lifecycle_revision from public.appointments where id='a1210000-0000-4000-8000-000000000006'")" = 2
+          # Different nonces compete on same expected revision. Exactly one wins.
+          actor 'a1210000-0000-4000-8000-000000000004' 'a1400000-0000-4000-8000-000000000002' > "$tmp/diff1" 2>&1 & c=$!
+          actor 'a1210000-0000-4000-8000-000000000004' 'a1400000-0000-4000-8000-000000000003' > "$tmp/diff2" 2>&1 & d=$!
+          s1=0;s2=0
+          wait "$c" || s1=$?
+          wait "$d" || s2=$?
+          test $(( (s1==0)+(s2==0) )) = 1
+          grep -q 'Stale appointment lifecycle revision' "$tmp/diff1" "$tmp/diff2"
+          test "$(psql -XAtq -c "select count(*) from clinic_private.appointment_transition_events where appointment_id='a1210000-0000-4000-8000-000000000004'")" = 1
+          echo 'PASS: concurrent same nonce exactly once; distinct nonce stale CAS rejected without double event'
+      - name: Rollback, signed snapshot and independent #21 PG17 restore
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          psql -X -q -v ON_ERROR_STOP=1 <<'ROLLBACK'
+          begin;
+          set local role authenticated;
+          set local request.jwt.claim.sub='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+          set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c2222222-aaaa-4aaa-8aaa-222222222222"}';
+          select public.transition_staff_appointment(
+           'a1210000-0000-4000-8000-000000000001',
+           '22222222-0000-4000-8000-000000000077','cancel',2,
+           'a1400000-0000-4000-8000-000000000004');
+          rollback;
+          do $proof$
+          begin
+           if exists(select 1 from clinic_private.appointment_transition_receipts
+            where request_id='a1400000-0000-4000-8000-000000000004')
+           or exists(select 1 from clinic_private.appointment_transition_events
+            where request_id='a1400000-0000-4000-8000-000000000004')
+           or (select status from public.appointments
+            where id='a1210000-0000-4000-8000-000000000001')<>'confirmed'
+           then raise exception 'LIFECYCLE_FAIL: rolled back transition became durable';end if;
+          end $proof$;
+          ROLLBACK
+          bash scripts/recovery/tests/appointment21-signed-restore.sh
+          echo 'PASS: full transactional rollback, signed restore and nonce/actor parity'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Existing frontend Node tests and TypeScript without changing UI
+        working-directory: web
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
+          npm run typecheck
