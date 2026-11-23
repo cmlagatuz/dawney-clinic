@@ -634,6 +634,7 @@ while IFS= read -r path; do
      # Explicit #21 source names only; original PR129 guard stays untouched.
      case "$path" in
        .github/workflows/staff-appointment-lifecycle-pg17.yml|\
+       .github/workflows/operational-p2-recovery-pg17.yml|\
        docs/STAFF_APPOINTMENT_LIFECYCLE_CONTRACT.md|\
        scripts/ci/staff_appointment_source_guard.sh|\
        scripts/recovery/tests/appointment21-signed-restore.sh|\
