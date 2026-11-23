@@ -60,6 +60,8 @@ function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsRe
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const weekMode = view === 'schedule' && mode === 'week'
   const {session, day, counts, week, reload} = useOpsData(port, date, range, weekMode)
+  const lastAuthorizedRole = useRef<'administrator'|'veterinarian'|'receptionist'>('receptionist')
+  if(session.status === 'ok') lastAuthorizedRole.current = session.role
   // Revocation seen on any read: re-derive branches from the server so a revoked branch disappears.
   const denied = session.status === 'failed' && session.kind === 'denied'
   useEffect(() => { if (denied) onDeniedRef.current?.() }, [denied])
@@ -77,7 +79,10 @@ function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsRe
 
   const heading = session.status === 'ok' ? <p className="ops-role">Signed in as {ROLE_LABEL[session.role]}{branchName ? ` · ${branchName}` : ''} · branch-scoped preview</p> : null
 
-  if (session.status === 'verifying') return <><LoadingCard label="Verifying clinic staff access…" rows={4} /></>
+  if (session.status === 'verifying') return <><LoadingCard label="Verifying clinic staff access…" rows={4} />
+    {selectedId && <AppointmentLifecyclePanel key={selectedId} row={null}
+      role={lastAuthorizedRole.current} branchId={branchId} accountId={accountId}
+      onRefresh={reload} onDenied={()=>onDeniedRef.current?.()} />}</>
   if (session.status === 'failed') return <><FailureCard kind={session.kind} onRetry={reload} />
     {session.kind === 'denied' && <p><Link className="button button-secondary" to="/app/overview">Back to my overview</Link></p>}</>
 
