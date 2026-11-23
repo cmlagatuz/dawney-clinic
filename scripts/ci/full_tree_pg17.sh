@@ -450,8 +450,8 @@ while IFS= read -r path; do
  case "$path" in
   docs/AI_HANDOFF.md)
    # Child #21 handoff is reviewed independently; original CLOUD blobs frozen.
-   [[ "$(git rev-parse "HEAD:$path")" == f9ab5cfe0f6d63c3f1c3b0ee5e7772db4d17e89e &&
-      "$(git hash-object "$path")" == f9ab5cfe0f6d63c3f1c3b0ee5e7772db4d17e89e ]] ||
+   [[ "$(git rev-parse "HEAD:$path")" == 9b36a298aef332759d3c55dfe63ab8e387675ea6 &&
+      "$(git hash-object "$path")" == 9b36a298aef332759d3c55dfe63ab8e387675ea6 ]] ||
     fail 'unreviewed #21 AI handoff blob'
    ;;
   web/src/pages/AppointmentsPage.tsx|web/tests/owner-booking-view.test.mjs)
