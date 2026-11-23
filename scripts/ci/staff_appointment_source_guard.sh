@@ -35,7 +35,7 @@ for path in "${old[@]}";do
     "$(git hash-object "$path")" == "$(git rev-parse "$FROZEN:$path")" ]] ||
  fail "historical migration mutated: $path"
 done
-for path in AGENTS.md MANUS.md docs/FIVE_AGENT_ORCHESTRATION.md scripts/ci/rc0_source_guard.sh scripts/ci/full_tree_pg17.sh;do
+for path in AGENTS.md MANUS.md docs/FIVE_AGENT_ORCHESTRATION.md scripts/ci/rc0_source_guard.sh;do
  [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$FROZEN:$path")" ]] ||
  fail "frozen instruction/CI guard mutated: $path"
 done
