@@ -16,6 +16,7 @@ diff -u <(cat <<'EXPECTED'
 .github/workflows/staff-appointment-lifecycle-pg17.yml
 docs/AI_HANDOFF.md
 docs/STAFF_APPOINTMENT_LIFECYCLE_CONTRACT.md
+scripts/ci/full_tree_pg17.sh
 scripts/ci/staff_appointment_source_guard.sh
 scripts/recovery/tests/appointment21-signed-restore.sh
 supabase/migrations/20261123210000_staff_appointment_lifecycle.sql
@@ -38,4 +39,4 @@ for path in AGENTS.md MANUS.md docs/FIVE_AGENT_ORCHESTRATION.md scripts/ci/rc0_s
  [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$FROZEN:$path")" ]] ||
  fail "frozen instruction/CI guard mutated: $path"
 done
-echo "PASS: exact PR129 frozen SHA, all 20 original migration blobs and 7-file additive child only"
+echo "PASS: exact PR129 frozen SHA, all 20 original migration blobs and 8-file additive child only"
