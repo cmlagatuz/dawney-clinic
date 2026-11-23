@@ -7,6 +7,7 @@ import {createOpsReadPort} from '../../ops/port'
 import {useOpsData} from '../../ops/useOpsData'
 import {useBranchScope} from '../../ops/useBranchScope'
 import type {OpsReadPort} from '../../ops/read-port'
+import {AppointmentLifecyclePanel} from './AppointmentLifecyclePanel'
 import {OPS_RANGES, OPS_STATUSES, OPS_TIME_ZONE, addDays, buildKpis, formatDayLabel, isIsoDate, shortRef, todayInZone, weekDates, windowState} from '../../ops/ops-model.mjs'
 
 const ROLE_LABEL = {administrator: 'Administrator', veterinarian: 'Veterinarian', receptionist: 'Receptionist'} as const
@@ -33,6 +34,7 @@ export function OpsPage() {
     <EmptyState icon="shield" title="Choose a clinic branch">You are authorized for more than one branch. Choose one to load its appointments. No branch data is shown until you do.</EmptyState></>
   // key: a different account or branch remounts the view, so no earlier data can show for even one frame.
   return <>{heading0()}{picker}<OpsView key={`${uid ?? 'none'}:${scope.selected}`} port={scope.scoped}
+    accountId={uid ?? ''} branchId={scope.selected}
     branchName={scope.branches.find(b => b.id === scope.selected)?.name ?? null}
     onDenied={() => scope.markDenied(scope.selected)} /></>
 }
@@ -47,7 +49,7 @@ function BranchPicker({branches, selected, onSelect}: {branches: {id: string; na
   </div>
 }
 
-function OpsView({port, branchName, onDenied}: {port: OpsReadPort | null; branchName: string | null; onDenied?: (() => void) | undefined}) {
+function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsReadPort | null; branchName: string | null; branchId: string; accountId: string; onDenied?: (() => void) | undefined}) {
   const onDeniedRef = useRef(onDenied); onDeniedRef.current = onDenied
   const [date, setDate] = useState(() => todayInZone(Date.now()))
   const [view, setView] = useState<'board' | 'schedule'>('board')
@@ -55,8 +57,11 @@ function OpsView({port, branchName, onDenied}: {port: OpsReadPort | null; branch
   const [range, setRange] = useState('all')
   const [resource, setResource] = useState('all')
   const [status, setStatus] = useState('all')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const weekMode = view === 'schedule' && mode === 'week'
   const {session, day, counts, week, reload} = useOpsData(port, date, range, weekMode)
+  const lastAuthorizedRole = useRef<'administrator'|'veterinarian'|'receptionist'>('receptionist')
+  if(session.status === 'ok') lastAuthorizedRole.current = session.role
   // Revocation seen on any read: re-derive branches from the server so a revoked branch disappears.
   const denied = session.status === 'failed' && session.kind === 'denied'
   useEffect(() => { if (denied) onDeniedRef.current?.() }, [denied])
@@ -70,11 +75,14 @@ function OpsView({port, branchName, onDenied}: {port: OpsReadPort | null; branch
   // not the global count of registered clinic patients.
   const kpis = useMemo(() => buildKpis({win, counts: counts.status === 'ok' ? counts.data : null})
     .map(k => k.key === 'patients' ? {...k, label: 'Patients seen in this branch', note: 'Distinct patients with appointments here, all dates.'} : k), [win, counts])
-  const setDay = (d: string) => { if (isIsoDate(d)) { setDate(d); setResource('all') } }
+  const setDay = (d: string) => { if (isIsoDate(d)) { setDate(d); setResource('all'); setSelectedId(null) } }
 
-  const heading = session.status === 'ok' ? <p className="ops-role">Signed in as {ROLE_LABEL[session.role]}{branchName ? ` · ${branchName}` : ''} · read-only</p> : null
+  const heading = session.status === 'ok' ? <p className="ops-role">Signed in as {ROLE_LABEL[session.role]}{branchName ? ` · ${branchName}` : ''} · branch-scoped preview</p> : null
 
-  if (session.status === 'verifying') return <><LoadingCard label="Verifying clinic staff access…" rows={4} /></>
+  if (session.status === 'verifying') return <><LoadingCard label="Verifying clinic staff access…" rows={4} />
+    {selectedId && <AppointmentLifecyclePanel key={selectedId} row={null}
+      role={lastAuthorizedRole.current} branchId={branchId} accountId={accountId}
+      onRefresh={reload} onDenied={()=>onDeniedRef.current?.()} />}</>
   if (session.status === 'failed') return <><FailureCard kind={session.kind} onRetry={reload} />
     {session.kind === 'denied' && <p><Link className="button button-secondary" to="/app/overview">Back to my overview</Link></p>}</>
 
@@ -95,20 +103,21 @@ function OpsView({port, branchName, onDenied}: {port: OpsReadPort | null; branch
       {view === 'schedule' && <div className="ops-seg" role="group" aria-label="Schedule length">
         <button type="button" className="button button-secondary button-small" aria-pressed={mode === 'day'} onClick={() => setMode('day')}>Day</button>
         <button type="button" className="button button-secondary button-small" aria-pressed={mode === 'week'} onClick={() => setMode('week')}>Week</button></div>}
-      {!weekMode && <label className="ops-field"><span>Time range</span><select value={range} onChange={e => setRange(e.target.value)}>
+      {!weekMode && <label className="ops-field"><span>Time range</span><select value={range} onChange={e => {setRange(e.target.value);setSelectedId(null)}}>
         {OPS_RANGES.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}</select></label>}
       {!weekMode && <label className="ops-field"><span>Status</span>
-        <select aria-label="Appointment status" value={status} onChange={e => setStatus(e.target.value)}>
+        <select aria-label="Appointment status" value={status} onChange={e => {setStatus(e.target.value);setSelectedId(null)}}>
           <option value="all">All persisted statuses</option>
           {OPS_STATUSES.map(value => <option key={value} value={value}>{value.replaceAll('_',' ')}</option>)}
         </select></label>}
-      {!weekMode && <label className="ops-field"><span>Resource</span><select value={resource} onChange={e => setResource(e.target.value)} disabled={resources.length === 0}>
+      {!weekMode && <label className="ops-field"><span>Resource</span><select value={resource} onChange={e => {setResource(e.target.value);setSelectedId(null)}} disabled={resources.length === 0}>
         <option value="all">All resources</option>{resources.map(r => <option key={r} value={r}>Resource {shortRef(r)}</option>)}</select></label>}
       <label className="ops-field is-disabled"><span>Provider</span><select disabled aria-describedby="ops-prov"><option>Not available</option></select></label>
     </div>
     <p id="ops-prov" className="ops-help">Provider filter is disabled because the verified reader has no provider assignment. Appointment dates use {OPS_TIME_ZONE}; no clinic hours or available appointment slots are inferred.</p>
     <div className="ops-toolbar" aria-label="Unavailable clinical actions">
-      <button type="button" className="button button-secondary button-small" disabled title="Audited server confirmation contract required">Confirm (not enabled)</button>
+      <p className="ops-help">Select a verified appointment below to review its exact available staff lifecycle actions. Writes remain OFF by default.</p>
+      <button type="button" className="button button-secondary button-small" disabled title="Appointment writes remain disabled until reviewed release approval">Confirm (not enabled)</button>
       <button type="button" className="button button-secondary button-small" disabled title="Audited rescheduling RPC and conflict verification required">Reschedule (not enabled)</button>
       <button type="button" className="button button-secondary button-small" disabled title="Audited clinical encounter transition contract required">Start treatment (not enabled)</button>
     </div>
@@ -124,10 +133,15 @@ function OpsView({port, branchName, onDenied}: {port: OpsReadPort | null; branch
         {state === 'incomplete' && <Notice tone="warning" title="Incomplete: more than 250 appointments matched">Only the first 250 by time are shown and every count is a lower bound (≥). Narrow the time range to see the rest.</Notice>}
         {state === 'empty' ? <EmptyState icon="calendar" title="No appointments in this window">The verified branch read returned no appointments for {label}{range !== 'all' ? ' in this time range' : ''}. Nothing is invented to fill the day.</EmptyState>
           : filtered.items.length === 0 ? <EmptyState icon="calendar" title="No matching appointments in the loaded rows">Choose a different status or resource{win.hasMore ? ', or narrow the time range: more records exist beyond this first 250-row window' : ''}.</EmptyState>
-          : view === 'board' ? <FlowBoard win={filtered} />
+          : view === 'board' ? <FlowBoard win={filtered} onSelect={setSelectedId} />
           : <section aria-labelledby="ops-sched-h" className="ops-section"><h2 id="ops-sched-h" className="ops-h2">Schedule · {label}</h2>
-              <p className="ops-help">Only booked appointments are drawn. No working hours, breaks or holidays are shown because none are published.</p><DayList win={filtered} /></section>}
+              <p className="ops-help">Only booked appointments are drawn. No working hours, breaks or holidays are shown because none are published.</p><DayList win={filtered} onSelect={setSelectedId} /></section>}
       </>}
+    {selectedId && session.status==='ok' &&
+      <AppointmentLifecyclePanel key={selectedId} row={filtered?.items.find(i=>i.id===selectedId)??null}
+        role={session.role} branchId={branchId} accountId={accountId} onRefresh={reload}
+        onDenied={()=>onDeniedRef.current?.()} />}
+    {!selectedId && day.status==='ok' && <p className="ops-help" role="status">Choose “Review appointment” on an authorized visit to inspect staff transitions.</p>}
     <section className="ops-section" aria-label="Related authorized staff workspaces">
       <h2 className="ops-h2">Continue staff workflow</h2>
       <p className="ops-help">Each workspace independently rechecks staff identity and branch membership. This selection does not transfer permission, and no patient chart is opened from an unverified appointment reference.</p>
