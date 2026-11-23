@@ -5,6 +5,7 @@ on:
       - '.github/workflows/staff-appointment-lifecycle-pg17.yml'
       - 'supabase/migrations/20261123210000_staff_appointment_lifecycle.sql'
       - 'supabase/tests/staff_appointment_lifecycle_pg17.sql'
+      - 'scripts/ci/staff_auth_user_ban_race_pg17.sh'
       - 'scripts/ci/staff_appointment_source_guard.sh'
       - 'scripts/recovery/tests/appointment21-signed-restore.sh'
       - 'docs/STAFF_APPOINTMENT_LIFECYCLE_CONTRACT.md'
@@ -126,6 +127,11 @@ jobs:
           psql -X -q -v ON_ERROR_STOP=1 -f supabase/migrations/20261123210000_staff_appointment_lifecycle.sql
           psql -X -q -v ON_ERROR_STOP=1 -f supabase/tests/staff_appointment_lifecycle_pg17.sql
           echo 'PASS: #21 transition, actor, nonce, revision, branch and historical fixture'
+      - name: P2 Auth-user ban three-session lock graph — deterministic RED/GREEN
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash scripts/ci/staff_auth_user_ban_race_pg17.sh
       - name: Independent PG17 race tests — same nonce and conflicting nonces
         shell: bash
         run: |
