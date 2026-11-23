@@ -2,7 +2,7 @@ export type AppointmentAction='confirm'|'decline'|'check_in'|'complete'|'no_show
 export type AppointmentStatus='requested'|'confirmed'|'checked_in'|'completed'|'cancelled'|'no_show'
 export type AppointmentRole='administrator'|'veterinarian'|'receptionist'
 export type AppointmentDetail={id:string;branchId:string;status:AppointmentStatus;revision:number;startsAt:string;endsAt:string;petId:string;ownerId:string;resourceId:string}
-export type AppointmentAck={appointmentId:string;branchId:string;status:AppointmentStatus;revision:number;action:AppointmentAction}
+export type AppointmentAck={kind:'staff_appointment_transition';appointmentId:string;branchId:string;status:AppointmentStatus;revision:number;action:AppointmentAction}
 export type AppointmentFailure='denied'|'conflict'|'nonce'|'policy'|'unavailable'|'uncertain'|'unverified'
 export const ACTIONS:readonly AppointmentAction[]
 export const STATES:readonly AppointmentStatus[]

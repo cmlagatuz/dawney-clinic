@@ -30,7 +30,7 @@ export function verifyTransitionReply(raw,{id,branchId,revision},action){
  if(!isObject(raw)||raw.kind!=='staff_appointment_transition'||raw.appointmentId!==id||
  raw.branchId!==branchId||raw.action!==action||raw.status!==STATUS_AFTER[action]||
  !validRevision(raw.revision)||raw.revision!==revision+1)bad()
- return {appointmentId:id,branchId,status:raw.status,revision:raw.revision,action}
+ return {kind:'staff_appointment_transition',appointmentId:id,branchId,status:raw.status,revision:raw.revision,action}
 }
 export function transitionError(error){
  const code=String(error&&typeof error==='object'&&'code' in error?error.code:'')

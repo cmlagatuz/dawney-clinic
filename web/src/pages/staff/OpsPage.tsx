@@ -117,6 +117,7 @@ function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsRe
     <p id="ops-prov" className="ops-help">Provider filter is disabled because the verified reader has no provider assignment. Appointment dates use {OPS_TIME_ZONE}; no clinic hours or available appointment slots are inferred.</p>
     <div className="ops-toolbar" aria-label="Unavailable clinical actions">
       <p className="ops-help">Select a verified appointment below to review its exact available staff lifecycle actions. Writes remain OFF by default.</p>
+      <button type="button" className="button button-secondary button-small" disabled title="Appointment writes remain disabled until reviewed release approval">Confirm (not enabled)</button>
       <button type="button" className="button button-secondary button-small" disabled title="Audited rescheduling RPC and conflict verification required">Reschedule (not enabled)</button>
       <button type="button" className="button button-secondary button-small" disabled title="Audited clinical encounter transition contract required">Start treatment (not enabled)</button>
     </div>
