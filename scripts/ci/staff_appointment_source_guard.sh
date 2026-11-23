@@ -18,8 +18,8 @@ diff -u <(cat <<'EXPECTED'
 docs/AI_HANDOFF.md
 docs/STAFF_APPOINTMENT_LIFECYCLE_CONTRACT.md
 scripts/ci/full_tree_pg17.sh
-scripts/ci/staff_auth_user_ban_race_pg17.sh
 scripts/ci/staff_appointment_source_guard.sh
+scripts/ci/staff_auth_user_ban_race_pg17.sh
 scripts/recovery/tests/appointment21-signed-restore.sh
 supabase/migrations/20261123210000_staff_appointment_lifecycle.sql
 supabase/tests/staff_appointment_lifecycle_pg17.sql
