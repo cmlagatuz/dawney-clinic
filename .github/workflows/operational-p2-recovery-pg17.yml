@@ -43,9 +43,19 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Validate additive #21 and mount frozen original RC0 for historical #20-only check
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/ci/staff_appointment_source_guard.sh
+          git worktree add --detach .ci-frozen-rc0 078053120774e856c9ddaa8c8027b3c891e9e8f6
+          test "$(git -C .ci-frozen-rc0 rev-parse HEAD)" = 078053120774e856c9ddaa8c8027b3c891e9e8f6
+          # The old 20-migration restore runs on EXACT frozen RC0 source. The
+          # new 21st migration is exercised separately by dedicated PG17 CI.
       - name: Exact frozen PR126 SHA and additive source path / blob pins
         shell: bash
         run: |
+          cd .ci-frozen-rc0
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           bash scripts/ci/rc0_source_guard.sh
@@ -54,6 +64,7 @@ jobs:
       - name: Check PostgreSQL clients, OpenSSL, GPG, real disposable PG17
         shell: bash
         run: |
+          cd .ci-frozen-rc0
           set -euo pipefail
           command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
           command -v openssl
@@ -63,6 +74,7 @@ jobs:
       - name: Apply exact original ordered migrations 1–17 with original synthetic history
         shell: bash
         run: |
+          cd .ci-frozen-rc0
           set -euo pipefail
           pg(){ psql -X -v ON_ERROR_STOP=1 -q -f "$1"; }
           pg supabase/tests/phase5a_staff_pg17_bootstrap.sql
@@ -109,6 +121,7 @@ jobs:
       - name: Original #18/#19 — operational positive fixtures then RED deleted-session reproduction
         shell: bash
         run: |
+          cd .ci-frozen-rc0
           set -euo pipefail
           psql -X -v ON_ERROR_STOP=1 -q <<'AUTH_SESSION_SHIM'
           -- Only provider-owned Auth semantics represented in disposable CI.
@@ -128,6 +141,7 @@ jobs:
       - name: Add #20, verify GREEN direct SELECT/RPC denial and source authorization
         shell: bash
         run: |
+          cd .ci-frozen-rc0
           set -euo pipefail
           psql -X -q -v ON_ERROR_STOP=1 -f supabase/migrations/20261122120000_operational_live_session_read_guard.sql
           psql -X -q -v ON_ERROR_STOP=1 -f supabase/tests/operational20_session_rls_pg17.sql
@@ -135,12 +149,14 @@ jobs:
       - name: Actual integrated RC0 Add Item, receive TEN units, replay and ledger (rollback)
         shell: bash
         run: |
+          cd .ci-frozen-rc0
           set -euo pipefail
           psql -X -q -v ON_ERROR_STOP=1 -f supabase/tests/rc0_inventory_10_units_pg17.sql
           echo 'PASS: integrated RC0 Add Item and exact ten-unit receive, nonce/ledger proof and rollback'
       - name: Sign and encrypt PG17 full operational database, restore twice and verify invariants
         shell: bash
         run: |
+          cd .ci-frozen-rc0
           set -euo pipefail
           bash scripts/recovery/tests/operational20-signed-restore.sh
           echo 'PASS: P2-B signed complete #1–20 operational restore, grants, RLS, source definition, nonce, audit and stock'
