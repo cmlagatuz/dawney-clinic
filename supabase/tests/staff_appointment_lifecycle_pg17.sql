@@ -18,7 +18,8 @@ begin
 end $source$;
 
 -- Approved policy and service exist ONLY inside this CI database, never hosted.
-update public.clinic_branches set booking_enabled=true
+update public.clinic_branches set booking_enabled=true,
+ owner_approved_at=clock_timestamp(),owner_approved_by='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
  where id='22222222-0000-4000-8000-000000000077';
 update public.branch_booking_policies
  set timezone='Asia/Manila',
