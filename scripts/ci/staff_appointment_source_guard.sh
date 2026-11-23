@@ -13,8 +13,8 @@ git fetch --no-tags origin 'refs/pull/129/head:refs/remotes/origin/frozen-rc0-pr
 [[ "$(git rev-parse refs/remotes/origin/frozen-rc0-pr129)" == "$FROZEN" ]] ||
  fail 'frozen PR129 changed during test'
 diff -u <(cat <<'EXPECTED'
-.github/workflows/staff-appointment-lifecycle-pg17.yml
 .github/workflows/operational-p2-recovery-pg17.yml
+.github/workflows/staff-appointment-lifecycle-pg17.yml
 docs/AI_HANDOFF.md
 docs/STAFF_APPOINTMENT_LIFECYCLE_CONTRACT.md
 scripts/ci/full_tree_pg17.sh
