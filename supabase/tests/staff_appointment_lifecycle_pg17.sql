@@ -319,4 +319,54 @@ begin
    where id='a1210000-0000-4000-8000-000000000005')<>'cancelled'
  then raise exception 'LIFECYCLE_FAIL: final audit/history reconciliation';end if;
 end $final$;
-\echo 'PASS: staff appointment confirmed/declined/check-in/completed, immutable nonce replay, CAS stale denial, owner cancellation retained, cross-branch/accountant/anon/expired/revoked/deleted session denied, historical Chow Chow preserved'
+-- Two otherwise unexercised positive terminal transitions must also succeed,
+-- without leaving any synthetic state in the rest of the regression suite.
+-- The future visit is moved to the past ONLY in a disposable rolled-back txn.
+begin;
+update public.appointments
+ set starts_at=clock_timestamp()-interval '2 hours',
+     ends_at=clock_timestamp()-interval '90 minutes'
+ where id='a1210000-0000-4000-8000-000000000001';
+set local role authenticated;
+set local request.jwt.claim.sub='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c2222222-aaaa-4aaa-8aaa-222222222222"}';
+do $staff_no_show$
+declare v jsonb;
+begin
+ v:=public.transition_staff_appointment(
+  'a1210000-0000-4000-8000-000000000001',
+  '22222222-0000-4000-8000-000000000077',
+  'no_show',2,'a1600000-0000-4000-8000-000000000001');
+ if v->>'status'<>'no_show' or (v->>'revision')::integer<>3
+ then raise exception 'LIFECYCLE_FAIL: elapsed confirmed visit no_show';end if;
+end $staff_no_show$;
+rollback;
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c2222222-aaaa-4aaa-8aaa-222222222222"}';
+do $staff_cancel$
+declare v jsonb;
+begin
+ v:=public.transition_staff_appointment(
+  'a1210000-0000-4000-8000-000000000001',
+  '22222222-0000-4000-8000-000000000077',
+  'cancel',2,'a1600000-0000-4000-8000-000000000002');
+ if v->>'status'<>'cancelled' or (v->>'revision')::integer<>3
+ then raise exception 'LIFECYCLE_FAIL: staff cancelled confirmed visit';end if;
+end $staff_cancel$;
+rollback;
+do $terminal_rollback$
+begin
+ if (select status from public.appointments
+     where id='a1210000-0000-4000-8000-000000000001')<>'confirmed'
+  or (select lifecycle_revision from public.appointments
+     where id='a1210000-0000-4000-8000-000000000001')<>2
+  or exists (select 1 from clinic_private.appointment_transition_receipts
+     where request_id in ('a1600000-0000-4000-8000-000000000001',
+                          'a1600000-0000-4000-8000-000000000002'))
+ then raise exception 'LIFECYCLE_FAIL: no_show/cancel synthetic rollback leaked';end if;
+end $terminal_rollback$;
+
+\echo 'PASS: confirmed/declined/check_in/completed/no_show/cancel staff transitions, nonce replay, stale CAS, owner cancellation, cross-branch/accountant/anon/expired/revoked/deleted session denials, Chow Chow preservation'
