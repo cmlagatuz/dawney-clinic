@@ -338,7 +338,10 @@ git merge-base --is-ancestor ebe6caf8a1f9f17fb00739986b1ebdb83e2d9d0d "$EXPECTED
    "$(git hash-object scripts/ci/pr126_p2_source_guard.sh)" == 3d547abce1b6e2f3560e9dc4fbe9e8597e78933e ]] ||
  fail 'P2 child exact source guard blob drifted'
 # The original PR128 corrected gate remains immutable, protected by the unified exact-tree guard.
-bash scripts/ci/rc0_source_guard.sh
+# Original PR129 guard is validated on the exact frozen RC0 worktree by the
+# dedicated #21 workflow. Here the 21st migration requires the separate
+# one-additive-source guard, preserving every original SQL blob.
+bash scripts/ci/staff_appointment_source_guard.sh
 while read -r path sha;do
  [[ "$(git rev-parse "f9b2ad473ab2b379a48050eaea5678fe0644c40b:$path")" == "$sha" ]] ||
  fail "frozen PR113 clinical ACL recovery blob drift: $path"
@@ -621,8 +624,18 @@ while IFS= read -r path; do
    supabase/migrations/20261122120000_operational_live_session_read_guard.sql|\
    supabase/tests/operational20_before_fix_repro.sql|\
    supabase/tests/operational20_session_rls_pg17.sql) ;;
- *) rc0_is_reviewed_delta "$path" ||
-      fail "source not in exact PR127/PR119+CI filename manifest: $path";;
+ *) if ! rc0_is_reviewed_delta "$path";then
+     # Explicit #21 source names only; original PR129 guard stays untouched.
+     case "$path" in
+       .github/workflows/staff-appointment-lifecycle-pg17.yml|\
+       docs/STAFF_APPOINTMENT_LIFECYCLE_CONTRACT.md|\
+       scripts/ci/staff_appointment_source_guard.sh|\
+       scripts/recovery/tests/appointment21-signed-restore.sh|\
+       supabase/migrations/20261123210000_staff_appointment_lifecycle.sql|\
+       supabase/tests/staff_appointment_lifecycle_pg17.sql) ;;
+       *) fail "source outside frozen RC0 and explicit #21 child: $path";;
+     esac
+    fi;;
  esac
 done < <(git diff --name-only "$EXPECTED_BASE_SHA" "$EXPECTED_HEAD_SHA")
 # Public site files must be identical to BOTH exact PR79 and PR81 source
