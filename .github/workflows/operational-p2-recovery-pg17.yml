@@ -47,6 +47,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export EXPECTED_HEAD_SHA='${{ github.event.pull_request.head.sha }}'
           bash scripts/ci/staff_appointment_source_guard.sh
           git worktree add --detach .ci-frozen-rc0 078053120774e856c9ddaa8c8027b3c891e9e8f6
           test "$(git -C .ci-frozen-rc0 rev-parse HEAD)" = 078053120774e856c9ddaa8c8027b3c891e9e8f6
