@@ -18,6 +18,8 @@ begin
 end $source$;
 
 -- Approved policy and service exist ONLY inside this CI database, never hosted.
+-- No animal types were approved by migration seeds; CI explicitly approves this synthetic cat.
+update public.species_catalog set clinic_supported=true where id='cat';
 update public.clinic_branches set booking_enabled=true,
  owner_approved_at=clock_timestamp(),owner_approved_by='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
  where id='22222222-0000-4000-8000-000000000077';
