@@ -12,7 +12,7 @@ type Read={status:'loading'}|{status:'blocked';kind:AppointmentFailure|'stale'}|
  {status:'ready';detail:AppointmentDetail;encounter:'yes'|'no'|'unavailable'|'checking'}
 type Ticket={action:AppointmentAction;detail:AppointmentDetail;requestId:string}
 const severe=new Set<AppointmentAction>(['decline','no_show','cancel','complete'])
-const messages:Record<AppointmentFailure|string,string>={
+const messages:Record<AppointmentFailure|'stale',string>={
  denied:'Staff access or session is no longer authorized. Appointment details have been cleared.',
  conflict:'Another change won the revision check. Re-read the latest appointment before taking action.',
  nonce:'This request ID was already used for different parameters. No new request was sent.',
