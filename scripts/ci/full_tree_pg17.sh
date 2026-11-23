@@ -636,6 +636,7 @@ while IFS= read -r path; do
        .github/workflows/staff-appointment-lifecycle-pg17.yml|\
        .github/workflows/operational-p2-recovery-pg17.yml|\
        docs/STAFF_APPOINTMENT_LIFECYCLE_CONTRACT.md|\
+       scripts/ci/staff_auth_user_ban_race_pg17.sh|\
        scripts/ci/staff_appointment_source_guard.sh|\
        scripts/recovery/tests/appointment21-signed-restore.sh|\
        supabase/migrations/20261123210000_staff_appointment_lifecycle.sql|\
