@@ -34,6 +34,8 @@ begin
     then
       raise exception 'Direct appointment status change not authorized' using errcode='42501';
     end if;
+    -- Retain the existing owner UI cancellation DML, but count its CAS revision.
+    new.lifecycle_revision:=old.lifecycle_revision+1;
   elsif current_user not in ('postgres','service_role') then
     raise exception 'Only reviewed appointment RPC may mutate staff statuses'
       using errcode='42501';
