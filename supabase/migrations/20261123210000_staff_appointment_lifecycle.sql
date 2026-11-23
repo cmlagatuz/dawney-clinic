@@ -26,7 +26,12 @@ begin
     return new;
   end if;
   if current_user='authenticated' then
-    v_actor:=clinic_private.require_operational_actor();
+    -- Invoker trigger must use the explicitly callable read-only live-session guard;
+    -- the private VOLATILE writer helper is reserved for SECURITY DEFINER RPCs.
+    if not clinic_private.operational_read_session_live() then
+      raise exception 'Live verified Auth session required' using errcode='42501';
+    end if;
+    v_actor:=(select auth.uid());
     if old.status not in ('requested','confirmed')
       or new.status<>'cancelled'
       or not exists(select 1 from public.owners o
