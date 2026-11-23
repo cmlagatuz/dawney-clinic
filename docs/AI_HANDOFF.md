@@ -1,3 +1,11 @@
+## ASTRA 2026-11-23 — staff appointment lifecycle child of frozen RC0 (source-only)
+
+- Frozen integration source PR #129 `078053120774e856c9ddaa8c8027b3c891e9e8f6` is unchanged. One isolated `ai/astra/staff-appointment-lifecycle-pr129-20261123` backend branch implements only the Issue #120 appointment lifecycle gap.
+- New additive SQL #21 `supabase/migrations/20261123210000_staff_appointment_lifecycle.sql` adds `public.transition_staff_appointment(uuid,uuid,text,integer,uuid)`, CAS revision, active-session/branch/role gate, immutable actor and nonce journal. Keeps owner direct cancellation, historic Chow Chow/unknown branch; no statuses/services re-seeded.
+- New disposable PG17 race/denial fixture and signed restoration extension, exact 20-hash source guard and independent GitHub workflow. Documentation: `docs/STAFF_APPOINTMENT_LIFECYCLE_CONTRACT.md`.
+- **Not yet merged/deployed/applied to hosted Supabase**. Check exact new PR head and CI before reporting PASS. SOL exact-head review and owner-approved hosted acceptance remain mandatory; frontend CLOUD must not wire writes before separate approval.
+- No real patients, clinical visits, stock, deployment, communications, credentials, purchases or hosted SQL touched.
+
 # Dawney Clinic — Shared AI Handoff
 
 ## LATEST owner decision — 2026-11-14 12:15 Riyadh
