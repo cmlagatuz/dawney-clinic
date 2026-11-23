@@ -1,5 +1,8 @@
 # Dawney Veterinary Clinic
 
+> **CLOUD staff appointment operations — frontend DRAFT PR #131 (24 Nov 2026, source-only):** The existing branch-scoped /app/ops workspace now has source-only staff transition review against ASTRA's provisional PR130 lifecycle RPC. All new staff appointment writes remain OFF by default (VITE_STAFF_APPOINTMENT_WRITES_ENABLED=false); PR130 had an independent SOL P2 finding and must receive a corrected exact-head security PASS before any approved staging integration. Browser/Node tests use synthetic HTTP, **not hosted persistence or clinic-live acceptance**. [Operator handoff and staged UAT](docs/CLOUD_STAFF_APPOINTMENT_LIFECYCLE_2026.md). No SQL, patients, staff accounts or production flags were changed.
+
+
 **Veterinary clinic management system — modernization in progress**
 
 > **New P0 scope (14 Nov 2026):** No public customer-facing home/services/contact/location page exists on current `master`. `/` redirects into the signed-in owner portal, and customers currently must register/authenticate, complete owner/pet records and request (not confirm) a provisional device-local 30-minute appointment. Dawney Animal Clinic is in **General Trias, Cavite, Philippines**; exact phone, unit and opening hours require owner verification. [Public clinic website + safe booking contract](docs/PHASE4_PUBLIC_SITE_BOOKING_SPEC.md) · [Issue #42](https://github.com/cmlagatuz/dawney-clinic/issues/42). Claude PRs #34 and #41 are open/NOT deployed; Astra PR #40 is open/NOT live. No Phase4 migrations applied.\n
