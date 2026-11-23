@@ -1,3 +1,11 @@
+## ASTRA 2026-11-24 — SOL PR130 P2 Auth-user ban race repair (source-only)
+
+- Exact frozen parent PR129 remains `078053120774e856c9ddaa8c8027b3c891e9e8f6`; original migration #1–#20 hashes are unchanged. **Existing draft PR130 only**; no second branch or deployed SQL.
+- SOL found a user-ban TOCTOU after global and branch membership locks. PG17 **RED reproduction**: [run 45278565015](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45278565015), ban committed while writer blocked; banned staff later returned `confirmed`.
+- #21 now joins active verified `auth.users u` with the existing global/branch grants and locks `FOR SHARE OF sm,bm,u` through commit, matching the established inventory authorization pattern.
+- A dedicated bounded three-session PostgreSQL 17 test now verifies ban waits or denied authority, rollback/nonce/audit preservation and banned user denial. Signed recovery fingerprints Auth identity/session/role records, exact corrected function body and restored ban denial.
+- **NO MERGE / HOSTED SQL / PRODUCTION WRITES**. Execute all exact-head CI, then request a NEW independent SOL exact-SHA review. CLOUD writes remain off; hosted GoTrue/PostgREST and provider-managed restore remain separately owner-gated.
+
 ## ASTRA 2026-11-23 — staff appointment lifecycle child of frozen RC0 (source-only)
 
 - Frozen integration source PR #129 `078053120774e856c9ddaa8c8027b3c891e9e8f6` is unchanged. One isolated `ai/astra/staff-appointment-lifecycle-pr129-20261123` backend branch implements only the Issue #120 appointment lifecycle gap.

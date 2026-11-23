@@ -15,6 +15,10 @@ with records as (
  union all select 'event',to_jsonb(t)::text from clinic_private.appointment_transition_events t
  union all select 'receipt',to_jsonb(t)::text from clinic_private.appointment_transition_receipts t
  union all select 'visit',to_jsonb(t)::text from public.branch_encounters t
+ union all select 'auth_user',to_jsonb(t)::text from auth.users t
+ union all select 'auth_session',to_jsonb(t)::text from auth.sessions t
+ union all select 'staff_global',to_jsonb(t)::text from public.staff_memberships t
+ union all select 'staff_branch',to_jsonb(t)::text from public.staff_branch_memberships t
 )
 select md5(string_agg(type||':'||contents,E'\n' order by type,contents)) from records;
 select md5(pg_get_functiondef('public.transition_staff_appointment(uuid,uuid,text,integer,uuid)'::regprocedure));
@@ -22,11 +26,18 @@ select count(*) from public.appointments where id='55555555-5555-4555-8555-55555
  and status='requested' and branch_id is null;
 select count(*) from clinic_private.appointment_transition_events
  where appointment_id='a1210000-0000-4000-8000-000000000006' and action='confirm';
+select case when
+ pg_get_functiondef('public.transition_staff_appointment(uuid,uuid,text,integer,uuid)'::regprocedure)
+   like '%join auth.users u%'
+ and pg_get_functiondef('public.transition_staff_appointment(uuid,uuid,text,integer,uuid)'::regprocedure)
+   like '%for share of sm,bm,u%'
+ then 1 else 0 end;
 SQL
 }
 fingerprint appointment21_ci > "$tmp/source"
 [[ "$(sed -n '3p' "$tmp/source")" == 1 &&
-   "$(sed -n '4p' "$tmp/source")" == 1 ]] ||
+   "$(sed -n '4p' "$tmp/source")" == 1 &&
+   "$(sed -n '5p' "$tmp/source")" == 1 ]] ||
  fail 'missing preserved history or idempotent event'
 docker exec "$container" pg_dump -Fc -U postgres -d appointment21_ci > "$tmp/archive"
 test -s "$tmp/archive" || fail 'backup empty'
@@ -52,4 +63,26 @@ docker exec "$container" createdb -U postgres appointment21_restore_ci
 docker exec -i "$container" pg_restore -U postgres --exit-on-error  -d appointment21_restore_ci < "$tmp/archive"
 fingerprint appointment21_restore_ci > "$tmp/restore"
 cmp "$tmp/source" "$tmp/restore" || fail 'snapshot changed on independent database restore'
-echo 'PASS: signed 21 migration SHA manifest and exact appointment/nonce/actor/visit/function parity after independent PG17 restore; corrupted or absent signature denied'
+# On the INDEPENDENT restored DB, prove Auth-user bans remain authoritative:
+# transactionally ban a synthetic admin and deny a still-live session/JWT.
+psql -XAtq -v ON_ERROR_STOP=1 -d appointment21_restore_ci <<'RESTORED_AUTH_DENY'
+begin;
+update auth.users set banned_until=clock_timestamp()+interval '2 hours'
+ where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+set local role authenticated;
+set local request.jwt.claim.sub='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c2222222-aaaa-4aaa-8aaa-222222222222"}';
+do $ban_restore$
+begin
+ begin
+  perform public.transition_staff_appointment(
+    'a1210000-0000-4000-8000-000000000006',
+    '22222222-0000-4000-8000-000000000077','cancel',2,gen_random_uuid());
+  raise exception 'RESTORE_FAIL: banned actor gained appointment write';
+ exception when insufficient_privilege then null;
+ end;
+end
+$ban_restore$;
+rollback;
+RESTORED_AUTH_DENY
+echo 'PASS: signed 21-migration/actor/Auth-user/session/role/nonce/function parity, corrected Auth-row FOR SHARE, restored banned-user denial and tamper/missing signature rejection'

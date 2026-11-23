@@ -49,10 +49,11 @@ jobs:
           set -euo pipefail
           bash scripts/ci/staff_appointment_source_guard.sh
           bash -n scripts/recovery/tests/appointment21-signed-restore.sh
+          bash -n scripts/ci/staff_auth_user_ban_race_pg17.sh
           tmp="$(mktemp -d)"; trap 'git worktree remove --force "$tmp/rc0" >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
           git worktree add --detach "$tmp/rc0" 078053120774e856c9ddaa8c8027b3c891e9e8f6
           ( cd "$tmp/rc0"; bash scripts/ci/rc0_source_guard.sh )
-          echo 'PASS: frozen RC0 source guard and #21 isolated 7-path guard'
+          echo 'PASS: frozen RC0 source guard and #21 isolated 10-path guard'
       - name: Confirm real disposable PostgreSQL17
         shell: bash
         run: |
