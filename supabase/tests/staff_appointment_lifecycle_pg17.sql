@@ -105,15 +105,19 @@ begin
    '22222222-0000-4000-8000-000000000077','check_in',1,gen_random_uuid());
   raise exception 'LIFECYCLE_FAIL: stale expected revision accepted';
  exception when serialization_failure then null;end;
+end $positive$;
+reset role;
+do $audit$
+begin
  if (select count(*) from clinic_private.appointment_transition_events
-    where appointment_id=v_app and actor_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+    where appointment_id='a1210000-0000-4000-8000-000000000001'
+    and actor_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
     and old_revision=1 and new_revision=2 and old_status='requested'
     and new_status='confirmed')<>1
  or (select count(*) from clinic_private.appointment_transition_receipts
-    where appointment_id=v_app)<>1 then
+    where appointment_id='a1210000-0000-4000-8000-000000000001')<>1 then
   raise exception 'LIFECYCLE_FAIL: immutable staff audit/nonce cardinality';end if;
-end $positive$;
-reset role;
+end $audit$;
 
 -- Branch receptionist may decline requested but cannot use Naga branch.
 set role authenticated;
