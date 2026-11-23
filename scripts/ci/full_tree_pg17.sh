@@ -448,6 +448,12 @@ done
 # The seven PR70 files must be byte-for-byte identical to Claude's reviewed head.
 while IFS= read -r path; do
  case "$path" in
+  docs/AI_HANDOFF.md)
+   # Child #21 handoff is reviewed independently; original CLOUD blobs frozen.
+   [[ "$(git rev-parse "HEAD:$path")" == f9ab5cfe0f6d63c3f1c3b0ee5e7772db4d17e89e &&
+      "$(git hash-object "$path")" == f9ab5cfe0f6d63c3f1c3b0ee5e7772db4d17e89e ]] ||
+    fail 'unreviewed #21 AI handoff blob'
+   ;;
   web/src/pages/AppointmentsPage.tsx|web/tests/owner-booking-view.test.mjs)
    [[ "$(git rev-parse "26d5ed9bdc81275b24b80810a7da25f658c9e6e2:$path")" == "$(git rev-parse "$EXPECTED_FRONTEND_SHA:$path")" ]] ||
     fail "original PR70 frontend source drift: $path"
