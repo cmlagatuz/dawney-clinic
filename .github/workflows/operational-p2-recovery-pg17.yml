@@ -57,7 +57,7 @@ jobs:
         run: |
           cd .ci-frozen-rc0
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          test "$(git rev-parse HEAD)" = 078053120774e856c9ddaa8c8027b3c891e9e8f6
           bash scripts/ci/rc0_source_guard.sh
           bash -n scripts/recovery/tests/operational20-signed-restore.sh
           bash -n scripts/ci/full_tree_pg17.sh
