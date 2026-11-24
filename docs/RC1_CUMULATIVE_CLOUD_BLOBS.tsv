@@ -1,4 +1,4 @@
-# Pending SOL approval; cumulative PR131+133 exact source, not imported
+# SOL/PM accepted cumulative PR131+133 source; README reconciled separately
 00f3f176e8f6fdcbf72abf7ed4453ba80280484a	docs/CLOUD_STAFF_APPOINTMENT_LIFECYCLE_2026.md
 e4e73272bf31a96b4d8c46ee384178689aba372b	readme.md
 6436b1aa5fd6d18c7ac92aa8b17546131282bcd0	web/src/appointments/lifecycle.d.mts

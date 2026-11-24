@@ -1,3 +1,7 @@
+## ASTRA — RC1 approved frontend source import (CI pending)
+
+PR133 exact `052a97da1e7ff4e95d46331f6b657f199592bd84` accepted by SOL and PM. Nineteen exact frontend/document blobs imported; README reconciles both sources. All 21 backend migration blobs unchanged. Historical CI guards still require explicit RC1 reconciliation; no integrated acceptance or hosted authorization. CLOUD must await green exact-head baseline and PM confirmation.
+
 ## ASTRA — RC1 preparation only, 2026-11-24 (current first entry)
 
 - Isolated child `ai/astra/rc1-pr130-source-prep-20261124` directly from corrected SOL-source-PASS PR130 `b6ee64b38ca4ce2965f2b02f09a4e5584aa56608`. No frontend/SQL/CI security pin edits, no hosted writes, no merges.
