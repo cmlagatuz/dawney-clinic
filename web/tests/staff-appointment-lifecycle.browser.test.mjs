@@ -113,12 +113,13 @@ test('decline and no-show use persisted cancelled/no_show; receptionist cannot c
  await tap(b,'Check in');await status(b,'Checked in')
  assert.equal(await b.value('[...document.querySelectorAll(".appointment-lifecycle button")].some(x=>x.textContent==="Complete visit"&&!x.disabled)'),false)
 }))
-test('lost ACK: same nonce replay no second increment; conflict and denied clear context',{timeout:180000},async()=>browserCase(true,async(b,url)=>{
+test('lost ACK survives branch queue revalidation; same nonce replay no second increment; conflict and denied clear context',{timeout:180000},async()=>browserCase(true,async(b,url)=>{
  await select(b,url,'case=timeout-once&reset=1')
  await status(b,'Requested')
  await tap(b,'Confirm request')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Outcome is uncertain")')
  assert.equal((await db(b)).booking.lifecycle_revision,2)
+ await b.value('document.querySelector(\'button[aria-label="Refresh authorized branch appointments and counts"]\').click();true')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Retry same request")')
  await tap(b,'Retry same request')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Server confirmed confirmed at revision 2")')

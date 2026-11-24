@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import {readFileSync} from 'node:fs'
 import {ACTIONS,STATUS_AFTER,actionsFor,verifyAppointmentDetail,verifyTransitionReply,transitionError} from '../src/appointments/lifecycle.mjs'
 const uuid=n=>'40000000-0000-4000-8000-'+String(n).padStart(12,'0')
 const branch=uuid(1)
@@ -44,4 +45,15 @@ test('SQLSTATE errors distinguish stale revision, denied, backend absent and los
   assert.equal(transitionError({code,message:'fixture'}),result)
  assert.equal(transitionError(Error('Failed to fetch')),'uncertain')
  assert.equal(transitionError(Error('unexpected parsing')),'unverified')
+})
+
+test('uncertain appointment nonce belongs to account-and-branch view across queue reload',()=>{
+ const view=readFileSync(new URL('../src/pages/staff/OpsPage.tsx',import.meta.url),'utf8')
+ const panel=readFileSync(new URL('../src/pages/staff/AppointmentLifecyclePanel.tsx',import.meta.url),'utf8')
+ assert.match(view,/key={`\$\{uid \?\? 'none'\}:\$\{scope.selected\}`}/)
+ assert.match(view,/const \[pendingTicket, setPendingTicket\]/)
+ assert.match(view,/ticket={pendingTicket} setTicket={setPendingTicket}/)
+ assert.match(panel,/ticketRef\.current=ticket/)
+ assert.match(panel,/await port\.transition\(ticketToSend\.detail,action,ticketToSend\.requestId\)/)
+ assert.match(panel,/checked\.revision!==ack\.revision/)
 })
