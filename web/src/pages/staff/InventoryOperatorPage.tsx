@@ -27,17 +27,21 @@ function OperatorAccount({user}:{user:User}){
  const discardTickets=()=>{setItemTicket(null);setReceiptTicket(null)}
  useEffect(()=>{
   let current=true
-  setAccess({kind:'loading'});setSelected(null)
+  // Hide protected forms while checking, but retain the branch selection so
+  // a multi-branch operator can safely replay the original nonce afterward.
+  setAccess({kind:'loading'})
   void verifiedStaffNavigationBranches(user).then(branches=>{
    if(!current)return
    const eligible=branches.filter(b=>b.role==='administrator'||b.role==='receptionist')
-   if(!eligible.length){discardTickets();setAccess({kind:'denied'});return}
+   if(!eligible.length){discardTickets();setSelected(null);setAccess({kind:'denied'});return}
+   const sameBranch=selected!==null&&eligible.some(b=>b.id===selected)
+   if(selected!==null&&!sameBranch)discardTickets()
    setAccess({kind:'ready',branches:eligible})
-   if(eligible.length===1)setSelected(eligible[0]?.id??null)
+   setSelected(sameBranch?selected:eligible.length===1?eligible[0]?.id??null:null)
   },error=>{
    if(!current)return
    const reason=inventoryError(error)
-   if(reason==='denied')discardTickets()
+   if(reason==='denied'){discardTickets();setSelected(null)}
    setAccess(reason==='denied'?{kind:'denied'}:{kind:'failed',reason})
   })
   const recheck=()=>setAttempt(n=>n+1)
