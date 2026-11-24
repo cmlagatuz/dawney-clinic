@@ -1,3 +1,11 @@
+## ASTRA — RC1 preparation only, 2026-11-24 (current first entry)
+
+- Isolated child `ai/astra/rc1-pr130-source-prep-20261124` directly from corrected SOL-source-PASS PR130 `b6ee64b38ca4ce2965f2b02f09a4e5584aa56608`. No frontend/SQL/CI security pin edits, no hosted writes, no merges.
+- Authoritative docs: `docs/RC1_INTEGRATION_HANDOFF.md`, `docs/RC1_STAGING_ACCEPTANCE_ROLLBACK.md`, `docs/RC1_MIGRATION_BLOBS.tsv`, `docs/RC1_PENDING_CLOUD_BLOBS.tsv`; offline-only `scripts/release/rc1_staging_preflight.sh`. Top-level actual filename is `readme.md` (lowercase).
+- Backend proposed migration #21 Git blob `969db983facf7082e243d9ebae6e3fe7cdf65a39`; historical original 20 frozen. PM reports staging 11, production 6; NO independently executed staged acceptance. PR131 `00e7f072e58a684970f00ea15d2b9b614ce8aebe` 12-file frontend manifest pinned but *not imported* until final PM-accepted hardening/SOL contract assessment.
+- Prior exact-head CI is *inherited evidence* for PR129/PR130/PR131, NOT a new combined exact-head test. This preflight packet is deliberately NOT executed. No RC1 source GO.
+- Next accountable action: PM receives CLOUD final hardening SHA + SOL contract assessment; ASTRA may then integrate exact accepted frontend blobs on this one child, reconcile strict source guards, run complete exact-head CI and request SOL/TERRA independent acceptance before owner-gated hosted UAT.
+
 ## ASTRA 2026-11-24 — SOL PR130 P2 Auth-user ban race repair (source-only)
 
 - Exact frozen parent PR129 remains `078053120774e856c9ddaa8c8027b3c891e9e8f6`; original migration #1–#20 hashes are unchanged. **Existing draft PR130 only**; no second branch or deployed SQL.
