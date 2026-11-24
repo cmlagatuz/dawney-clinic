@@ -212,7 +212,7 @@ test('Receive Stock nonce survives focus revalidation and never doubles committe
  await receiptTen(b)
  await waitState(b,'document.querySelector("#main-content")?.textContent.includes("result is uncertain")',12000)
  await b.value('window.dispatchEvent(new Event("focus"));true')
- await waitState(b,'!!document.querySelector("#receive-heading")&&[...document.querySelectorAll("button")].some(x=>x.textContent?.includes("Retry original receipt ID"))',15000)
+ await waitState(b,'!!document.querySelector("#receive-heading")&&[...document.querySelectorAll("button")].some(x=>x.textContent?.includes("Retry original receipt ID")&&!x.disabled)',15000)
  await click(b,'section[aria-labelledby="receive-heading"] .operator-actions button:nth-of-type(2)')
  await waitState(b,'document.querySelector("#main-content")?.textContent.includes("Received 10 units")',14000)
  const s=await b.value('window.__operationalMock.getDb()')
