@@ -18,6 +18,7 @@ git fetch --no-tags origin 'refs/pull/130/head:refs/remotes/origin/rc1-frozen-ba
 diff -u <(cat <<'RC1_PREPARED_FILES'
 .github/workflows/rc1-preparation.yml
 docs/AI_HANDOFF.md
+docs/RC1_CUMULATIVE_CLOUD_BLOBS.tsv
 docs/RC1_INTEGRATION_HANDOFF.md
 docs/RC1_MIGRATION_BLOBS.tsv
 docs/RC1_PENDING_CLOUD_BLOBS.tsv
@@ -25,6 +26,7 @@ docs/RC1_STAGING_ACCEPTANCE_ROLLBACK.md
 readme.md
 scripts/ci/rc1_preparation_source_guard.sh
 scripts/release/rc1_staging_preflight.sh
+scripts/release/rc1_staging_preflight_test.sh
 RC1_PREPARED_FILES
 ) <(git diff --name-only "$FROZEN" HEAD) || die 'unexpected modified path (including SQL/UI/CI history)'
 diff -u <(git ls-tree -r --name-only "$FROZEN" -- supabase/migrations) <(git ls-tree -r --name-only HEAD -- supabase/migrations) || die 'migration filename/order drift'
@@ -44,4 +46,4 @@ for line in "${FRONT[@]}"; do
 done
 [[ ! -e web/src/appointments/port.ts && ! -e web/src/pages/staff/AppointmentLifecyclePanel.tsx ]] || die 'frontend imported before PM/SOL hardening acceptance'
 bash -n scripts/release/rc1_staging_preflight.sh || die 'offline acceptance packet shell syntax invalid'
-echo 'PASS: exact official PREPARATION head; frozen PR129/130/131, 21 immutable migrations, 12 pending unimported frontend source pins, nine explicit preparation paths; no hosted staging executed.'
+echo 'PASS: exact official PREPARATION head; frozen PR129/130/131, 21 immutable migrations, 12 pending unimported frontend source pins, eleven explicit preparation paths; no hosted staging executed.'

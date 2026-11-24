@@ -29,5 +29,5 @@ jobs:
       - name: Exact reviewed paths and frozen migration/frontend manifests
         shell: bash
         run: bash scripts/ci/rc1_preparation_source_guard.sh
-      - name: Offline packet is syntax-valid (do NOT execute staging preflight)
-        run: bash -n scripts/release/rc1_staging_preflight.sh
+      - name: Offline synthetic history and drift rehearsal (no hosted operations)
+        run: bash scripts/release/rc1_staging_preflight_test.sh

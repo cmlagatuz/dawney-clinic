@@ -17,7 +17,7 @@ mapfile -t actual_paths < <(git ls-tree -r --name-only HEAD -- supabase/migratio
 for ((i=0;i<21;i++)); do
   IFS=$'\t' read -r num sha path <<< "${expected[$i]}"
   [[ "$num" == "$(printf '%02d' "$((i+1))")" && "$sha" =~ ^[0-9a-f]{40}$ && "$path" == "${actual_paths[$i]}" ]] || fail "migration order or manifest row $i differs"
-  [[ "$(git rev-parse "HEAD:$path")" == "$sha" && "$(git hash-object "$path")" == "$sha" ]] || fail "migration source blob drift: $path"
+  [[ "$(git rev-parse "HEAD:$path")" == "$sha" && "$(git hash-object "$path")" == "$sha" && "$(git rev-parse "b6ee64b38ca4ce2965f2b02f09a4e5584aa56608:$path")" == "$sha" ]] || fail "migration source blob drift: $path"
 done
 mapfile -t applied < <(sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "$VERSIONS_FILE")
 [[ ${#applied[@]} == 11 ]] || fail 'staging must have exactly the PM-reported 11-version prefix; stop and investigate otherwise'
