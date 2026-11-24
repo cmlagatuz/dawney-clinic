@@ -268,7 +268,9 @@ test('CLOUD: owner requested booking enters branch-only Operations, clinical con
       await browser.send('Emulation.setDeviceMetricsOverride',
         {width:768,height:900,deviceScaleFactor:1,mobile:false})
       await browser.goto(url+'/app/appointments?actor=owner&theme=light&reset=1')
-      await browser.until('!!document.querySelector("form[aria-label=\'Appointment request\']")',9000)
+      // A rendered form can precede the verified owner/pet read; assert the
+      // actual server-backed selected pet, not a transient empty dropdown.
+      await browser.until('document.querySelector("form[aria-label=\'Appointment request\'] select")?.value==="40000000-0000-4000-8000-000000000009"',12000)
       assert.equal(await browser.value('document.querySelector("form select").value'),
         '40000000-0000-4000-8000-000000000009','owner verified pet selected')
       await browser.value('(()=>{const e=document.querySelectorAll("form[aria-label=\'Appointment request\'] select")[1];e.value="40000000-0000-4000-8000-000000000003";e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')

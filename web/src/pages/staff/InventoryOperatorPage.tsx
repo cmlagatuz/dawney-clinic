@@ -6,6 +6,7 @@ import {verifiedStaffNavigationBranches} from '../../release/verified-staff-bran
 import {inventoryError} from '../../inventory/model.mjs'
 import {operationalFlags} from '../../operational/port'
 import type {OpsBranch} from '../../ops/branch-model.mjs'
+import type {ItemArgs,ReceiptArgs} from '../../operational/contract'
 import {PharmacyPage} from './PharmacyPage'
 import {InventoryOperatorForms} from './InventoryOperatorForms'
 import './operator-workspaces.css'
@@ -19,18 +20,28 @@ function OperatorAccount({user}:{user:User}){
  const [attempt,setAttempt]=useState(0)
  const [access,setAccess]=useState<Access>({kind:'loading'})
  const [selected,setSelected]=useState<string|null>(null)
+ // Focus revalidation can unmount the forms; retain the exact nonce/payload
+ // only within this account boundary, clearing it on branch or role loss.
+ const [itemTicket,setItemTicket]=useState<ItemArgs|null>(null)
+ const [receiptTicket,setReceiptTicket]=useState<ReceiptArgs|null>(null)
+ const discardTickets=()=>{setItemTicket(null);setReceiptTicket(null)}
  useEffect(()=>{
   let current=true
-  setAccess({kind:'loading'});setSelected(null)
+  // Hide protected forms while checking, but retain the branch selection so
+  // a multi-branch operator can safely replay the original nonce afterward.
+  setAccess({kind:'loading'})
   void verifiedStaffNavigationBranches(user).then(branches=>{
    if(!current)return
    const eligible=branches.filter(b=>b.role==='administrator'||b.role==='receptionist')
-   if(!eligible.length){setAccess({kind:'denied'});return}
+   if(!eligible.length){discardTickets();setSelected(null);setAccess({kind:'denied'});return}
+   const sameBranch=selected!==null&&eligible.some(b=>b.id===selected)
+   if(selected!==null&&!sameBranch)discardTickets()
    setAccess({kind:'ready',branches:eligible})
-   if(eligible.length===1)setSelected(eligible[0]?.id??null)
+   setSelected(sameBranch?selected:eligible.length===1?eligible[0]?.id??null:null)
   },error=>{
    if(!current)return
    const reason=inventoryError(error)
+   if(reason==='denied'){discardTickets();setSelected(null)}
    setAccess(reason==='denied'?{kind:'denied'}:{kind:'failed',reason})
   })
   const recheck=()=>setAttempt(n=>n+1)
@@ -56,7 +67,7 @@ function OperatorAccount({user}:{user:User}){
   {access.kind==='ready'&&<>
    <section className="card operator-section" aria-label="Authorized inventory branch">
     <label htmlFor="operator-branch">Inventory branch
-     <select id="operator-branch" value={branch?.id??''} onChange={e=>setSelected(access.branches.some(b=>b.id===e.target.value)?e.target.value:null)}>
+     <select id="operator-branch" value={branch?.id??''} onChange={e=>{discardTickets();setSelected(access.branches.some(b=>b.id===e.target.value)?e.target.value:null)}}>
       <option value="">Choose an authorized branch</option>
       {access.branches.map(b=><option key={b.id} value={b.id}>{b.name} · {b.role}</option>)}
      </select>
@@ -64,7 +75,9 @@ function OperatorAccount({user}:{user:User}){
     <p className="operator-muted">Selection is a UI filter. Each operation must still validate the verified session, current role and selected branch in PostgreSQL.</p>
    </section>
    {branch?<InventoryOperatorForms key={user.id+':'+branch.id} user={user} branch={branch}
-     onDenied={()=>{setAccess({kind:'denied'});setSelected(null)}}/>:
+     itemTicket={itemTicket} setItemTicket={setItemTicket}
+     receiptTicket={receiptTicket} setReceiptTicket={setReceiptTicket}
+     onDenied={()=>{discardTickets();setAccess({kind:'denied'});setSelected(null)}}/>:
     <div className="card" role="status"><h2>Choose a clinic branch</h2><p>Item and receipt controls are hidden until you select an active authorized branch.</p></div>}
   </>}
   <section className="operator-inventory-read" aria-label="Existing medicine stock reader">

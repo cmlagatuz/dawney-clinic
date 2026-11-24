@@ -31,6 +31,9 @@ async function wait(b,exp){
   throw Error('Synthetic lifecycle state: '+JSON.stringify(s),{cause:e})}
 }
 async function tap(b,label){
+ // Real user actions must become enabled after revalidation; the presence of
+ // a disabled button is not permission to race an in-flight operation.
+ await wait(b,'[...document.querySelectorAll(".appointment-lifecycle button")].some(x=>x.textContent?.trim()==='+q(label)+'&&!x.disabled)')
  const ok=await b.value('(()=>{const e=[...document.querySelectorAll(".appointment-lifecycle button")].find(b=>b.textContent?.trim()==='+q(label)+');if(!e||e.disabled)return false;e.click();return true})()')
  assert.equal(ok,true,'enabled button '+label)
 }
@@ -113,12 +116,13 @@ test('decline and no-show use persisted cancelled/no_show; receptionist cannot c
  await tap(b,'Check in');await status(b,'Checked in')
  assert.equal(await b.value('[...document.querySelectorAll(".appointment-lifecycle button")].some(x=>x.textContent==="Complete visit"&&!x.disabled)'),false)
 }))
-test('lost ACK: same nonce replay no second increment; conflict and denied clear context',{timeout:180000},async()=>browserCase(true,async(b,url)=>{
+test('lost ACK survives branch queue revalidation; same nonce replay no second increment; conflict and denied clear context',{timeout:180000},async()=>browserCase(true,async(b,url)=>{
  await select(b,url,'case=timeout-once&reset=1')
  await status(b,'Requested')
  await tap(b,'Confirm request')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Outcome is uncertain")')
  assert.equal((await db(b)).booking.lifecycle_revision,2)
+ await b.value('document.querySelector(\'button[aria-label="Refresh authorized branch appointments and counts"]\').click();true')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Retry same request")')
  await tap(b,'Retry same request')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Server confirmed confirmed at revision 2")')

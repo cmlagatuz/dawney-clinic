@@ -85,7 +85,7 @@ export function operationalHttpFixture(){
   if(ops==='network')throw TypeError('Synthetic network timeout')
   if(which==='get_my_staff_access'){
    const request=actor==='owner'?s.ownRequest:null
-   const state=actor==='owner'?(request?.state??'none'):mode==='revoked'?'revoked':'approved'
+   const state=actor==='owner'?(request?.state??'none'):mode==='revoked'?'revoked':ops==='bootstrap'?'none':'approved'
    const role=actor==='owner'||mode==='revoked'?null:mode==='administrator'?'administrator':
     mode==='receptionist'?'receptionist':mode==='accountant'?'accountant':'veterinarian'
    return json({kind:'my_staff_access',state,role,
@@ -154,6 +154,9 @@ export function operationalHttpFixture(){
     unit:body.p_unit,revision:1,onHandUnits:0,batchId:null}
    s.receipts[body.p_request_id]=reply
    save(s)
+   if(ops==='create-timeout-once'&&!s.sentOnce[body.p_request_id]){
+    s.sentOnce[body.p_request_id]=true;save(s);throw TypeError('Synthetic lost Add Item acknowledgement')
+   }
    return json(reply)
   }
   if(which==='receive_branch_inventory_stock'){
