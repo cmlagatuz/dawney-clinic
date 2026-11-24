@@ -31,6 +31,9 @@ async function wait(b,exp){
   throw Error('Synthetic lifecycle state: '+JSON.stringify(s),{cause:e})}
 }
 async function tap(b,label){
+ // Real user actions must become enabled after revalidation; the presence of
+ // a disabled button is not permission to race an in-flight operation.
+ await wait(b,'[...document.querySelectorAll(".appointment-lifecycle button")].some(x=>x.textContent?.trim()==='+q(label)+'&&!x.disabled)')
  const ok=await b.value('(()=>{const e=[...document.querySelectorAll(".appointment-lifecycle button")].find(b=>b.textContent?.trim()==='+q(label)+');if(!e||e.disabled)return false;e.click();return true})()')
  assert.equal(ok,true,'enabled button '+label)
 }
