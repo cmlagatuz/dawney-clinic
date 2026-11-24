@@ -29,7 +29,10 @@ export function operationalHttpFixture(){
  const admin=actor==='staff'&&mode==='administrator'
  const validBranch=x=>x===ids.naga
  const baseFetch=window.fetch.bind(window)
- window.__operationalMock={calls:[],blocked:[],receipts:[],getDb:load}
+ let catalogGate=null
+ window.__operationalMock={calls:[],blocked:[],receipts:[],getDb:load,
+  holdCatalog(){let release;const promise=new Promise(resolve=>{release=resolve});catalogGate={promise,release}},
+  releaseCatalog(){const gate=catalogGate;catalogGate=null;gate?.release()}}
  window.fetch=async(input,init)=>{
   const req=new Request(input,init),url=new URL(req.url)
   if(url.origin!==remote)return baseFetch(input,init)
@@ -44,6 +47,7 @@ export function operationalHttpFixture(){
   if(path==='/rest/v1/staff_branch_memberships'&&mode==='accountant')
    return json([{user_id:ids.staff,branch_id:ids.naga,role:'accountant',is_active:true}])
   if(path==='/rest/v1/medicine_catalog'){
+   if(catalogGate)await catalogGate.promise
    const existing={id:ids.existing,product_code:'QA-INTEGRATION',generic_name:'Synthetic medicine',
     formulation:'vial',strength:'1 unit',stock_unit:'vial',
     minimum_shelf_life_days:0,requires_refrigeration:false,is_controlled:false,is_active:true}

@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import type {User} from '@supabase/supabase-js'
 import {useAuth} from '../../hooks/AuthProvider'
 import {PageHeading,LoadingCard} from '../../components/ui'
@@ -21,6 +21,7 @@ function OperatorAccount({user}:{user:User}){
  const [attempt,setAttempt]=useState(0)
  const [access,setAccess]=useState<Access>({kind:'loading'})
  const [selected,setSelected]=useState<string|null>(null)
+ const verifiedRole=useRef<OpsBranch['role']|null>(null)
  // Focus revalidation can unmount the forms; retain the exact nonce/payload
  // only within this account boundary, clearing it on branch or role loss.
  const [itemTicket,setItemTicket]=useState<ItemArgs|null>(null)
@@ -38,7 +39,9 @@ function OperatorAccount({user}:{user:User}){
    const eligible=branches.filter(b=>b.role==='administrator'||b.role==='receptionist')
    if(!eligible.length){discardTickets();setSelected(null);setAccess({kind:'denied'});return}
    const sameBranch=selected!==null&&eligible.some(b=>b.id===selected)
-   if(selected!==null&&!sameBranch)discardTickets()
+   const nextRole=eligible.find(b=>b.id===selected)?.role??null
+   if(selected!==null&&(!sameBranch||verifiedRole.current!==null&&verifiedRole.current!==nextRole))discardTickets()
+   verifiedRole.current=nextRole??(eligible.length===1?eligible[0]?.role??null:null)
    setAccess({kind:'ready',branches:eligible})
    setSelected(sameBranch?selected:eligible.length===1?eligible[0]?.id??null:null)
   },error=>{
@@ -70,7 +73,7 @@ function OperatorAccount({user}:{user:User}){
   {access.kind==='ready'&&<>
    <section className="card operator-section" aria-label="Authorized inventory branch">
     <label htmlFor="operator-branch">Inventory branch
-     <select id="operator-branch" value={branch?.id??''} disabled={pending} onChange={e=>{if(pending)return;discardTickets();setSelected(access.branches.some(b=>b.id===e.target.value)?e.target.value:null)}}>
+     <select id="operator-branch" value={branch?.id??''} disabled={pending} onChange={e=>{if(pending)return;discardTickets();const next=access.branches.find(b=>b.id===e.target.value);verifiedRole.current=next?.role??null;setSelected(next?.id??null)}}>
       <option value="">Choose an authorized branch</option>
       {access.branches.map(b=><option key={b.id} value={b.id}>{b.name} · {b.role}</option>)}
      </select>

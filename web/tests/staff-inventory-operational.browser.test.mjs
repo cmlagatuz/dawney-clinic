@@ -46,6 +46,25 @@ async function waitState(browser,expression,timeout){
    throw Error('Synthetic operational UI missing state: '+JSON.stringify(state).slice(0,4500),{cause:error})
   }
 }
+// Exercise the same readiness contract in both lost-ACK paths, even on a fast runner.
+async function retryAfterFocus(b,label,details,otherHeading,rpc){
+ const before=await b.value('window.__operationalMock.getDb()')
+ const original=before.calls.filter(x=>x.rpc===rpc)
+ assert.equal(original.length,1)
+ await b.value('window.__operationalMock.holdCatalog();window.dispatchEvent(new Event("focus"));true')
+ const button='[...document.querySelectorAll("button")].find(x=>x.textContent?.trim()==='+css(label)+')'
+ await waitState(b,'('+button+')?.disabled===true',15000)
+ for(const detail of [...details,original[0].args.p_request_id])
+  assert.equal(await b.value('document.querySelector(\'[aria-label="Unresolved inventory operation"]\')?.textContent.includes('+css(detail)+')'),true)
+ assert.equal(await b.value('document.querySelector("#operator-branch").disabled'),true)
+ assert.equal(await b.value('document.querySelector('+css('section[aria-labelledby="'+otherHeading+'"] button[type=submit]')+').disabled'),true)
+ assert.equal(await b.value('(()=>{const e=new Event("beforeunload",{cancelable:true});window.dispatchEvent(e);return e.defaultPrevented})()'),true)
+ await b.value('('+button+').click();true')
+ assert.equal((await b.value('window.__operationalMock.getDb()')).calls.filter(x=>x.rpc===rpc).length,1)
+ await b.value('window.__operationalMock.releaseCatalog();true')
+ await waitState(b,'('+button+')?.disabled===false',15000)
+ assert.equal(await b.value('(()=>{const e='+button+';if(!e||e.disabled)return false;e.click();return true})()'),true)
+}
 async function createItem(browser,expected='saved'){
  await waitState(browser,'!!document.querySelector("#add-item-heading")&&!!document.querySelector("[aria-label^=Live] select")',15000)
  const prefix='section[aria-labelledby="add-item-heading"] '
@@ -194,9 +213,7 @@ test('Add Item nonce survives focus revalidation and form remount after a commit
  await b.goto(origin+'/app/inventory?actor=staff&case=receptionist&ops=create-timeout-once&resetOps=1')
  await waitState(b,'!!document.querySelector("#receive-heading")',14000)
  await createItem(b,'uncertain')
- await b.value('window.dispatchEvent(new Event("focus"));true')
- await waitState(b,'!!document.querySelector("#add-item-heading")&&[...document.querySelectorAll("button")].some(x=>x.textContent?.includes("Retry original Add Item ID"))',15000)
- await click(b,'section[aria-labelledby="add-item-heading"] button:nth-of-type(2)')
+ await retryAfterFocus(b,'Retry original Add Item ID',['QA-NEW-1','Synthetic Test Medicine'],'receive-heading','create_branch_inventory_item')
  await waitState(b,'document.querySelector("#main-content")?.textContent.includes("Item saved and confirmed on server")',14000)
  const s=await b.value('window.__operationalMock.getDb()')
  const calls=s.calls.filter(x=>x.rpc==='create_branch_inventory_item')
@@ -204,6 +221,8 @@ test('Add Item nonce survives focus revalidation and form remount after a commit
  assert.deepEqual(calls[0].args,calls[1].args)
  assert.equal(s.products.length,1)
  assert.equal(s.products[0].stock,0)
+ assert.equal(s.events.length,0)
+ assert.equal(Object.keys(s.receipts).length,1)
 }))
 test('Receive Stock nonce survives focus revalidation and never doubles committed stock',{timeout:175000},async()=>withOperatorBrowser(async(b,origin)=>{
  await b.goto(origin+'/app/inventory?actor=staff&case=receptionist&ops=timeout-once&resetOps=1')
@@ -211,13 +230,7 @@ test('Receive Stock nonce survives focus revalidation and never doubles committe
  await createItem(b)
  await receiptTen(b)
  await waitState(b,'document.querySelector("#main-content")?.textContent.includes("result is uncertain")',12000)
- await b.value('window.dispatchEvent(new Event("focus"));true')
- await waitState(b,'!!document.querySelector("#receive-heading")&&[...document.querySelectorAll("button")].some(x=>x.textContent?.includes("Retry original receipt ID")&&!x.disabled)',15000)
- await waitState(b,'document.querySelector("[aria-label=\\"Unresolved inventory operation\\"]")?.textContent.includes("LOT-TEST-10")&&document.querySelector("[aria-label=\\"Unresolved inventory operation\\"]")?.textContent.includes("10 units")',15000)
- assert.equal(await b.value('document.querySelector("#operator-branch").disabled'),true)
- assert.equal(await b.value('document.querySelector(\'section[aria-labelledby="add-item-heading"] button[type=submit]\').disabled'),true)
- assert.equal(await b.value('(()=>{const e=new Event("beforeunload",{cancelable:true});window.dispatchEvent(e);return e.defaultPrevented})()'),true)
- assert.equal(await b.value('(()=>{const e=[...document.querySelectorAll("button")].find(x=>x.textContent?.includes("Retry original receipt ID"));if(!e||e.disabled)return false;e.click();return true})()'),true)
+ await retryAfterFocus(b,'Retry original receipt ID',['LOT-TEST-10','10 units'],'add-item-heading','receive_branch_inventory_stock')
  await waitState(b,'document.querySelector("#main-content")?.textContent.includes("Received 10 units")',14000)
  const s=await b.value('window.__operationalMock.getDb()')
  const calls=s.calls.filter(x=>x.rpc==='receive_branch_inventory_stock')
