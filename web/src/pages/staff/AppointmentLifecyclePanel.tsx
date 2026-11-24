@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useRef,useState} from 'react'
+import {useEffect,useMemo,useRef,useState, type Dispatch, type SetStateAction} from 'react'
 import {StatusBadge} from '../../components/ui'
 import {formatClinicTime,shortRef} from '../../ops/ops-model.mjs'
 import type {OpsRow,OpsRole} from '../../ops/ops-model.mjs'
@@ -10,7 +10,7 @@ import './appointment-lifecycle.css'
 
 type Read={status:'loading'}|{status:'blocked';kind:AppointmentFailure|'stale'}|
  {status:'ready';detail:AppointmentDetail;encounter:'yes'|'no'|'unavailable'|'checking'}
-type Ticket={action:AppointmentAction;detail:AppointmentDetail;requestId:string}
+export type AppointmentTicket={action:AppointmentAction;detail:AppointmentDetail;requestId:string}
 const severe=new Set<AppointmentAction>(['decline','no_show','cancel','complete'])
 const messages:Record<AppointmentFailure|'stale',string>={
  denied:'Staff access or session is no longer authorized. Appointment details have been cleared.',
@@ -22,17 +22,19 @@ const messages:Record<AppointmentFailure|'stale',string>={
  unverified:'The server response or subsequent readback could not be verified. No success is claimed.',
  stale:'Appointment status changed while this view was open. Refresh the verified branch queue.'
 }
-export function AppointmentLifecyclePanel({row,role,branchId,accountId,onRefresh,onDenied}:{
- row:OpsRow|null;role:OpsRole;branchId:string;accountId:string;onRefresh:()=>void;onDenied:()=>void
+export function AppointmentLifecyclePanel({row,role,branchId,accountId,ticket,setTicket,onRefresh,onDenied}:{
+ row:OpsRow|null;role:OpsRole;branchId:string;accountId:string;
+ ticket:AppointmentTicket|null;setTicket:Dispatch<SetStateAction<AppointmentTicket|null>>;
+ onRefresh:()=>void;onDenied:()=>void
 }){
  const {user}=useAuth()
  const authRef=useRef(user);authRef.current=user
  const port=useMemo(()=>authRef.current?.id===accountId
    ?createAppointmentLifecyclePort(authRef.current,branchId):null,[accountId,branchId])
  const callbacks=useRef({onRefresh,onDenied});callbacks.current={onRefresh,onDenied}
- const mounted=useRef(false), seq=useRef(0),busyRef=useRef(false),ticketRef=useRef<Ticket|null>(null)
+ const mounted=useRef(false), seq=useRef(0),busyRef=useRef(false),ticketRef=useRef<AppointmentTicket|null>(ticket)
  const [read,setRead]=useState<Read>({status:'loading'})
- const [ticket,setTicket]=useState<Ticket|null>(null)
+ ticketRef.current=ticket
  const [busy,setBusy]=useState(false)
  const [confirm,setConfirm]=useState<AppointmentAction|null>(null)
  const [notice,setNotice]=useState<{tone:'info'|'danger'|'success';message:string}|null>(null)
@@ -49,7 +51,9 @@ export function AppointmentLifecyclePanel({row,role,branchId,accountId,onRefresh
    try{
     const d=await port.read(row)
     if(current!==seq.current||!mounted.current)return
-    if(d.status!==row.status){setRead({status:'blocked',kind:'stale'});return}
+    // An uncertain request may already have committed. Do not reject its
+    // authoritative new status merely because the queue still has an old row.
+    if(d.status!==row.status&&!ticketRef.current){setRead({status:'blocked',kind:'stale'});return}
     setRead({status:'ready',detail:d,encounter:d.status==='checked_in'?'checking':'no'})
     if(d.status==='checked_in'&&['administrator','veterinarian'].includes(role)){
      try{
@@ -154,7 +158,7 @@ export function AppointmentLifecyclePanel({row,role,branchId,accountId,onRefresh
         disabled={busy} onClick={()=>void submit(confirm)}>Apply {ACTION_COPY[confirm]}</button>
         <button type="button" className="button button-secondary button-small" onClick={()=>setConfirm(null)}>Back</button></div>
       </div>:<div className="lifecycle-buttons" role="group" aria-label="Available appointment transitions">
-       {ticket?<button type="button" className="button button-primary button-small" disabled={busy||!loaded}
+       {ticket?<button type="button" className="button button-primary button-small" disabled={busy||read.status!=='ready'}
         onClick={()=>void submit(ticket.action)}>Retry same request</button>:
         choices.map(action=><button key={action} type="button" className="button button-secondary button-small"
          disabled={busy} onClick={()=>choose(action)}>{ACTION_COPY[action]}</button>)}

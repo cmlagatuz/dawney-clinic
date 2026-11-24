@@ -7,7 +7,7 @@ import {createOpsReadPort} from '../../ops/port'
 import {useOpsData} from '../../ops/useOpsData'
 import {useBranchScope} from '../../ops/useBranchScope'
 import type {OpsReadPort} from '../../ops/read-port'
-import {AppointmentLifecyclePanel} from './AppointmentLifecyclePanel'
+import {AppointmentLifecyclePanel, type AppointmentTicket} from './AppointmentLifecyclePanel'
 import {OPS_RANGES, OPS_STATUSES, OPS_TIME_ZONE, addDays, buildKpis, formatDayLabel, isIsoDate, shortRef, todayInZone, weekDates, windowState} from '../../ops/ops-model.mjs'
 
 const ROLE_LABEL = {administrator: 'Administrator', veterinarian: 'Veterinarian', receptionist: 'Receptionist'} as const
@@ -58,6 +58,11 @@ function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsRe
   const [resource, setResource] = useState('all')
   const [status, setStatus] = useState('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Retain an uncertain transition across verification/remount only inside this
+  // account+branch-keyed view. Never replace its nonce with a new request.
+  const [pendingTicket, setPendingTicket] = useState<AppointmentTicket|null>(null)
+  const selectAppointment = (id: string) => {if (id !== selectedId) {setPendingTicket(null);setSelectedId(id)}}
+  const clearSelection = () => {setPendingTicket(null);setSelectedId(null)}
   const weekMode = view === 'schedule' && mode === 'week'
   const {session, day, counts, week, reload} = useOpsData(port, date, range, weekMode)
   const lastAuthorizedRole = useRef<'administrator'|'veterinarian'|'receptionist'>('receptionist')
@@ -75,14 +80,14 @@ function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsRe
   // not the global count of registered clinic patients.
   const kpis = useMemo(() => buildKpis({win, counts: counts.status === 'ok' ? counts.data : null})
     .map(k => k.key === 'patients' ? {...k, label: 'Patients seen in this branch', note: 'Distinct patients with appointments here, all dates.'} : k), [win, counts])
-  const setDay = (d: string) => { if (isIsoDate(d)) { setDate(d); setResource('all'); setSelectedId(null) } }
+  const setDay = (d: string) => { if (isIsoDate(d)) { setDate(d); setResource('all'); clearSelection() } }
 
   const heading = session.status === 'ok' ? <p className="ops-role">Signed in as {ROLE_LABEL[session.role]}{branchName ? ` · ${branchName}` : ''} · branch-scoped preview</p> : null
 
   if (session.status === 'verifying') return <><LoadingCard label="Verifying clinic staff access…" rows={4} />
     {selectedId && <AppointmentLifecyclePanel key={selectedId} row={null}
       role={lastAuthorizedRole.current} branchId={branchId} accountId={accountId}
-      onRefresh={reload} onDenied={()=>onDeniedRef.current?.()} />}</>
+      ticket={pendingTicket} setTicket={setPendingTicket} onRefresh={reload} onDenied={()=>onDeniedRef.current?.()} />}</>
   if (session.status === 'failed') return <><FailureCard kind={session.kind} onRetry={reload} />
     {session.kind === 'denied' && <p><Link className="button button-secondary" to="/app/overview">Back to my overview</Link></p>}</>
 
@@ -103,14 +108,14 @@ function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsRe
       {view === 'schedule' && <div className="ops-seg" role="group" aria-label="Schedule length">
         <button type="button" className="button button-secondary button-small" aria-pressed={mode === 'day'} onClick={() => setMode('day')}>Day</button>
         <button type="button" className="button button-secondary button-small" aria-pressed={mode === 'week'} onClick={() => setMode('week')}>Week</button></div>}
-      {!weekMode && <label className="ops-field"><span>Time range</span><select value={range} onChange={e => {setRange(e.target.value);setSelectedId(null)}}>
+      {!weekMode && <label className="ops-field"><span>Time range</span><select value={range} onChange={e => {setRange(e.target.value);clearSelection()}}>
         {OPS_RANGES.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}</select></label>}
       {!weekMode && <label className="ops-field"><span>Status</span>
-        <select aria-label="Appointment status" value={status} onChange={e => {setStatus(e.target.value);setSelectedId(null)}}>
+        <select aria-label="Appointment status" value={status} onChange={e => {setStatus(e.target.value);clearSelection()}}>
           <option value="all">All persisted statuses</option>
           {OPS_STATUSES.map(value => <option key={value} value={value}>{value.replaceAll('_',' ')}</option>)}
         </select></label>}
-      {!weekMode && <label className="ops-field"><span>Resource</span><select value={resource} onChange={e => {setResource(e.target.value);setSelectedId(null)}} disabled={resources.length === 0}>
+      {!weekMode && <label className="ops-field"><span>Resource</span><select value={resource} onChange={e => {setResource(e.target.value);clearSelection()}} disabled={resources.length === 0}>
         <option value="all">All resources</option>{resources.map(r => <option key={r} value={r}>Resource {shortRef(r)}</option>)}</select></label>}
       <label className="ops-field is-disabled"><span>Provider</span><select disabled aria-describedby="ops-prov"><option>Not available</option></select></label>
     </div>
@@ -133,13 +138,20 @@ function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsRe
         {state === 'incomplete' && <Notice tone="warning" title="Incomplete: more than 250 appointments matched">Only the first 250 by time are shown and every count is a lower bound (≥). Narrow the time range to see the rest.</Notice>}
         {state === 'empty' ? <EmptyState icon="calendar" title="No appointments in this window">The verified branch read returned no appointments for {label}{range !== 'all' ? ' in this time range' : ''}. Nothing is invented to fill the day.</EmptyState>
           : filtered.items.length === 0 ? <EmptyState icon="calendar" title="No matching appointments in the loaded rows">Choose a different status or resource{win.hasMore ? ', or narrow the time range: more records exist beyond this first 250-row window' : ''}.</EmptyState>
-          : view === 'board' ? <FlowBoard win={filtered} onSelect={setSelectedId} />
+          : view === 'board' ? <FlowBoard win={filtered} onSelect={selectAppointment} />
           : <section aria-labelledby="ops-sched-h" className="ops-section"><h2 id="ops-sched-h" className="ops-h2">Schedule · {label}</h2>
-              <p className="ops-help">Only booked appointments are drawn. No working hours, breaks or holidays are shown because none are published.</p><DayList win={filtered} onSelect={setSelectedId} /></section>}
+              <p className="ops-help">Only booked appointments are drawn. No working hours, breaks or holidays are shown because none are published.</p><DayList win={filtered} onSelect={selectAppointment} /></section>}
       </>}
     {selectedId && session.status==='ok' &&
-      <AppointmentLifecyclePanel key={selectedId} row={filtered?.items.find(i=>i.id===selectedId)??null}
-        role={session.role} branchId={branchId} accountId={accountId} onRefresh={reload}
+      <AppointmentLifecyclePanel key={selectedId} row={filtered?.items.find(i=>i.id===selectedId)??
+        (pendingTicket&&day.status==='ok'&&pendingTicket.detail.id===selectedId?{
+          id:pendingTicket.detail.id,pet_id:pendingTicket.detail.petId,
+          owner_id:pendingTicket.detail.ownerId,resource_id:pendingTicket.detail.resourceId,
+          starts_at:pendingTicket.detail.startsAt,ends_at:pendingTicket.detail.endsAt,
+          status:pendingTicket.detail.status,concern:'Selected appointment requires fresh server read'
+        }:null)}
+        role={session.role} branchId={branchId} accountId={accountId}
+        ticket={pendingTicket} setTicket={setPendingTicket} onRefresh={reload}
         onDenied={()=>onDeniedRef.current?.()} />}
     {!selectedId && day.status==='ok' && <p className="ops-help" role="status">Choose “Review appointment” on an authorized visit to inspect staff transitions.</p>}
     <section className="ops-section" aria-label="Related authorized staff workspaces">

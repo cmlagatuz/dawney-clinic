@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useRef,useState} from 'react'
+import {useEffect,useMemo,useRef,useState, type Dispatch, type SetStateAction} from 'react'
 import type {User} from '@supabase/supabase-js'
 import {Link} from 'react-router'
 import type {OpsBranch} from '../../ops/branch-model.mjs'
@@ -21,7 +21,11 @@ const err=(errors:Readonly<Record<string,string>>,field:string)=>errors[field]?
   <span role="alert" className="operator-inline-error">{errors[field]}</span>:null
 
 /** Source-only #126 transport. The RPC write flags are OFF by default. */
-export function InventoryOperatorForms({user,branch,onDenied}:{user:User;branch:OpsBranch;onDenied:()=>void}){
+export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemTicket,receiptTicket,setReceiptTicket}:{
+ user:User;branch:OpsBranch;onDenied:()=>void;
+ itemTicket:ItemArgs|null;setItemTicket:Dispatch<SetStateAction<ItemArgs|null>>;
+ receiptTicket:ReceiptArgs|null;setReceiptTicket:Dispatch<SetStateAction<ReceiptArgs|null>>
+}){
  const write=operationalFlags.inventory
  const port=useMemo(()=>createOperationalPort(user),[user.id])
  const pharmacy=useMemo(()=>createPharmacyPort(user),[user.id])
@@ -44,8 +48,6 @@ export function InventoryOperatorForms({user,branch,onDenied}:{user:User;branch:
  const [editReady,setEditReady]=useState(false)
  const [profileState,setProfileState]=useState<'none'|'loading'|'failed'|'ready'>('none')
  const [busy,setBusy]=useState<'create'|'receive'|'edit'|null>(null)
- const [itemTicket,setItemTicket]=useState<ItemArgs|null>(null)
- const [receiptTicket,setReceiptTicket]=useState<ReceiptArgs|null>(null)
  const [editName,setEditName]=useState('')
  const [editDescription,setEditDescription]=useState('')
  const [editReorder,setEditReorder]=useState('0')
