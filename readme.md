@@ -17,6 +17,18 @@
 | Clinical chart connection | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `1f1dd8a7ef8f56d87cfa2eb726e4150262054c61` | Scoped SOL source security and TERRA in-page functional PASS; 309/309 frontend; flags OFF |
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
+### Latest verified checkpoint — 26 November 2026
+
+| Deliverable | Exact evidence and standing |
+| --- | --- |
+| Manual recovery P2 closure | [PR136](https://github.com/cmlagatuz/dawney-clinic/pull/136) `e8537d5535ac7b5277cd790968ac26d7494c8bad`: 4/4 CI, [SOL scoped security GO](https://github.com/cmlagatuz/dawney-clinic/pull/136#issuecomment-7175666380), [TERRA bounded functional PASS](https://github.com/cmlagatuz/dawney-clinic/pull/136#issuecomment-7175710718), 19/19 targeted excerpt checks with mocked boundaries. BACKUP-01 closed within tested scope. Windows UAT, real provider completeness/restoration and RPO/RTO unverified. |
+| Clinical browser fixture correction | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `b6ffe25c7ace1cc75abdba649f04d930bb3d5b92`: test-only delta, [React CI](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45708390055) 309/310, #112 still fails at line 450; historical PG17 pin also fails. 3/5 workflows PASS. No new production defect established; keep flags OFF. |
+| Durable clinical receipt | [PR139](https://github.com/cmlagatuz/dawney-clinic/pull/139) `2a79d535ec7b473581381a0122a20afbcefc3256`: six backend/test/docs paths, one additive migration #22, 21 prior migrations reported unchanged; [dedicated PG17 and signed synthetic restore PASS](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45708623691). 7/10 triggered workflows PASS, three historical source gates stop before SQL. Independent review and end-to-end receipt UI pending; CHART-01 remains open. Discovery without original UUID is not proof of a particular lost save. |
+| External tool trust | [SOL assurance](https://github.com/cmlagatuz/dawney-clinic/pull/132#issuecomment-7175690895): Unslop APPROVE BOUNDED PILOT (source-only); Vibe Shield execution BLOCKED; Ghost QA NEEDS FIX. No npm artifact parity or actual execution verified. |
+| Professional UI | [CLOUD manual seven-pillar baseline](https://github.com/cmlagatuz/dawney-clinic/pull/137#issuecomment-7175690791); analyzer NOT RUN, score NOT MEASURED, no design pilot or before/after browser evidence. Adopt human-reviewed Unslop principles only; no automatic setup, unverified package execution or score-driven gate. |
+
+Both hosted Supabase projects rechecked ACTIVE_HEALTHY, production 6 and staging 11 applied migrations; 22 proposed migrations exist only in the new backend child. Accepted RC1 remains frozen with 15/15 CI; clinic-live NO-GO. All prior historical entries retained. This documentation draft requires its own strict provenance reconciliation; previous documentation head had one green PHP workflow and one expected source guard failure.
+
 ### Professional engineering quality initiative
 
 - [Unslop](https://github.com/avivgerz-hue/unslop/tree/ca9a3969233e83f768d2d0975fcd805099b7c6cb) 2.1.2: evaluated upstream; advisory design baseline and Dawney-specific design system, Linear Precision as inspiration. CLOUD owns frontend implementation. No automatic preset installation or wholesale theme replacement.
