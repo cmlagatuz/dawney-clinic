@@ -13,6 +13,12 @@ fingerprint(){
  select 'draft' k,to_jsonb(t)::text v from public.clinical_encounter_drafts t
  union all select 'receipt',to_jsonb(t)::text from clinic_private.clinical_draft_requests t
  union all select 'audit',to_jsonb(t)::text from clinic_private.clinical_draft_audit t
+ union all select 'record',to_jsonb(t)::text from public.clinical_records t
+ union all select 'provenance',to_jsonb(t)::text from clinic_private.clinical_record_provenance t
+ union all select 'attachment',to_jsonb(t)::text from public.pet_attachments t
+ union all select 'encounter',to_jsonb(t)::text from public.branch_encounters t
+ union all select 'treatment',to_jsonb(t)::text from public.branch_treatments t
+ union all select 'storageMetadata',to_jsonb(t)::text from storage.objects t
  union all select 'pet',to_jsonb(t)::text from public.pets t
  union all select 'appointment',to_jsonb(t)::text from public.appointments t
  union all select 'session',to_jsonb(t)::text from auth.sessions t

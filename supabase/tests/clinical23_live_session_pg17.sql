@@ -97,3 +97,45 @@ begin
 end $deleted$;
 rollback;
 \echo 'PASS: clinical23 live role/session, direct read, existing receipt, CAS and record replay (rollback-only)'
+
+-- Active session alone is insufficient after committed role or Auth changes.
+begin;
+update public.staff_branch_memberships set is_active=false where user_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd' and branch_id='11111111-0000-4000-8000-000000000077';
+set local role authenticated;
+set local request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"a2200000-1111-4111-8111-000000000001"}';
+do $revoked$
+begin
+ begin perform public.read_staff_patient_chart('11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333','records'); raise exception 'CLINICAL23_FAIL branch revocation API 1'; exception when insufficient_privilege then null; end;
+ begin perform public.save_staff_clinical_encounter_draft('11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',gen_random_uuid(),0,'synthetic denied','','',''); raise exception 'CLINICAL23_FAIL branch revocation API 2'; exception when insufficient_privilege then null; end;
+ begin perform public.create_staff_appointment_clinical_record('aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',gen_random_uuid(),'synthetic denied'); raise exception 'CLINICAL23_FAIL branch revocation API 3'; exception when insufficient_privilege then null; end;
+ begin perform public.reconcile_staff_clinical_draft('11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa'); raise exception 'CLINICAL23_FAIL branch revocation API 4'; exception when insufficient_privilege then null; end;
+end $revoked$;
+rollback;
+begin;
+update public.staff_memberships set is_active=false where user_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+set local role authenticated;
+set local request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"a2200000-1111-4111-8111-000000000001"}';
+do $revoked$
+begin
+ begin perform public.read_staff_patient_chart('11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333','records'); raise exception 'CLINICAL23_FAIL global revocation API 1'; exception when insufficient_privilege then null; end;
+ begin perform public.save_staff_clinical_encounter_draft('11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',gen_random_uuid(),0,'synthetic denied','','',''); raise exception 'CLINICAL23_FAIL global revocation API 2'; exception when insufficient_privilege then null; end;
+ begin perform public.create_staff_appointment_clinical_record('aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',gen_random_uuid(),'synthetic denied'); raise exception 'CLINICAL23_FAIL global revocation API 3'; exception when insufficient_privilege then null; end;
+ begin perform public.reconcile_staff_clinical_draft('11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa'); raise exception 'CLINICAL23_FAIL global revocation API 4'; exception when insufficient_privilege then null; end;
+end $revoked$;
+rollback;
+begin;
+update auth.users set banned_until=clock_timestamp()+interval '2 hours' where id='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+set local role authenticated;
+set local request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"a2200000-1111-4111-8111-000000000001"}';
+do $revoked$
+begin
+ begin perform public.read_staff_patient_chart('11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333','records'); raise exception 'CLINICAL23_FAIL Auth ban API 1'; exception when insufficient_privilege then null; end;
+ begin perform public.save_staff_clinical_encounter_draft('11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',gen_random_uuid(),0,'synthetic denied','','',''); raise exception 'CLINICAL23_FAIL Auth ban API 2'; exception when insufficient_privilege then null; end;
+ begin perform public.create_staff_appointment_clinical_record('aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',gen_random_uuid(),'synthetic denied'); raise exception 'CLINICAL23_FAIL Auth ban API 3'; exception when insufficient_privilege then null; end;
+ begin perform public.reconcile_staff_clinical_draft('11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa'); raise exception 'CLINICAL23_FAIL Auth ban API 4'; exception when insufficient_privilege then null; end;
+end $revoked$;
+rollback;
+\echo 'PASS: clinical23 current branch/global/Auth revocation across all four APIs'

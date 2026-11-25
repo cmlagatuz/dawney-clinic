@@ -56,6 +56,8 @@ jobs:
           test "$(git hash-object supabase/migrations/20261126010000_clinical_draft_receipt_reconciliation.sql)" = 27dd5ae7e97ab683b56f4064a1e57ffa4ea93ce2
           test "$(find supabase/migrations -maxdepth 1 -name '*.sql' | wc -l)" = 23
           test "$(git diff --name-only 2a79d535ec7b473581381a0122a20afbcefc3256 HEAD -- supabase/migrations)" = 'supabase/migrations/20261126020000_clinical_live_session_alignment.sql'
+          test "$(git rev-parse HEAD:supabase/migrations/20261126020000_clinical_live_session_alignment.sql)" = 021a7c1a4e9c64d9384bcdbc1442dc26239185d5
+          test "$(git hash-object supabase/migrations/20261126020000_clinical_live_session_alignment.sql)" = 021a7c1a4e9c64d9384bcdbc1442dc26239185d5
           command -v psql
           test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'show server_version_num')" -ge 170000
       - name: Apply original frozen #1–17 and synthetic historical patient
@@ -177,6 +179,24 @@ jobs:
           set -euo pipefail
           psql -X -v ON_ERROR_STOP=1 -f 'supabase/migrations/20261126020000_clinical_live_session_alignment.sql'
           psql -X -v ON_ERROR_STOP=1 -f 'supabase/tests/clinical23_live_session_pg17.sql'
+      - name: Corrected clinical mutation persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 <<'SQL'
+          begin;
+          set local role authenticated;
+          set local request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+          set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"a2200000-1111-4111-8111-000000000001"}';
+          select public.save_staff_clinical_encounter_draft('11111111-0000-4000-8000-000000000077','33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',
+           'a2300000-0000-4000-8000-000000000001',3,'synthetic corrected persisted draft','','','');
+          select public.create_staff_appointment_clinical_record('aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',
+           'a2300000-0000-4000-8000-000000000002','synthetic corrected persisted record');
+          commit;
+          SQL
+          test "$(psql -XAtq -c "select count(*) from clinic_private.clinical_draft_audit where request_id='a2300000-0000-4000-8000-000000000001' and revision=4")" = 1
+          test "$(psql -XAtq -c "select count(*) from clinic_private.clinical_record_provenance where request_id='a2300000-0000-4000-8000-000000000002'")" = 1
+          echo 'PASS: corrected clinical draft and record committed once'
       - name: Signed encrypted clinical23 database restoration
         shell: bash
         run: |
