@@ -85,15 +85,17 @@ function parsePage(raw:unknown,section:ChartSection,branchId:string,petId:string
  return raw as unknown as PatientChartPage
 }
 export async function readStaffPatientChart(user:User,branchId:string,petId:string,
- section:ChartSection='appointments',cursorValue:ChartCursor|null=null,limit=50):Promise<PatientChartResult>{
+ section:ChartSection='appointments',cursorValue:ChartCursor|null=null,limit=50,signal?:AbortSignal):Promise<PatientChartResult>{
  if(!validId(branchId)||!validId(petId)||!['appointments','records','drafts'].includes(section)||
  !Number.isInteger(limit)||limit<1||limit>50||
  (cursorValue!==null&&!cursor(cursorValue)))throw Error('Invalid clinical chart request')
  await authenticate(user)
+ if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
  const {data,error}=await client().rpc('read_staff_patient_chart',{
   p_branch:branchId,p_pet:petId,p_section:section,p_after_at:cursorValue?.at??null,
   p_after_id:cursorValue?.id??null,p_limit:limit
  })
+ if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
  if(error)return {kind:status(error)==='denied'?'denied':'unavailable'}
  if(obj(data)&&data.kind==='not_found')return {kind:'not_found'}
  return parsePage(data,section,branchId,petId,user.id,limit)

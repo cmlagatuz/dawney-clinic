@@ -17,7 +17,7 @@ export function createPersistentChartPort(user:User,branchId:string,role:OpsRole
    if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
    if(request.accountId!==user.id||request.branchId!==branchId||
       (role==='receptionist'&&request.section!=='appointments'))return {kind:'denied'}
-   const result=await readStaffPatientChart(user,branchId,request.petId,request.section,request.cursor,request.limit)
+   const result=await readStaffPatientChart(user,branchId,request.petId,request.section,request.cursor,request.limit,signal)
    if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
    return validateChartPage(result,request)
   },

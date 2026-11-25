@@ -30,7 +30,8 @@ function installClinicalFixture(){
   localStorage.setItem('dawney.auth.v1',JSON.stringify(sessionFor(user)))
   window.__clinicalCalls={paths:[],mutations:[],assertions:[],unexpected:[],draftRequests:[],chartReads:[],receiptReads:[],released:0}
   const coverage=mode==='persist-coverage'
-  let gate=null,readerFailure=null
+  let gate=null,readerFailure=null,receiptOutcome=null,readbackFailure=false,receiptGate=null
+  let signedOut=false
   window.__clinicalControl={
     // StrictMode can start multiple reads for one mounted tab. Hold every matching
     // records request for this account/branch, not just the first (possibly abandoned) read.
@@ -39,9 +40,17 @@ function installClinicalFixture(){
     release(){const current=gate;gate=null;current?.release()},
     // A failure belongs to a logical history attempt, including StrictMode duplicates.
     setHistoryFailure(kind){readerFailure=kind},
+    setReceiptOutcome(kind){receiptOutcome=kind},
+    setReadbackFailure(value){readbackFailure=value},
+    advanceDraft(){if(!draft)throw Error('No synthetic draft');draft={...draft,revision:draft.revision+1,complaint:'Newer synthetic chart revision'}},
+    holdReceipt(){let release;const promise=new Promise(resolve=>{release=resolve});receiptGate={promise,release,started:false}},
+    get receiptHeld(){return receiptGate?.started===true},
+    releaseReceipt(){receiptGate?.release();receiptGate=null},
+    forceSignOut(){signedOut=true;localStorage.removeItem('dawney.auth.v1');const channel=new BroadcastChannel('dawney.auth.v1');channel.postMessage({event:'SIGNED_OUT',session:null});channel.close()},
     switchAccount(){if(!coverage)throw Error('Unexpected fixture account change');user={...user,id:ids.secondUser,email:'second-synthetic-staff@example.test'};const session=sessionFor(user);localStorage.setItem('dawney.auth.v1',JSON.stringify(session));const channel=new BroadcastChannel('dawney.auth.v1');channel.postMessage({event:'SIGNED_IN',session});channel.close()}
   }
   let draft=null,receipt=null,receiptPayload=null
+  const receipts=[]
   const oldFetch=window.fetch.bind(window)
   const reply=(body,status=200)=>new Response(JSON.stringify(body),{
     status,headers:{'content-type':'application/json','access-control-allow-origin':'*'}
@@ -91,14 +100,19 @@ function installClinicalFixture(){
         return reply(page)
       }
       if(mode==='persist-denied'||p.p_branch!==ids.naga||p.p_pet!==ids.pet||p.p_limit!==50)return reply({code:'42501'},403)
+      if(p.p_section==='drafts'&&readbackFailure)return reply({code:'PGRST202'},404)
       return reply({kind:'ok',accountId:ids.user,branchId:ids.naga,section:p.p_section,patient:{id:ids.pet,ownerId:ids.owner,name:'Synthetic clinical patient',species:'Dog',breed:null,sex:'unknown',birthDate:null,taxonomyReviewNeeded:false},items:p.p_section==='drafts'&&draft?[mode==='persist-mismatch'?{...draft,complaint:'Mismatched fixture readback'}:draft]:[],hasMore:false,nextCursor:null})
     }
     if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/reconcile_staff_clinical_draft'){
       const p=await req.json();window.__clinicalCalls.receiptReads.push(p)
       if(coverage||p.p_branch!==ids.naga||p.p_pet!==ids.pet||p.p_appointment!==ids.secondAppointment)return reply({code:'42501'},403)
       const context={accountId:user.id,branchId:p.p_branch,petId:p.p_pet,appointmentId:p.p_appointment,requestId:p.p_request_id,beforeRevision:p.p_before_revision}
-      const found=receiptPayload&&(p.p_request_id===null||p.p_request_id===receiptPayload.p_request_id)&&(p.p_before_revision===null||receipt.revision<p.p_before_revision)
-      return reply({...context,kind:found?'committed':'not_found',currentRevision:draft?.revision??0,draftId:draft?.id??null,receipt:found?{requestId:receiptPayload.p_request_id,revision:receipt.revision,auditEventId:String(receipt.revision),savedAt:receipt.updatedAt}:null})
+      if(receiptGate){const g=receiptGate;g.started=true;await g.promise}
+      if(receiptOutcome==='unknown')return reply({...context,kind:'unknown',reason:'visit_busy',currentRevision:null,draftId:null,receipt:null})
+      if(receiptOutcome==='unavailable')return reply({code:'PGRST202'},404)
+      if(receiptOutcome==='malformed')return reply({...context,accountId:ids.secondUser,kind:'not_found',currentRevision:0,draftId:null,receipt:null})
+      const found=receiptOutcome!=='missing'&&receipts.slice().reverse().find(x=>(p.p_request_id===null||p.p_request_id===x.requestId)&&(p.p_before_revision===null||x.revision<p.p_before_revision))
+      return reply({...context,kind:found?'committed':'not_found',currentRevision:draft?.revision??0,draftId:draft?.id??null,receipt:found||null})
     }
     if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/save_staff_clinical_encounter_draft'){
       const p=await req.json();window.__clinicalCalls.draftRequests.push(p)
@@ -110,7 +124,8 @@ function installClinicalFixture(){
       draft={id:uuid(12),appointmentId:p.p_appointment,branchId:ids.naga,petId:ids.pet,authorId:ids.user,editorId:ids.user,revision:p.p_expected_revision+1,status:'draft',complaint:p.p_complaint,examination:p.p_examination,assessment:p.p_assessment,plan:p.p_plan,createdAt:updatedAt,updatedAt}
       receipt={kind:'saved',id:draft.id,appointmentId:draft.appointmentId,branchId:draft.branchId,petId:draft.petId,authorId:draft.authorId,editorId:draft.editorId,revision:draft.revision,status:'draft',updatedAt}
       receiptPayload=p
-      if(mode==='persist'&&draft.revision===1)return reply({code:'500'},503)
+      receipts.push({requestId:p.p_request_id,revision:receipt.revision,auditEventId:String(receipt.revision),savedAt:receipt.updatedAt})
+      if((mode==='persist'||mode==='persist-receipt')&&draft.revision===1)return reply({code:'500'},503)
       return reply(receipt)
     }
     if(req.method!=='GET'){
@@ -118,7 +133,7 @@ function installClinicalFixture(){
       return reply({message:'Synthetic writes prohibited'},403)
     }
     if(url.pathname==='/auth/v1/user')
-      return mode==='expired'?reply({message:'JWT expired'},401):reply(user)
+      return mode==='expired'||signedOut?reply({message:'JWT expired'},401):reply(user)
     if(url.pathname==='/rest/v1/staff_memberships'){
       if(mode==='denied')return reply([])
       return reply([{user_id:user.id,role:coverage?'administrator':mode==='reception'||mode==='role-mismatch'||mode==='persist-reception'?'receptionist':'veterinarian',is_active:true}])
@@ -351,6 +366,12 @@ test('CLOUD real clinical route: exact visit, lost ACK, exact receipt and author
    assert.equal(await browser.value('window.__clinicalCalls.draftRequests.length'),2)
    await browser.value('[...document.querySelectorAll(".clinical-encounter-editor button")].find(b=>b.textContent==="Review and use current chart").click();true')
    await browser.until('!!document.querySelector(".clinical-encounter-editor textarea:not(:disabled)")')
+   await browser.value('[...document.querySelectorAll(".clinical-encounter-editor button")].find(b=>b.textContent==="Find older own receipt").click();true')
+   await browser.until('document.body.textContent.includes("Saved revision 1. Chart revision at receipt lookup 2.")')
+   await browser.until('document.body.textContent.includes("Verified current chart revision 2")')
+   assert.equal(await browser.value('window.__clinicalCalls.receiptReads.at(-1).p_before_revision'),2)
+   await browser.value('[...document.querySelectorAll(".clinical-encounter-editor button")].find(b=>b.textContent==="Review and use current chart").click();true')
+   await browser.until('!!document.querySelector(".clinical-encounter-editor textarea:not(:disabled)")')
    assert.equal(await browser.value('document.documentElement.scrollWidth<=innerWidth'),true)
    assert.deepEqual(await browser.value('window.__clinicalCalls.mutations'),[])
    assert.deepEqual(await browser.value('window.__clinicalCalls.unexpected'),[])
@@ -505,6 +526,79 @@ test('CLOUD connected clinical route: administrator, responsive keyboard, read r
    assert.ok(reads.some(x=>x.account===id(10)&&x.p_branch===id(2)&&x.p_pet===id(7)&&x.p_section==='records'))
    assert.ok(reads.filter(x=>x.account===id(10)).every(x=>x.p_branch===id(2)&&x.p_pet===id(7)))
    await clean()
+  })
+ }finally{await vite.close();delete process.env.VITE_CLINICAL_DRAFT_PERSISTENCE_UI;delete process.env.VITE_CLINICAL_WORKSPACE_UI}
+})
+
+test('CLOUD durable receipt route: unknown, missing, malformed, readback failure, newer revision and forced sign-out', {timeout:120000},async()=>{
+ process.env.VITE_SUPABASE_URL='https://issue51-fixtures.supabase.co'
+ process.env.VITE_SUPABASE_PUBLISHABLE_KEY='sb_publishable_issue51_offline'
+ process.env.VITE_CLINICAL_WORKSPACE_UI='true'
+ process.env.VITE_CLINICAL_DRAFT_PERSISTENCE_UI='true'
+ const vite=await createServer({root:fileURLToPath(new URL('../',import.meta.url)),server:{host:'127.0.0.1',port:0,strictPort:false}})
+ try{
+  await vite.listen()
+  await withChromium(async browser=>{
+   await browser.send('Page.addScriptToEvaluateOnNewDocument',{source:'('+installClinicalFixture.toString()+')()'})
+   const origin='http://127.0.0.1:'+vite.httpServer.address().port
+   const has=phrase=>browser.until('document.body.textContent.includes('+JSON.stringify(phrase)+')')
+   const button=label=>'[...document.querySelectorAll(".clinical-encounter-editor button")].find(b=>b.textContent==='+JSON.stringify(label)+')'
+   const click=async label=>{await browser.until('!!('+button(label)+')&&!('+button(label)+').disabled');await browser.value(button(label)+'.click();true')}
+   await browser.send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false})
+   await browser.goto(origin+'/app/clinical?case=persist-receipt&theme=light')
+   await browser.until('document.querySelectorAll(".clinical-patient").length===2')
+   await browser.value('document.querySelectorAll(".clinical-patient")[1].click();true')
+   await has('Synthetic clinical patient')
+   await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
+   await browser.until('!!document.querySelector(".clinical-encounter-editor textarea")')
+   await browser.value('document.querySelector(".clinical-encounter-editor textarea").focus();true')
+   await browser.send('Input.insertText',{text:'Synthetic interrupted draft'})
+   await has('Unsaved local edits')
+   await browser.value('window.__clinicalWarnings=[];window.confirm=message=>{window.__clinicalWarnings.push(message);return false};true')
+   await browser.value('[...document.querySelectorAll("button")].find(b=>b.textContent.trim()==="Sign out").click();true')
+   await browser.until('window.__clinicalWarnings.length===1')
+   assert.equal(await browser.value('window.__clinicalWarnings[0].includes("Receipts cannot recover unsaved text")'),true)
+   assert.equal(await browser.value('location.pathname'),'/app/clinical')
+   assert.equal(await browser.value('document.querySelector("#clinical-tab-history").disabled'),true)
+   await click('Save encounter DRAFT')
+   await has('Original draft request')
+   await browser.until('!('+button('Check original request receipt')+').disabled')
+   const unchanged=async()=>{
+    assert.equal(await browser.value('window.__clinicalCalls.draftRequests.length'),1)
+    assert.equal(await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").disabled'),true)
+    assert.equal(await browser.value('document.querySelector(".clinical-encounter-editor textarea").value'),'Synthetic interrupted draft')
+    assert.equal(await browser.value('document.body.textContent.includes("Verified persisted DRAFT saved")'),false)
+   }
+   for(const [outcome,phrase] of [['unknown','Receipt unresolved: visit busy'],['missing','No matching receipt at observation time'],['malformed','Receipt lookup or current chart readback could not be verified'],['unavailable','Receipt lookup or current chart readback could not be verified']]){
+    await browser.value('window.__clinicalControl.setReceiptOutcome('+JSON.stringify(outcome)+');true')
+    await click('Check original request receipt');await has(phrase)
+    await browser.until('!('+button('Check original request receipt')+').disabled')
+    await unchanged()
+   }
+   await browser.value('window.__clinicalControl.setReceiptOutcome(null);window.__clinicalControl.setReadbackFailure(true);true')
+   await click('Check original request receipt');await has('Exact original request committed')
+   await has('Receipt lookup or current chart readback could not be verified')
+   await unchanged()
+   assert.equal(await browser.value('document.body.textContent.includes("Current chart is not verified.")'),true)
+   await browser.value('window.__clinicalControl.setReadbackFailure(false);window.__clinicalControl.advanceDraft();true')
+   await click('Check original request receipt');await has('Saved revision 1. Chart revision at receipt lookup 2.')
+   await has('Verified current chart revision 2');await unchanged()
+   assert.equal(await browser.value('document.querySelector("[aria-label=\'Current chart review\']").textContent.includes("Newer synthetic chart revision")'),true)
+   await browser.value('window.confirm=()=>true;true')
+   await click('Review and use current chart')
+   await has('Authoritative draft revision 2')
+   assert.equal(await browser.value('document.querySelector(".clinical-encounter-editor textarea").value'),'Newer synthetic chart revision')
+   assert.equal(await browser.value('window.__clinicalCalls.draftRequests.length'),1)
+   assert.equal(await browser.value('document.documentElement.scrollWidth<=innerWidth'),true)
+   assert.equal(await browser.value('JSON.stringify(localStorage).includes("Synthetic interrupted draft")||JSON.stringify(sessionStorage).includes("Synthetic interrupted draft")'),false)
+   await browser.value('window.__clinicalControl.holdReceipt();true')
+   await click('Find previous own receipt')
+   await browser.until('window.__clinicalControl.receiptHeld')
+   await browser.value('window.__clinicalControl.forceSignOut();true')
+   await browser.until('!document.querySelector(".clinical-chart")')
+   await browser.value('window.__clinicalControl.releaseReceipt();true')
+   await browser.value('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true))))')
+   assert.equal(await browser.value('!!document.querySelector(".clinical-chart")||document.body.textContent.includes("Newer synthetic chart revision")'),false)
   })
  }finally{await vite.close();delete process.env.VITE_CLINICAL_DRAFT_PERSISTENCE_UI;delete process.env.VITE_CLINICAL_WORKSPACE_UI}
 })

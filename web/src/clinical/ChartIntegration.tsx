@@ -140,7 +140,7 @@ export function ChartIntegration({accountId,branchId,petId,ownerId,appointmentId
       </div>}
       {!view.page.hasMore&&<p className="clinical-muted">End of verified {section} history · {view.page.items.length} entries loaded.</p>}
       {mode==='encounter'&&<EncounterEditor
-        key={appointmentId}
+        key={persistentSave?appointmentId:appointmentId+':'+(view.page.items.find(item=>'appointmentId' in item&&item.appointmentId===appointmentId)?.id??'none')}
         accountId={accountId}
         branchId={branchId} petId={petId} appointmentId={appointmentId} role={role}
         page={view.page} port={port} syntheticSave={syntheticSave} persistentSave={persistentSave} ownerId={ownerId}
@@ -247,14 +247,14 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
   },[persistentSave,dirty,unresolved,saving,review])
   // A paginated reader may reveal a previously unseen draft. Never replace dirty text.
   useEffect(()=>{
-    if(!draft||dirty||unresolved||saving||review||draft.revision===revision)return
+    if(!persistentSave||!draft||dirty||unresolved||saving||review||draft.revision===revision)return
     const content={complaint:draft.complaint,examination:draft.examination,assessment:draft.assessment,plan:draft.plan}
     setForm(content);setAuthoritative(content);setBaseline(draftSnapshot(content));setRevision(draft.revision)
     setSaved({revision:draft.revision,authorId:draft.authorId,editorId:draft.editorId,updatedAt:draft.updatedAt})
-  },[draft,dirty,unresolved,saving,review,revision])
+  },[draft])
   const applyReview=(verified:VerifiedPage,matched:ChartDraft|null)=>{
     const content=matched?{complaint:matched.complaint,examination:matched.examination,assessment:matched.assessment,plan:matched.plan}:blank()
-    setForm(content);latest.current=content;setAuthoritative(content);setBaseline(draftSnapshot(content))
+    setForm(content);latest.current=content;setAuthoritative(content);setBaseline(draftSnapshot(content));setErrors({})
     setRevision(matched?.revision??0);setSaved(matched?{revision:matched.revision,authorId:matched.authorId,editorId:matched.editorId,updatedAt:matched.updatedAt}:null)
     pending.current=null;setReview(null);setCurrentUnverified(false);setConflict(false);lock(false);onVerified(verified)
   }
@@ -312,15 +312,12 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
   }
   const save=async(event:React.FormEvent)=>{
     event.preventDefault()
-    if(!canWrite||busy.current||conflict||!dirty||unresolved||currentUnverified||review)return
+    if(!canWrite||busy.current||conflict||!dirty||unresolved||currentUnverified||review||(persistentSave&&pending.current))return
     const result=validateEncounter(form)
     setErrors(result.errors)
     if(!result.valid){setNotice('Correct the highlighted fields. Nothing was saved.');return}
     const content=persistentSave?{...form,complaint:form.complaint.replace(/^ +| +$/g,'')}:form
-    if(persistentSave&&pending.current&&(pending.current.snapshot!==draftSnapshot(content)||pending.current.expectedRevision!==revision)){
-      setNotice('Original request context changed. Do not submit another draft until reconciled.');return
-    }
-    const ticket=prepareSaveTicket(pending.current,{...content,expectedRevision:revision},()=>crypto.randomUUID())
+    const ticket=prepareSaveTicket(persistentSave?null:pending.current,{...content,expectedRevision:revision},()=>crypto.randomUUID())
     pending.current=ticket
     setObservation(null);setReview(null)
     const request:DraftSaveRequest={branchId,petId,appointmentId,requestId:ticket.requestId,
@@ -336,7 +333,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
           setForm(blank());setAuthoritative(blank());setBaseline(draftSnapshot(blank()))
           pending.current=null;lock(false);onDenied?.()
         }
-        else {if(raw.kind==='invalid'){pending.current=null;lock(false)}
+        else {if(raw.kind==='invalid'){pending.current=null;lock(false)}else if(persistentSave)setCurrentUnverified(true)
           setNotice(raw.kind==='invalid'?'Server rejected invalid draft data. Nothing was saved.':
           'Save was not confirmed. Check the original request receipt.')}
         return
@@ -385,8 +382,11 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
         setForm(blank());setAuthoritative(blank());setBaseline(draftSnapshot(blank()))
         pending.current=null;lock(false);onDenied?.()
       }
-      else if(kind==='unavailable')setNotice('Draft backend unavailable. Save not verified; check the original receipt.')
-      else setNotice(persistentSave?'Save was not verified. Check the original request receipt; do not resubmit.':'Save was not verified. Retry unchanged text with the same request ID.')
+      else {
+        if(persistentSave)setCurrentUnverified(true)
+        setNotice(kind==='unavailable'?'Draft backend unavailable. Save not verified; check the original receipt.':
+          persistentSave?'Save was not verified. Check the original request receipt; do not resubmit.':'Save was not verified. Retry unchanged text with the same request ID.')
+      }
     }finally{operation.current=null;busy.current=false;if(mounted.current)setSaving(false)}
   }
   const labels:readonly [keyof DraftContent,string][]=[
@@ -399,13 +399,14 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
         'Authoritative draft revision '+saved.revision+' acknowledged by the reader.':
         'No saved draft for this appointment has been verified.'}
     </p>
-    {saved&&<dl className="clinical-attribution">
+    {saved&&!currentUnverified&&<dl className="clinical-attribution">
       <dt>Created by</dt><dd>{brief(saved.authorId)}</dd>
       <dt>Last edited by</dt><dd>{brief(saved.editorId)}</dd>
       <dt>Revision</dt><dd>{saved.revision}</dd>
       <dt>Updated</dt><dd>{localDate(saved.updatedAt)}</dd>
     </dl>}
     {!validContext&&<p role="alert">Older draft pages must load before this appointment can be created safely.</p>}
+    {persistentSave&&dirty&&!unresolved&&<p>Save or discard local edits before changing the branch, patient or chart tab. Leaving or signing out loses unsaved clinical text.</p>}
     <form aria-label="Persisted encounter draft form" onSubmit={event=>void save(event)}>
       <div className="clinical-fields">
       {labels.map(([key,label])=><label className="clinical-field" key={key}>
