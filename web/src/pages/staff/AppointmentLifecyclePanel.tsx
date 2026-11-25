@@ -151,7 +151,7 @@ export function AppointmentLifecyclePanel({row,role,branchId,accountId,ticket,se
        read.status==='ready'&&read.encounter==='unavailable'?'Unable to verify the encounter: completion is unavailable.'
        :'No persisted encounter verified. A clinical draft is not sufficient for completion.'}</p>}
      {notice&&<p className={'lifecycle-message lifecycle-'+notice.tone} role={notice.tone==='danger'?'alert':'status'}>{notice.message}</p>}
-     {ticket&&<p className="ops-help">Uncertain request is locked to the original action, revision and nonce. Do not start another transition.</p>}
+     {ticket&&loaded&&<section role="status" aria-label="Original appointment operation"><p>Uncertain request is locked to the original action, revision and nonce. Do not start another transition. Reconcile by retrying the same request after authorized readback; after leaving or reload ask an authorized supervisor to verify the visit history. Reload cannot restore this ticket.</p><dl><dt>Appointment</dt><dd>{shortRef(ticket.detail.id)}</dd><dt>Original action</dt><dd>{ACTION_COPY[ticket.action]}</dd><dt>Original status / revision</dt><dd>{ticket.detail.status} / {ticket.detail.revision}</dd><dt>Request ID</dt><dd><code style={{overflowWrap:'anywhere'}}>{ticket.requestId}</code></dd></dl></section>}
      {confirm?<div className="lifecycle-confirm" role="group" aria-label="Confirm appointment action">
        <p>Apply “{ACTION_COPY[confirm]}” to this specific appointment? The server will validate it before changing any status.</p>
        <div className="lifecycle-buttons"><button ref={confirmButton} type="button" className="button button-primary button-small"

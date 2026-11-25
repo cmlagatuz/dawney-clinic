@@ -1,3 +1,7 @@
+## RC1 source integration — 25 November 2026
+
+Exact PR134 `73067fcdbce7846522e55c33cd0e0ca2051335f4` eight-path correction accepted by PM [7152144119](https://github.com/cmlagatuz/dawney-clinic/pull/132#issuecomment-7152144119), SOL and TERRA; imported without other frontend edits. All 21 migrations remain frozen. Integrated CI and final independent acceptance pending; no clinic-live GO. Memory-only unresolved-operation warning is not durable reload reconciliation. No new SQL contract authorized. Hosted operations and relevant write flags remain OFF.
+
 ## ASTRA — RC1 approved frontend source import (CI pending)
 
 PR133 exact `052a97da1e7ff4e95d46331f6b657f199592bd84` accepted by SOL and PM. Nineteen exact frontend/document blobs imported; README reconciles both sources. All 21 backend migration blobs unchanged. Historical CI guards still require explicit RC1 reconciliation; no integrated acceptance or hosted authorization. CLOUD must await green exact-head baseline and PM confirmation.

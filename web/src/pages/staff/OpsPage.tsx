@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {Link} from 'react-router'
+import {useUnresolvedOperationWarning} from '../../hooks/useUnresolvedOperationWarning'
 import {useAuth} from '../../hooks/AuthProvider'
 import {EmptyState, LoadingCard, PageHeading} from '../../components/ui'
 import {DayList, FailureCard, FlowBoard, KpiGrid, Notice, WeekGrid} from '../../components/ops/OpsParts'
@@ -20,6 +21,7 @@ export function OpsPage() {
   const userRef = useRef(user); userRef.current = user
   const port = useMemo(() => (uid && userRef.current ? createOpsReadPort(userRef.current) : null), [uid])
   const scope = useBranchScope(port)
+  const pendingBranch=useRef<string|null>(null)
   const heading0 = (extra?: ReactNode) => <PageHeading id="ops-title" eyebrow="Clinic staff · preview" title="Clinic operations">
     Verified, branch-scoped persisted appointments only. All times use the clinic timezone, not guessed opening hours.{extra}</PageHeading>
   if (scope.state.status === 'off') return <>{heading0()}<FailureCard kind="unavailable" /></>
@@ -27,7 +29,7 @@ export function OpsPage() {
   if (scope.state.status === 'failed') return <>{heading0()}<FailureCard kind={scope.state.kind} onRetry={scope.refresh} />
     {scope.state.kind === 'denied' && <div className="ops-toolbar"><button type="button" className="button button-secondary" onClick={scope.refresh}>Recheck staff permissions</button>
       <Link className="button button-quiet" to="/app/overview">Back to my overview</Link></div>}</>
-  const picker = scope.state.status === 'ready' ? <BranchPicker branches={scope.branches} selected={scope.selected} onSelect={scope.select} /> : null
+  const picker = scope.state.status === 'ready' ? <BranchPicker branches={scope.branches} selected={scope.selected} onSelect={id=>{if(pendingBranch.current===`${uid}:${scope.selected}`&&!window.confirm('An appointment operation may have committed. Switching branches loses the retry identity. Reconcile before submitting again. Continue?'))return;scope.select(id)}} /> : null
   if (!scope.selected && scope.hadDenial) return <>{heading0()}{picker}<FailureCard kind="denied" />
     <p className="ops-help">The clinic did not authorize that branch for your account. Choose another branch, or ask an administrator.</p></>
   if (!scope.selected) return <>{heading0()}{picker}
@@ -36,6 +38,7 @@ export function OpsPage() {
   return <>{heading0()}{picker}<OpsView key={`${uid ?? 'none'}:${scope.selected}`} port={scope.scoped}
     accountId={uid ?? ''} branchId={scope.selected}
     branchName={scope.branches.find(b => b.id === scope.selected)?.name ?? null}
+    onPending={pending=>{pendingBranch.current=pending?`${uid}:${scope.selected}`:null}}
     onDenied={() => scope.markDenied(scope.selected)} /></>
 }
 
@@ -49,7 +52,7 @@ function BranchPicker({branches, selected, onSelect}: {branches: {id: string; na
   </div>
 }
 
-function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsReadPort | null; branchName: string | null; branchId: string; accountId: string; onDenied?: (() => void) | undefined}) {
+function OpsView({port, branchName, branchId, accountId, onDenied, onPending}: {port: OpsReadPort | null; branchName: string | null; branchId: string; accountId: string; onDenied?: (() => void) | undefined; onPending:(pending:boolean)=>void}) {
   const onDeniedRef = useRef(onDenied); onDeniedRef.current = onDenied
   const [date, setDate] = useState(() => todayInZone(Date.now()))
   const [view, setView] = useState<'board' | 'schedule'>('board')
@@ -61,7 +64,10 @@ function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsRe
   // Retain an uncertain transition across verification/remount only inside this
   // account+branch-keyed view. Never replace its nonce with a new request.
   const [pendingTicket, setPendingTicket] = useState<AppointmentTicket|null>(null)
-  const selectAppointment = (id: string) => {if (id !== selectedId) {setPendingTicket(null);setSelectedId(id)}}
+  useUnresolvedOperationWarning(!!pendingTicket)
+  const pendingCallback=useRef(onPending);pendingCallback.current=onPending
+  useEffect(()=>{pendingCallback.current(!!pendingTicket);return()=>pendingCallback.current(false)},[pendingTicket])
+  const selectAppointment = (id: string) => {if (!pendingTicket && id !== selectedId) {setPendingTicket(null);setSelectedId(id)}}
   const clearSelection = () => {setPendingTicket(null);setSelectedId(null)}
   const weekMode = view === 'schedule' && mode === 'week'
   const {session, day, counts, week, reload} = useOpsData(port, date, range, weekMode)
@@ -80,7 +86,7 @@ function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsRe
   // not the global count of registered clinic patients.
   const kpis = useMemo(() => buildKpis({win, counts: counts.status === 'ok' ? counts.data : null})
     .map(k => k.key === 'patients' ? {...k, label: 'Patients seen in this branch', note: 'Distinct patients with appointments here, all dates.'} : k), [win, counts])
-  const setDay = (d: string) => { if (isIsoDate(d)) { setDate(d); setResource('all'); clearSelection() } }
+  const setDay = (d: string) => { if (!pendingTicket && isIsoDate(d)) { setDate(d); setResource('all'); clearSelection() } }
 
   const heading = session.status === 'ok' ? <p className="ops-role">Signed in as {ROLE_LABEL[session.role]}{branchName ? ` · ${branchName}` : ''} · branch-scoped preview</p> : null
 
@@ -94,28 +100,29 @@ function OpsView({port, branchName, branchId, accountId, onDenied}: {port: OpsRe
   const state = win ? windowState(win) : null
   const label = formatDayLabel(date)
   return <>{heading}
+    {pendingTicket&&<p role="status" className="ops-help">Date, view, filters and appointment selection are locked until the original request is reconciled. Do not leave or reload; ask an authorized supervisor if readback fails.</p>}
     <p className="visually-hidden" role="status" aria-live="polite">{win ? `${win.items.length}${win.hasMore ? ' or more' : ''} appointments loaded for ${label}.` : ''}</p>
     <div className="ops-toolbar" role="group" aria-label="Date and view">
       <button type="button" className="button button-secondary button-small" onClick={reload} aria-label="Refresh authorized branch appointments and counts">Refresh branch data</button>
       <div className="ops-seg" role="group" aria-label="View">
-        <button type="button" className="button button-secondary button-small" aria-pressed={view === 'board'} onClick={() => setView('board')}>Flow board</button>
-        <button type="button" className="button button-secondary button-small" aria-pressed={view === 'schedule'} onClick={() => setView('schedule')}>Schedule</button></div>
+        <button type="button" className="button button-secondary button-small" aria-pressed={view === 'board'} disabled={!!pendingTicket} onClick={() => setView('board')}>Flow board</button>
+        <button type="button" className="button button-secondary button-small" aria-pressed={view === 'schedule'} disabled={!!pendingTicket} onClick={() => setView('schedule')}>Schedule</button></div>
       <div className="ops-seg" role="group" aria-label="Day navigation">
         <button type="button" className="button button-secondary button-small" onClick={() => setDay(addDays(date, weekMode ? -7 : -1))} aria-label={weekMode ? 'Previous week' : 'Previous day'}>‹</button>
         <button type="button" className="button button-secondary button-small" onClick={() => setDay(todayInZone(Date.now()))}>Today</button>
         <button type="button" className="button button-secondary button-small" onClick={() => setDay(addDays(date, weekMode ? 7 : 1))} aria-label={weekMode ? 'Next week' : 'Next day'}>›</button>
-        <label className="ops-field"><span className="visually-hidden">Date</span><input type="date" value={date} onChange={e => setDay(e.target.value)} /></label></div>
+        <label className="ops-field"><span className="visually-hidden">Date</span><input type="date" disabled={!!pendingTicket} value={date} onChange={e => setDay(e.target.value)} /></label></div>
       {view === 'schedule' && <div className="ops-seg" role="group" aria-label="Schedule length">
-        <button type="button" className="button button-secondary button-small" aria-pressed={mode === 'day'} onClick={() => setMode('day')}>Day</button>
-        <button type="button" className="button button-secondary button-small" aria-pressed={mode === 'week'} onClick={() => setMode('week')}>Week</button></div>}
-      {!weekMode && <label className="ops-field"><span>Time range</span><select value={range} onChange={e => {setRange(e.target.value);clearSelection()}}>
+        <button type="button" className="button button-secondary button-small" aria-pressed={mode === 'day'} disabled={!!pendingTicket} onClick={() => setMode('day')}>Day</button>
+        <button type="button" className="button button-secondary button-small" aria-pressed={mode === 'week'} disabled={!!pendingTicket} onClick={() => setMode('week')}>Week</button></div>}
+      {!weekMode && <label className="ops-field"><span>Time range</span><select disabled={!!pendingTicket} value={range} onChange={e => {setRange(e.target.value);clearSelection()}}>
         {OPS_RANGES.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}</select></label>}
       {!weekMode && <label className="ops-field"><span>Status</span>
-        <select aria-label="Appointment status" value={status} onChange={e => {setStatus(e.target.value);clearSelection()}}>
+        <select disabled={!!pendingTicket} aria-label="Appointment status" value={status} onChange={e => {setStatus(e.target.value);clearSelection()}}>
           <option value="all">All persisted statuses</option>
           {OPS_STATUSES.map(value => <option key={value} value={value}>{value.replaceAll('_',' ')}</option>)}
         </select></label>}
-      {!weekMode && <label className="ops-field"><span>Resource</span><select value={resource} onChange={e => {setResource(e.target.value);clearSelection()}} disabled={resources.length === 0}>
+      {!weekMode && <label className="ops-field"><span>Resource</span><select value={resource} onChange={e => {setResource(e.target.value);clearSelection()}} disabled={!!pendingTicket||resources.length === 0}>
         <option value="all">All resources</option>{resources.map(r => <option key={r} value={r}>Resource {shortRef(r)}</option>)}</select></label>}
       <label className="ops-field is-disabled"><span>Provider</span><select disabled aria-describedby="ops-prov"><option>Not available</option></select></label>
     </div>

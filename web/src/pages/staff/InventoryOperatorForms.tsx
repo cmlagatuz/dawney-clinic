@@ -27,6 +27,7 @@ export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemT
  receiptTicket:ReceiptArgs|null;setReceiptTicket:Dispatch<SetStateAction<ReceiptArgs|null>>
 }){
  const write=operationalFlags.inventory
+ const pending=!!itemTicket||!!receiptTicket
  const port=useMemo(()=>createOperationalPort(user),[user.id])
  const pharmacy=useMemo(()=>createPharmacyPort(user),[user.id])
  const [item,setItem]=useState<NewItemDraft>({...emptyItem})
@@ -41,7 +42,7 @@ export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemT
  const [search,setSearch]=useState('')
  const [balance,setBalance]=useState<BalanceState>({kind:'none'})
  const [balanceAttempt,setBalanceAttempt]=useState(0)
- const [selectedId,setSelectedId]=useState('')
+ const [selectedId,setSelectedId]=useState(receiptTicket?.p_medicine??'')
  const [created,setCreated]=useState('')
  const [receiptNotice,setReceiptNotice]=useState('')
  const [editNotice,setEditNotice]=useState('')
@@ -53,6 +54,10 @@ export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemT
  const [editReorder,setEditReorder]=useState('0')
  const [editWarning,setEditWarning]=useState<30|60|90>(30)
  const live=useRef(true)
+ const submitting=useRef(false)
+ const ready=write&&catalog.kind==='ready'
+ const canRetryItem=ready&&!busy&&!receiptTicket&&itemTicket?.p_branch===branch.id
+ const canRetryReceipt=ready&&!busy&&!itemTicket&&receiptTicket?.p_branch===branch.id
  useEffect(()=>{live.current=true;return ()=>{live.current=false}},[])
  const guard=async()=>{
   const branches=await verifiedStaffNavigationBranches(user)
@@ -147,8 +152,9 @@ export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemT
   setReceiptNotice('');setEditNotice('')
  }
  async function create(){
+  if(submitting.current||busy||!ready||receiptTicket||itemTicket&&!canRetryItem)return
   setCheckedItem(true);setCreated('')
-  if(busy||!write||catalog.kind!=='ready'||itemTicket===null&&
+  if(itemTicket===null&&
     (!validDraft(validateNewItem(item))||controlled||cold||
      description.length>2000||item.supplier.trim().length===1))return
   const ticket:ItemArgs=itemTicket??{
@@ -159,9 +165,10 @@ export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemT
    p_reorder_point:Number(item.reorder||0),p_lot:null,p_expiry:null,
    p_supplier:null,p_opening_units:0
   }
-  setBusy('create');setItemTicket(ticket)
+  submitting.current=true;setBusy('create');setItemTicket(ticket)
   try{
    await guard()
+   if(!live.current)return
    const ack=await port.create(ticket)
    await guard()
    const [confirmed,snapshot]=await Promise.all([
@@ -186,21 +193,22 @@ export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemT
    // Ticket persists after lost ACK, bad readback or unknown server outcome.
    if(['denied','invalid','conflict','stale'].includes(info.kind))setItemTicket(null)
    if(info.kind==='denied')onDenied()
-  }finally{if(live.current)setBusy(null)}
+  }finally{submitting.current=false;if(live.current)setBusy(null)}
  }
  async function receive(){
+  if(submitting.current||busy||!ready||itemTicket||receiptTicket&&!canRetryReceipt)return
   setCheckedReceipt(true);setReceiptNotice('')
-  if(busy||!write||catalog.kind!=='ready'||
-    (receiptTicket===null&&(!validDraft(validateReceipt(receipt,branchToday))||!selected||
+  if((receiptTicket===null&&(!validDraft(validateReceipt(receipt,branchToday))||!selected||
       receipt.code!==selected.product_code)))return
   const ticket:ReceiptArgs=receiptTicket??{
    p_branch:branch.id,p_medicine:selected!.id,p_request_id:crypto.randomUUID(),
    p_lot:receipt.lot.trim(),p_expiry:receipt.expiresOn,
    p_supplier:receipt.supplier.trim()||null,p_quantity:Number(receipt.quantity)
   }
-  setBusy('receive');setReceiptTicket(ticket)
+  submitting.current=true;setBusy('receive');setReceiptTicket(ticket)
   try{
    await guard()
+   if(!live.current)return
    const ack=await port.receive(ticket)
    const [confirmed,verifiedMovement,snapshot]=await Promise.all([
     port.balance(branch.id,ticket.p_medicine),
@@ -222,10 +230,10 @@ export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemT
    setReceiptNotice(info.text)
    if(['denied','invalid','conflict','stale'].includes(info.kind))setReceiptTicket(null)
    if(info.kind==='denied')onDenied()
-  }finally{if(live.current)setBusy(null)}
+  }finally{submitting.current=false;if(live.current)setBusy(null)}
  }
  async function edit(){
-  if(!write||busy||!selected||balance.kind!=='ready'||!editReady||!editName.trim()||
+  if(!write||busy||pending||!selected||balance.kind!=='ready'||!editReady||!editName.trim()||
      editName.trim().length<2||editName.length>160||editDescription.length>2000||
      !/^(0|[1-9][0-9]*)$/.test(editReorder)||Number(editReorder)>1000000000)return
   const args:EditArgs={p_branch:branch.id,p_medicine:selected.id,
@@ -263,6 +271,13 @@ export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemT
   }finally{if(live.current)setBusy(null)}
  }
  return <>
+  {write&&pending&&<section className="card operator-section" role="status" aria-label="Unresolved inventory operation">
+   <h2>Original operation — reconciliation required</h2>
+   <p>{busy?'Checking original operation and server readback…':ready?'Authorized catalog ready for original request retry.':'Retry unavailable until authorized catalog is ready.'}</p>
+   <p>The outcome may already be committed. Retry only the original request after the authorized catalog is ready. Do not leave, reload or submit another operation until reconciled. If access is lost, ask an authorized supervisor to verify the ledger; reload cannot restore this ticket.</p>
+   {itemTicket&&<dl><dt>Original item</dt><dd>{itemTicket.p_product_code} · {itemTicket.p_name}</dd><dt>Category and unit</dt><dd>{itemTicket.p_category} · {itemTicket.p_unit}</dd><dt>Formulation / strength</dt><dd>{itemTicket.p_formulation??'—'} / {itemTicket.p_strength??'—'}</dd><dt>Description / reorder point</dt><dd>{itemTicket.p_description} / {itemTicket.p_reorder_point}</dd><dt>Opening units</dt><dd>{itemTicket.p_opening_units}</dd><dt>Request ID</dt><dd><code style={{overflowWrap:'anywhere'}}>{itemTicket.p_request_id}</code></dd></dl>}
+   {receiptTicket&&<dl><dt>Original item UUID</dt><dd><code style={{overflowWrap:'anywhere'}}>{receiptTicket.p_medicine}</code></dd><dt>Lot / expiry</dt><dd>{receiptTicket.p_lot} / {receiptTicket.p_expiry}</dd><dt>Quantity</dt><dd>{receiptTicket.p_quantity} units</dd><dt>Supplier reference</dt><dd>{receiptTicket.p_supplier??'—'}</dd><dt>Request ID</dt><dd><code style={{overflowWrap:'anywhere'}}>{receiptTicket.p_request_id}</code></dd></dl>}
+  </section>}
   <div className="operator-state-grid">
    <div className="card"><h2>Authorized branch</h2><p>{branch.name} · {branch.role}</p></div>
    <div className="card"><h2>Product entry</h2><p>{write?'Saved only after catalog and balance readback.':'Local form validation available. Saving is disabled until audited API rollout.'}</p></div>
@@ -331,10 +346,10 @@ export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemT
      {cold&&write&&<p role="alert">This RPC cannot persist refrigeration requirements. Clear this classification; do not save inaccurate stock policy.</p>}
      {write&&item.supplier.trim().length===1&&<p role="alert">Supplier references must contain at least two characters.</p>}
      <div className="operator-actions">
-      <button type="submit" className="button button-secondary" disabled={!!busy||!!itemTicket}>
+      <button type="submit" className="button button-secondary" disabled={!!busy||pending||write&&catalog.kind!=='ready'}>
        {write?'Create validated item':'Validate item details'}</button>
       {!write&&<button type="button" className="button button-primary" disabled>Add Item · unavailable</button>}
-      {write&&itemTicket&&<button type="button" className="button button-secondary" disabled={!!busy} onClick={()=>void create()}>
+      {write&&itemTicket&&<button type="button" className="button button-secondary" disabled={!canRetryItem} onClick={()=>void create()}>
        Retry original Add Item ID</button>}
      </div>
      {write&&<p className="operator-muted">Add Item commits with zero opening units. Stock is only increased through the separately audited Receive Stock RPC. Supplier details are carried into the Receive Stock draft; the item-only RPC does not save a supplier record.</p>}
@@ -368,11 +383,11 @@ export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemT
      </div>
      {write&&<p className="operator-muted">Received date is the branch-local server day, not an editable historical date. Expired batches are rejected server-side.</p>}
      <div className="operator-actions">
-      <button type="submit" className="button button-secondary" disabled={!!busy||!!receiptTicket}>
+      <button type="submit" className="button button-secondary" disabled={!!busy||pending||write&&catalog.kind!=='ready'}>
        {write?'Receive Stock':'Validate receipt details'}</button>
       {!write&&<><button type="button" className="button button-primary" disabled>Receive Stock · unavailable</button>
        <button type="button" className="button button-secondary" disabled>Edit stock · unavailable</button></>}
-      {write&&receiptTicket&&<button type="button" className="button button-secondary" disabled={!!busy} onClick={()=>void receive()}>
+      {write&&receiptTicket&&<button type="button" className="button button-secondary" disabled={!canRetryReceipt} onClick={()=>void receive()}>
        Retry original receipt ID</button>}
      </div>
      {!write&&checkedReceipt&&<p role="status" className="operator-summary">{validDraft(receiptErrors)?'Receipt details look valid locally. No quantity or movement was posted.':'Correct the receipt errors. No quantity or movement was posted.'}</p>}
@@ -392,7 +407,7 @@ export function InventoryOperatorForms({user,branch,onDenied,itemTicket,setItemT
      <option value="30">30</option><option value="60">60</option><option value="90">90</option></select></label>
     <label>Branch description<textarea value={editDescription} maxLength={2000} rows={2} disabled={!!busy} onChange={e=>setEditDescription(e.target.value)}/></label>
    </div>
-   <div className="operator-actions"><button type="button" className="button button-secondary" disabled={!!busy}
+   <div className="operator-actions"><button type="button" className="button button-secondary" disabled={!!busy||pending}
       onClick={()=>void edit()}>Save branch item edit</button>
     <button type="button" className="button button-quiet" onClick={()=>setBalanceAttempt(n=>n+1)} disabled={!!busy}>Refresh revision</button></div>
    {editNotice&&<p role="status" className="operator-summary">{editNotice}</p>}
