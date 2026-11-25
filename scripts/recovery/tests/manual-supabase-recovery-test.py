@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Synthetic regression for the new manual operator utility. Optional disposable PG17 in CI."""
 import hashlib
+import importlib.util
+from unittest.mock import patch
 import json
 import os
 from pathlib import Path
@@ -11,10 +13,13 @@ import tempfile
 
 ROOT=Path(__file__).resolve().parents[1]
 UTILITY=ROOT/"manual-supabase-recovery.py"
-def run(*args, ok=True, **kw):
+def run(*args, ok=True, reason=None, **kw):
     p=subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kw)
     if (p.returncode==0)!=ok:
         raise AssertionError("unexpected exit: "+str(args[0])+" "+p.stderr.decode(errors="replace")[-500:])
+    if reason:
+        assert p.stderr.decode().startswith(reason+':'), p.stderr.decode()
+        assert str(base) not in p.stderr.decode() and owner not in p.stderr.decode()
     return p.stdout
 
 with tempfile.TemporaryDirectory(prefix="manual-synthetic-") as tmp:
@@ -56,15 +61,15 @@ with tempfile.TemporaryDirectory(prefix="manual-synthetic-") as tmp:
         (app/"history_data.sql").write_bytes(run("docker","exec",cid,"pg_dump","-U","postgres","--data-only","--schema=supabase_migrations","manual_source"))
         (root/"auth-identities/auth.sql").write_bytes(run("docker","exec",cid,"pg_dump","-U","postgres","--data-only","--schema=auth","manual_source"))
         (root/"storage-metadata/storage.sql").write_bytes(run("docker","exec",cid,"pg_dump","-U","postgres","--data-only","--schema=storage","manual_source"))
-    def call(action, inp, dest, extra=(), ok=True, signer=owner):
-        return run(sys.executable,str(UTILITY),action,str(inp),str(dest),"--source","synthetic-source","--confirm-source","synthetic-source","--signer",signer,*extra,ok=ok)
+    def call(action, inp, dest, extra=(), ok=True, signer=owner, reason=None):
+        return run(sys.executable,str(UTILITY),action,str(inp),str(dest),"--source","synthetic-source","--confirm-source","synthetic-source","--signer",signer,*extra,ok=ok,reason=reason)
     call("pack",root,out,("--recipient",owner))
     backup=next(out.iterdir())
     call("verify",backup,work)
     assert not list(work.iterdir())
-    call("verify",backup,work,ok=False,signer=other)
-    call("prepare-restore",backup,work,("--destination","synthetic-source","--confirm-destination","synthetic-source","--approval","OWNER-APPROVED-PREPARE-ONLY"),ok=False)
-    call("prepare-restore",backup,work,("--destination","synthetic-target","--confirm-destination","synthetic-wrong","--approval","OWNER-APPROVED-PREPARE-ONLY"),ok=False)
+    call("verify",backup,work,ok=False,signer=other,reason="SIGNATURE_INVALID")
+    call("prepare-restore",backup,work,("--destination","synthetic-source","--confirm-destination","synthetic-source","--approval","OWNER-APPROVED-PREPARE-ONLY"),ok=False,reason="DESTINATION_MISMATCH")
+    call("prepare-restore",backup,work,("--destination","synthetic-target","--confirm-destination","synthetic-wrong","--approval","OWNER-APPROVED-PREPARE-ONLY"),ok=False,reason="DESTINATION_MISMATCH")
     call("prepare-restore",backup,work,("--destination","synthetic-target","--confirm-destination","synthetic-target","--approval","OWNER-APPROVED-PREPARE-ONLY"))
     restored=next(work.iterdir())
     assert (restored/"storage-objects/private/fixture.bin").read_bytes()==obj.read_bytes()
@@ -82,7 +87,7 @@ with tempfile.TemporaryDirectory(prefix="manual-synthetic-") as tmp:
     missing=app/"history_data.sql"
     saved=missing.read_bytes()
     missing.unlink()
-    call("pack",root,out,("--recipient",owner),ok=False)
+    call("pack",root,out,("--recipient",owner),ok=False,reason="COLLECTION_INCOMPLETE")
     missing.write_bytes(saved)
     obj.write_bytes(b"changed")
     call("pack",root,out,("--recipient",owner),ok=False)
@@ -90,9 +95,69 @@ with tempfile.TemporaryDirectory(prefix="manual-synthetic-") as tmp:
     enc=backup/"application.gpg"
     saved=enc.read_bytes()
     enc.write_bytes(saved+b"x")
-    call("verify",backup,work,ok=False)
+    call("verify",backup,work,ok=False,reason="BACKUP_CORRUPT")
     enc.write_bytes(saved)
     sig=backup/"recovery-set.json.sig"
     sig.unlink()
-    call("verify",backup,work,ok=False)
+    call("verify",backup,work,ok=False,reason="SIGNATURE_INVALID")
     print("PASS: actual GPG signing/encryption/decryption, five components, object byte parity, missing/corrupt component, wrong signer and wrong target rejected")
+
+    run(sys.executable,str(UTILITY),"verify",str(backup),str(work),"--source","synthetic-source","--confirm-source","synthetic-wrong","--signer",owner,ok=False,reason="SOURCE_MISMATCH")
+    spec=importlib.util.spec_from_file_location("manual_recovery",UTILITY)
+    module=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    # The version commands alone are stubbed: actual GPG challenge, packaging,
+    # inventory checks and guided prompts run. No installed remote CLI required.
+    actual_tool=module.tool
+    versions={"node":b"v22.0.0\n","gpg":b"gpg (GnuPG) 2.4.4\n","supabase":b"3.0.0\n","psql":b"psql (PostgreSQL) 17.7\n","pg_dump":b"pg_dump (PostgreSQL) 17.7\n"}
+    def version_tool(args,*a,**kw):
+        if args[1:]==["--version"]:
+            return versions[args[0]]
+        return actual_tool(args,*a,**kw)
+    wizard=base/"wizard"
+    wizard.mkdir(mode=0o700)
+    listing=base/"independent-source.json"
+    obj.write_bytes(b"\x00\xffDawney synthetic object")
+    listing.write_text(json.dumps([{"path":"private/fixture.bin","bytes":obj.stat().st_size}]))
+    # Simulated manual collection on the newly created directory; original
+    # source fixture is copied only for this test.
+    def simulate_collection(label):
+        if label.startswith("When all manual"):
+            folder=next(wizard.glob("collection-*"))
+            for p in root.rglob("*"):
+                if p.is_file() and p.name!="objects.json":
+                    dest=folder/p.relative_to(root)
+                    dest.parent.mkdir(parents=True,exist_ok=True)
+                    shutil.copyfile(p,dest)
+            return "COLLECTED"
+        if label.startswith("Independent source-list"):
+            return str(listing)
+        return next(answers)
+    answers=iter(["1","synthetic-source","synthetic-source",owner,owner,"READY","REVIEWED"])
+    with patch.object(module,"tool",side_effect=version_tool),patch.object(module,"ask",side_effect=simulate_collection):
+        module.guided(wizard)
+    created=next((wizard/"backups").iterdir())
+    assert len(list(wizard.glob("collection-*")))==1
+    second=module.fresh_collection(wizard)
+    assert len(list(wizard.glob("collection-*")))==2
+    assert not list((second/"application").iterdir())
+    run(sys.executable,str(UTILITY),"guide",str(wizard),input=("\n".join(["2","synthetic-source","synthetic-source",owner,str(created)])+"\n").encode())
+    assert not list((wizard/"verification").iterdir())
+    try:
+        module.inventory_from_listing(second,listing)
+        raise AssertionError("missing object accepted")
+    except module.RecoveryError as exc:
+        assert exc.code=="COLLECTION_INCOMPLETE"
+    with patch.object(module,"tool",return_value=b"wrong-version\n"):
+        try:
+            module.check_ready(owner,owner,wizard)
+            raise AssertionError("wrong version accepted")
+        except module.RecoveryError as exc:
+            assert exc.code=="VERSION_MISMATCH"
+    with patch.object(module.subprocess,"run",side_effect=FileNotFoundError("PRIVATE-DO-NOT-PRINT")):
+        try:
+            module.tool(["missing-tool"])
+            raise AssertionError("missing tool accepted")
+        except module.RecoveryError as exc:
+            assert exc.code=="TOOL_FAILURE" and "PRIVATE-DO-NOT-PRINT" not in str(exc)
+    print("PASS: differentiated nonsecret P2 errors, guided first-run, fresh collection, independently supplied listing, real key challenge and offline verification; version commands simulated")
