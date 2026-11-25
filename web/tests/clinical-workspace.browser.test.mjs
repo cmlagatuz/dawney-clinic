@@ -32,10 +32,13 @@ function installClinicalFixture(){
   const coverage=mode==='persist-coverage'
   let gate=null,readerFailure=null
   window.__clinicalControl={
-    holdNext(){if(gate)throw Error('Fixture reader already held');let release;const promise=new Promise(resolve=>{release=resolve});gate={promise,release,started:false}},
+    // StrictMode can start multiple reads for one mounted tab. Hold every matching
+    // records request for this account/branch, not just the first (possibly abandoned) read.
+    holdHistory(branch){if(gate)throw Error('Fixture reader already held');let release;const promise=new Promise(resolve=>{release=resolve});gate={promise,release,account:user.id,branch,started:false,finished:false}},
     get held(){return gate?.started===true},
     release(){const current=gate;gate=null;current?.release()},
-    failNext(kind){readerFailure=kind},
+    // A failure belongs to a logical history attempt, including StrictMode duplicates.
+    setHistoryFailure(kind){readerFailure=kind},
     switchAccount(){if(!coverage)throw Error('Unexpected fixture account change');user={...user,id:ids.secondUser,email:'second-synthetic-staff@example.test'};const session=sessionFor(user);localStorage.setItem('dawney.auth.v1',JSON.stringify(session));const channel=new BroadcastChannel('dawney.auth.v1');channel.postMessage({event:'SIGNED_IN',session});channel.close()}
   }
   let draft=null,receipt=null,receiptPayload=null
@@ -77,8 +80,11 @@ function installClinicalFixture(){
           p.p_section==='records'?[{...base,id:uuid(20),performedAt:startsAt,procedure:label+' synthetic history',comments:null,temperatureC:null,weightKg:null,authoredBy:ids.user}]:
           branch===ids.naga?[{...base,id:uuid(21),appointmentId:ids.secondAppointment,authorId:ids.user,editorId:ids.user,revision:2,status:'draft',complaint:'Second visit synthetic draft',examination:'Fixture exam',assessment:'Fixture assessment',plan:'Fixture plan',createdAt:startsAt,updatedAt:startsAt}]:[]
         const page={kind:'ok',accountId:account,branchId:branch,section:p.p_section,patient:{id:pet,ownerId:owner,name:label+' synthetic patient',species:'Dog',breed:null,sex:'unknown',birthDate:null,taxonomyReviewNeeded:false},items,hasMore:false,nextCursor:null}
-        if(gate&&!gate.started){const current=gate;current.started=true;await current.promise;window.__clinicalCalls.released++}
-        const failure=readerFailure;readerFailure=null
+        const failure=p.p_section==='records'?readerFailure:null
+        if(gate&&gate.account===account&&gate.branch===branch&&p.p_section==='records'){
+          const current=gate;current.started=true;await current.promise
+          if(!current.finished){current.finished=true;window.__clinicalCalls.released++}
+        }
         if(failure==='missing')return reply({code:'PGRST202'},404)
         if(failure==='malformed')return reply({...page,patient:{...page.patient,ownerId:uuid(99)}})
         if(failure==='not-found')return reply({kind:'not_found'})
@@ -427,7 +433,7 @@ test('CLOUD connected clinical route: administrator, responsive keyboard, read r
     await clean()
    }
    // Reader is explicitly unavailable, malformed, or genuinely empty; never substitute empty on error.
-   await browser.value('window.__clinicalControl.holdNext();window.__clinicalControl.failNext("missing");true')
+   await browser.value('window.__clinicalControl.holdHistory('+JSON.stringify(id(1))+');window.__clinicalControl.setHistoryFailure("missing");true')
    await tab('history')
    await browser.until('window.__clinicalControl.held')
    await has('Verifying patient identity and chart access')
@@ -435,16 +441,16 @@ test('CLOUD connected clinical route: administrator, responsive keyboard, read r
    await released(1);await has('Secure chart unavailable')
    assert.equal(await browser.value('document.body.textContent.includes("Verified empty records history")'),false)
    const retry='[...document.querySelectorAll(".clinical-chart-gateway button")].find(b=>b.textContent.includes("Retry secure chart read"))'
-   await browser.value('window.__clinicalControl.failNext("malformed");'+retry+'.click();true')
+   await browser.value('window.__clinicalControl.setHistoryFailure("malformed");'+retry+'.click();true')
    await has('Invalid clinical response')
    assert.equal(await browser.value('!!document.querySelector("[aria-label=\'Verified records history\']")'),false)
-   await browser.value(retry+'.focus();true')
+   await browser.value('window.__clinicalControl.setHistoryFailure(null);'+retry+'.focus();true')
    await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
    await browser.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
    await has('Naga synthetic history')
    // Hold a scoped Naga response, switch to a permitted Cavite patient, release the old response.
    await tab('overview');await has('Naga synthetic patient')
-   await browser.value('window.__clinicalControl.holdNext();true');await tab('history')
+   await browser.value('window.__clinicalControl.holdHistory('+JSON.stringify(id(1))+');true');await tab('history')
    await browser.until('window.__clinicalControl.held')
    await selectBranch(2)
    await browser.until('!document.querySelector(".clinical-chart")')
@@ -456,7 +462,7 @@ test('CLOUD connected clinical route: administrator, responsive keyboard, read r
    assert.equal(await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").disabled'),true)
    // Account change via the SDK's real cross-tab Auth notification with synthetic session storage.
    await selectBranch(1);await choose(0);await has('Naga synthetic patient')
-   await browser.value('window.__clinicalControl.holdNext();true');await tab('history')
+   await browser.value('window.__clinicalControl.holdHistory('+JSON.stringify(id(1))+');true');await tab('history')
    await browser.until('window.__clinicalControl.held')
    await browser.value('window.__clinicalControl.switchAccount();true')
    await browser.until('document.querySelector("#clinical-branch")?.value==='+JSON.stringify(id(2))+'&&document.querySelectorAll("#clinical-branch option").length===2&&!document.querySelector(".clinical-chart")')
