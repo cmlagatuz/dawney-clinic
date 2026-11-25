@@ -1,0 +1,175 @@
+name: 'Clinical #22 durable receipt — disposable PG17'
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/clinical-draft-receipt-pg17.yml'
+      - 'supabase/migrations/20261126010000_clinical_draft_receipt_reconciliation.sql'
+      - 'supabase/tests/clinical_draft_receipt_pg17.sql'
+      - 'scripts/recovery/tests/clinical22-signed-restore.sh'
+      - 'docs/CLINICAL_DRAFT_RECEIPT_CONTRACT.md'
+permissions:
+  contents: read
+jobs:
+  clinical22:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: clinical22-ci-only
+          POSTGRES_DB: clinical22_ci
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clinical22_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: clinical22-ci-only
+      PGDATABASE: clinical22_ci
+      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Frozen RC1 ancestry and unchanged original 21 blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          git merge-base --is-ancestor 2e029697fc2c446171a951167b30bcf7679c286e HEAD
+          git diff --exit-code 2e029697fc2c446171a951167b30bcf7679c286e HEAD -- docs/RC1_MIGRATION_BLOBS.tsv
+          while IFS=$'\t' read -r seq sha path; do
+            [[ "$seq" == \#* ]] && continue
+            test "$(git rev-parse "HEAD:$path")" = "$sha"
+            test "$(git hash-object "$path")" = "$sha"
+          done < docs/RC1_MIGRATION_BLOBS.tsv
+          test "$(find supabase/migrations -maxdepth 1 -name '*.sql' | wc -l)" = 22
+          test "$(git diff --name-only 2e029697fc2c446171a951167b30bcf7679c286e HEAD -- supabase/migrations)" = 'supabase/migrations/20261126010000_clinical_draft_receipt_reconciliation.sql'
+          command -v psql
+          test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'show server_version_num')" -ge 170000
+      - name: Apply original frozen #1–17 and synthetic historical patient
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pg(){ psql -X -q -v ON_ERROR_STOP=1 -f "$1"; }
+          pg supabase/tests/phase5a_staff_pg17_bootstrap.sql
+          pg supabase/tests/phase4_combined_provider_upgrade.sql
+          for file in \
+            20261113070302_phase2_core_data_security.sql \
+            20261113070834_phase2_index_and_policy_tuning.sql \
+            20261113074938_phase2_verified_auth_and_staff_bootstrap.sql \
+            20261113095318_phase3_appointment_lifecycle.sql \
+            20261113100958_phase3_clinical_storage_policies.sql \
+            20261113101626_phase3_staff_membership_audit.sql \
+            20261113211600_phase4_taxonomy_attachments.sql \
+            20261113211700_phase4_animal_catalog_seed.sql \
+            20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql \
+            20261114090000_phase4_public_booking_contract.sql \
+            20261116002500_phase3_storage_outer_object_path_rls_fix.sql;do
+            pg "supabase/migrations/$file"
+          done
+          pg supabase/tests/phase3_storage_outer_path_synthetic_records.sql
+          psql -X -v ON_ERROR_STOP=1 <<'HISTORY'
+          create table clinic_ci.issue77_original_pets as select id,to_jsonb(p) old_row from public.pets p;
+          create table clinic_ci.issue77_original_appointments as select id,to_jsonb(a) old_row from public.appointments a;
+          HISTORY
+          pg supabase/migrations/20261117233500_issue77_four_branch_foundation.sql
+          pg supabase/tests/issue77_four_branch_pg17_denials.sql
+          psql -X -v ON_ERROR_STOP=1 <<'UNKNOWN'
+          alter table public.clinical_records disable trigger clinical_branch_guard;
+          insert into public.clinical_records(pet_id,branch_id,procedure,authored_by)
+          values('33333333-3333-4333-8333-333333333333',
+           null,'CLINICAL16 old unknown branch record',
+           'dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+          alter table public.clinical_records enable trigger clinical_branch_guard;
+          UNKNOWN
+          pg supabase/tests/issue58_staff_branch_queue_fixture.sql
+          pg supabase/migrations/20261118203500_issue51_branch_booking_security.sql
+          pg supabase/migrations/20261118215500_issue58_staff_branch_read_contract.sql
+          pg supabase/migrations/20261118225000_issue78_inventory_read_only_foundation.sql
+          pg supabase/migrations/20261120160000_clinical_chart_encounter_drafts.sql
+          pg supabase/tests/clinical_chart_encounter_pg17.sql
+          pg supabase/migrations/20261120221000_clinical_provenance_pagination_security.sql
+          pg supabase/tests/clinical_provenance_pagination_pg17.sql
+          echo 'PASS: historical #1–17, unchanged Chow Chow, requested UNKNOWN branch and clinical provenance'
+      - name: Original #18–20 session and operational guards
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pg(){ psql -X -q -v ON_ERROR_STOP=1 -f "$1"; }
+          psql -X -v ON_ERROR_STOP=1 <<'SESSIONS'
+          create table auth.sessions (
+            id uuid primary key,
+            user_id uuid not null references auth.users(id) on delete cascade
+          );
+          SESSIONS
+          pg supabase/migrations/20261121201000_staff_self_service_approval_accountant.sql
+          pg supabase/migrations/20261121202000_inventory_transactional_branch_ops.sql
+          pg supabase/tests/operational_staff_inventory_pg17.sql
+          pg supabase/migrations/20261122120000_operational_live_session_read_guard.sql
+          pg supabase/tests/operational20_session_rls_pg17.sql
+          echo 'PASS: original #18–20 operational live-session/RLS/accountant source'
+      - name: Apply #21 additive and adversarial staff lifecycle fixtures
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          psql -X -q -v ON_ERROR_STOP=1 -f supabase/migrations/20261123210000_staff_appointment_lifecycle.sql
+          psql -X -q -v ON_ERROR_STOP=1 -f supabase/tests/staff_appointment_lifecycle_pg17.sql
+          echo 'PASS: #21 transition, actor, nonce, revision, branch and historical fixture'
+      - name: Additive receipt migration and clinical regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f 'supabase/migrations/20261126010000_clinical_draft_receipt_reconciliation.sql'
+          psql -X -v ON_ERROR_STOP=1 -f 'supabase/tests/clinical_draft_receipt_pg17.sql'
+      - name: Independent connections — in-progress save, read-only unknown, then durable receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+          psql -XAtq -v ON_ERROR_STOP=1 > "$tmp/writer" 2>&1 <<'SQL' &
+          begin;
+          set local role authenticated;
+          set local request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+          set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"a2200000-1111-4111-8111-000000000001"}';
+          select public.save_staff_clinical_encounter_draft('11111111-0000-4000-8000-000000000077',
+           '33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',
+           'a2200000-0000-4000-8000-000000000003',2,'synthetic in progress','','','');
+          select pg_sleep(8);
+          commit;
+          SQL
+          writer=$!
+          held=0
+          for i in {1..50}; do
+            if [[ "$(psql -XAtq -c "select count(*) from pg_locks where locktype='advisory' and granted")" -gt 0 ]]; then held=1; break; fi
+            sleep 0.1
+          done
+          test "$held" = 1
+          lookup(){
+            psql -XAtq -v ON_ERROR_STOP=1 <<'SQL'
+          set role authenticated;
+          set request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+          set request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"a2200000-1111-4111-8111-000000000001"}';
+          select public.reconcile_staff_clinical_draft('11111111-0000-4000-8000-000000000077',
+           '33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',
+           'a2200000-0000-4000-8000-000000000003')->>'kind';
+          SQL
+          }
+          test "$(lookup)" = unknown
+          wait "$writer"
+          test "$(lookup)" = committed
+          test "$(psql -XAtq -c "select count(*) from clinic_private.clinical_draft_audit where request_id='a2200000-0000-4000-8000-000000000003'")" = 1
+          echo 'PASS: independent concurrent read and committed readback; no duplicate revision'
+      - name: Signed encrypted clinical22 database restoration
+        shell: bash
+        run: |
+          bash -n 'scripts/recovery/tests/clinical22-signed-restore.sh'
+          bash 'scripts/recovery/tests/clinical22-signed-restore.sh'
