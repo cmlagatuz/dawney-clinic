@@ -5,7 +5,7 @@ import {classifyChartError,draftSnapshot,prepareSaveTicket,
 import type {ChartCursor,ChartDraft,ChartItem,ChartPatient,ChartRequest,
   ChartResult,DraftContent,DraftSaveRequest,SaveTicket} from './chart-model.mjs'
 import {unconnectedClinicalPort,type ClinicalChartPort} from './chart-port'
-import {useUnresolvedOperationWarning} from '../hooks/useUnresolvedOperationWarning'
+import type {ReceiptObservation} from '../lib/clinical-chart'
 import {OPS_UI_ENABLED} from '../ops/flag'
 import type {OpsRole} from '../ops/ops-model.mjs'
 
@@ -140,7 +140,7 @@ export function ChartIntegration({accountId,branchId,petId,ownerId,appointmentId
       </div>}
       {!view.page.hasMore&&<p className="clinical-muted">End of verified {section} history · {view.page.items.length} entries loaded.</p>}
       {mode==='encounter'&&<EncounterEditor
-        key={appointmentId+':'+(view.page.items.find(item=>'appointmentId' in item&&item.appointmentId===appointmentId)?.id??'none')}
+        key={appointmentId}
         accountId={accountId}
         branchId={branchId} petId={petId} appointmentId={appointmentId} role={role}
         page={view.page} port={port} syntheticSave={syntheticSave} persistentSave={persistentSave} ownerId={ownerId}
@@ -220,12 +220,90 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
   const operation=useRef<AbortController|null>(null)
   const [unresolved,setUnresolved]=useState(false)
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;operation.current?.abort()}},[])
-  useUnresolvedOperationWarning(persistentSave&&unresolved)
+  const [observation,setObservation]=useState<ReceiptObservation|null>(null)
+  const [lookupExact,setLookupExact]=useState(false)
+  const [currentUnverified,setCurrentUnverified]=useState(false)
+  const [review,setReview]=useState<{page:VerifiedPage;draft:ChartDraft|null}|null>(null)
   const lock=(value:boolean)=>{setUnresolved(value);if(persistentSave)onPendingChange(value)}
   const validContext=!!draft||!page.hasMore // Never assume a draft is absent while unseen pages remain.
   const canWrite=(syntheticSave||persistentSave)&&!!port.saveDraft&&role==='veterinarian'&&validContext&&!paging&&revision<2147483647
   const dirty=draftSnapshot(form)!==baseline
   useEffect(()=>{latest.current=form},[form])
+  // Dirty notes and unresolved tickets are memory-only. Forced authorization loss still unmounts them.
+  useEffect(()=>{
+    if(!persistentSave)return
+    onPendingChange(dirty||unresolved||saving||!!review)
+  },[persistentSave,dirty,unresolved,saving,review,onPendingChange])
+  useEffect(()=>{
+    if(!persistentSave||(!dirty&&!unresolved&&!saving&&!review))return
+    const message='Unsaved clinical text or an unresolved save may be lost. Receipts cannot recover unsaved text. Leave anyway?'
+    const unload=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue=''}
+    const leave=(event:Event)=>{if(!window.confirm(message)){event.preventDefault();event.stopPropagation()}}
+    const link=(event:MouseEvent)=>{if(event.target instanceof Element&&event.target.closest('a[href]'))leave(event)}
+    window.addEventListener('beforeunload',unload)
+    document.addEventListener('click',link,true)
+    window.addEventListener('dawney:before-sign-out',leave)
+    return()=>{window.removeEventListener('beforeunload',unload);document.removeEventListener('click',link,true);window.removeEventListener('dawney:before-sign-out',leave)}
+  },[persistentSave,dirty,unresolved,saving,review])
+  // A paginated reader may reveal a previously unseen draft. Never replace dirty text.
+  useEffect(()=>{
+    if(!draft||dirty||unresolved||saving||review||draft.revision===revision)return
+    const content={complaint:draft.complaint,examination:draft.examination,assessment:draft.assessment,plan:draft.plan}
+    setForm(content);setAuthoritative(content);setBaseline(draftSnapshot(content));setRevision(draft.revision)
+    setSaved({revision:draft.revision,authorId:draft.authorId,editorId:draft.editorId,updatedAt:draft.updatedAt})
+  },[draft,dirty,unresolved,saving,review,revision])
+  const applyReview=(verified:VerifiedPage,matched:ChartDraft|null)=>{
+    const content=matched?{complaint:matched.complaint,examination:matched.examination,assessment:matched.assessment,plan:matched.plan}:blank()
+    setForm(content);latest.current=content;setAuthoritative(content);setBaseline(draftSnapshot(content))
+    setRevision(matched?.revision??0);setSaved(matched?{revision:matched.revision,authorId:matched.authorId,editorId:matched.editorId,updatedAt:matched.updatedAt}:null)
+    pending.current=null;setReview(null);setCurrentUnverified(false);setConflict(false);lock(false);onVerified(verified)
+  }
+  const reconcile=async(beforeRevision:number|null=null)=>{
+    if(!persistentSave||role!=='veterinarian'||!port.reconcile||busy.current||paging||(!pending.current&&dirty))return
+    const ticket=pending.current
+    const exact=!!ticket
+    if(exact&&beforeRevision!==null)return
+    const controller=new AbortController();operation.current=controller
+    busy.current=true;setSaving(true);setLookupExact(exact);setObservation(null);setReview(null);setCurrentUnverified(true);setNotice('Checking durable receipt…')
+    try{
+      const result=await port.reconcile({accountId,branchId,petId,appointmentId,requestId:ticket?.requestId??null,beforeRevision},controller.signal)
+      if(!mounted.current||controller.signal.aborted)return
+      setObservation(result)
+      if(result.kind==='unknown'){setNotice('Receipt unresolved. No save or current chart can be confirmed. Retry receipt lookup only.');return}
+      if(exact&&result.kind==='committed'&&result.receipt.revision!==ticket!.expectedRevision+1){
+        setObservation(null);throw Error('Receipt revision does not identify original request')
+      }
+      setNotice(result.kind==='committed'?'Receipt confirmed; verifying current chart separately…':'No matching receipt at observation time; verifying current chart separately…')
+      let cursor:ChartCursor|null=null,verified:VerifiedPage|null=null,matched:ChartDraft|null=null
+      for(let n=0;n<50;n++){
+        const query:ChartRequest={accountId,branchId,petId,ownerId,section:'drafts',cursor,limit:50}
+        const next=validateChartPage(await port.read(query,controller.signal),query)
+        if(!mounted.current||controller.signal.aborted)return
+        if(next.kind==='denied'){onDenied?.();return}
+        if(next.kind!=='ok')throw Error('Current chart readback unavailable')
+        verified=verified?combine(verified,next):next
+        matched=next.items.find((item):item is ChartDraft=>'appointmentId' in item&&item.appointmentId===appointmentId)??null
+        if(matched||!next.hasMore)break
+        cursor=next.nextCursor
+      }
+      if(!verified||(!matched&&verified.hasMore)||
+        (result.draftId!==null&&(!matched||matched.id!==result.draftId))||
+        (matched?.revision??0)<result.currentRevision)
+        throw Error('Current chart identity or revision unverified')
+      if(exact&&result.kind==='committed'&&matched&&matched.revision===result.receipt.revision){
+        if(draftSnapshot(matched)!==ticket!.snapshot)throw Error('Original saved content did not match readback')
+        applyReview(verified,matched);setNotice('Verified persisted DRAFT saved. Exact request receipt and current chart confirmed.');return
+      }
+      setCurrentUnverified(false);setReview({page:verified,draft:matched})
+      setNotice(exact&&result.kind==='not_found'?
+        'Original request remains unresolved. Snapshot absence does not exclude a later commit. Review the current chart before deciding what to do.':
+        'Review the current chart before editing. Discovery identifies previous own saves, not an unidentified lost request.')
+    }catch(error){
+      if(!mounted.current||controller.signal.aborted)return
+      if(classifyChartError(error)==='denied'){onDenied?.();return}
+      setNotice('Receipt lookup or current chart readback could not be verified. No current save is assumed. Retry lookup only.')
+    }finally{operation.current=null;busy.current=false;if(mounted.current)setSaving(false)}
+  }
   const update=(key:keyof DraftContent,value:string)=>{
     if(persistentSave&&(busy.current||pending.current))return
     setForm(old=>({...old,[key]:value}))
@@ -234,7 +312,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
   }
   const save=async(event:React.FormEvent)=>{
     event.preventDefault()
-    if(!canWrite||busy.current||conflict||!dirty)return
+    if(!canWrite||busy.current||conflict||!dirty||unresolved||currentUnverified||review)return
     const result=validateEncounter(form)
     setErrors(result.errors)
     if(!result.valid){setNotice('Correct the highlighted fields. Nothing was saved.');return}
@@ -244,6 +322,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
     }
     const ticket=prepareSaveTicket(pending.current,{...content,expectedRevision:revision},()=>crypto.randomUUID())
     pending.current=ticket
+    setObservation(null);setReview(null)
     const request:DraftSaveRequest={branchId,petId,appointmentId,requestId:ticket.requestId,
       expectedRevision:revision,...content}
     busy.current=true;setSaving(true);if(persistentSave)lock(true);setNotice('Save requested; awaiting verified server acknowledgement…')
@@ -259,7 +338,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
         }
         else {if(raw.kind==='invalid'){pending.current=null;lock(false)}
           setNotice(raw.kind==='invalid'?'Server rejected invalid draft data. Nothing was saved.':
-          'Save was not confirmed. The same unchanged request can be retried.')}
+          'Save was not confirmed. Check the original request receipt.')}
         return
       }
       const ack=validateDraftAcknowledgement(raw,request,accountId)
@@ -280,7 +359,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
           cursor=next.nextCursor
         }
         if(!matched||!verified||matched.id!==ack.id)throw Error('Draft readback not verified')
-        if(matched.revision>ack.revision){pending.current=null;lock(false);setConflict(true);setNotice('A newer server revision exists. Reload authoritative history before editing.');return}
+        if(matched.revision>ack.revision){setCurrentUnverified(true);setNotice('A newer server revision exists. Check the original receipt and review current chart before editing.');return}
         if(matched.revision!==ack.revision||matched.authorId!==ack.authorId||matched.editorId!==ack.editorId||
           matched.updatedAt!==ack.updatedAt||draftSnapshot(matched)!==ticket.snapshot)
           throw Error('Draft readback did not match acknowledgement')
@@ -306,8 +385,8 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
         setForm(blank());setAuthoritative(blank());setBaseline(draftSnapshot(blank()))
         pending.current=null;lock(false);onDenied?.()
       }
-      else if(kind==='unavailable')setNotice('Draft backend unavailable. Save not verified; retry is possible.')
-      else setNotice('Save was not verified. Retry unchanged text with the same request ID.')
+      else if(kind==='unavailable')setNotice('Draft backend unavailable. Save not verified; check the original receipt.')
+      else setNotice(persistentSave?'Save was not verified. Check the original request receipt; do not resubmit.':'Save was not verified. Retry unchanged text with the same request ID.')
     }finally{operation.current=null;busy.current=false;if(mounted.current)setSaving(false)}
   }
   const labels:readonly [keyof DraftContent,string][]=[
@@ -316,7 +395,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
   return <section className="clinical-encounter-editor" aria-label="Encounter draft editor">
     <h4>Veterinarian encounter DRAFT</h4>
     <p role="status" className="clinical-inline-warning">
-      {dirty?'Unsaved local edits — not persisted.':saved?
+      {currentUnverified?'Current chart is not verified.':dirty?'Unsaved local edits — not persisted.':saved?
         'Authoritative draft revision '+saved.revision+' acknowledged by the reader.':
         'No saved draft for this appointment has been verified.'}
     </p>
@@ -332,25 +411,48 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
       {labels.map(([key,label])=><label className="clinical-field" key={key}>
         <span>{label}{key==='complaint'?' *':''}</span>
         <textarea rows={3} maxLength={4000} value={form[key]}
-          disabled={role!=='veterinarian'||conflict||saving||unresolved}
+          disabled={role!=='veterinarian'||conflict||saving||unresolved||currentUnverified||!!review}
           aria-invalid={!!errors[key]} aria-describedby={errors[key]?'chart-error-'+key:undefined}
           onChange={event=>update(key,event.target.value)}/>
         {errors[key]&&<span className="clinical-validation" id={'chart-error-'+key}>{errors[key]}</span>}
       </label>)}
       </div>
-      {persistentSave&&unresolved&&<p role="alert">Original draft request {pending.current?.requestId} is unresolved. Text and context are locked. Retry the same request; leaving or reloading loses its in-memory identity. Reconcile with an authorized supervisor before another save.</p>}
+      {persistentSave&&unresolved&&<p role="alert">Original draft request {pending.current?.requestId} is unresolved. Text and context are locked. Check its receipt, not another save. Reloading loses in-memory identity and unsaved text.</p>}
+      {persistentSave&&role==='veterinarian'&&<section aria-label="Clinical save receipts">
+        <h5>Save reconciliation</h5>
+        <p>Previous own receipts confirm historical saves only. They cannot identify an unknown lost submission or recover unsaved text.</p>
+        {observation?.kind==='committed'&&<p role="status">{lookupExact?'Exact original request committed.':'Previous own receipt found.'} Saved revision {observation.receipt.revision}. Chart revision at receipt lookup {observation.currentRevision}.</p>}
+        {observation?.kind==='not_found'&&<p role="status">No matching receipt at observation time. This does not prove that a delayed request will never commit.</p>}
+        {observation?.kind==='unknown'&&<p role="status">Receipt unresolved: {observation.reason==='visit_busy'?'visit busy':'receipt unverified'}.</p>}
+        {review&&<div role="region" aria-label="Current chart review">
+          <h5>Verified current chart revision {review.draft?.revision??0}</h5>
+          {review.draft?labels.map(([key,label])=><p key={key}><strong>{label}: </strong>{review.draft?.[key]}</p>):<p>No draft found in the verified complete history.</p>}
+          <button type="button" className="button button-secondary" onClick={()=>{
+            if(pending.current&&!window.confirm('This does not recover unsaved text or rule out a delayed commit. Discard local text and review this chart as a new editing baseline?'))return
+            applyReview(review.page,review.draft);setNotice('Current chart reviewed. Any new save requires deliberate editing and submission.')
+          }}>Review and use current chart</button>
+        </div>}
+        <div className="clinical-actions">
+          {unresolved?<button type="button" className="button button-secondary" disabled={saving||!port.reconcile} onClick={()=>void reconcile()}>Check original request receipt</button>:
+          <button type="button" className="button button-secondary" disabled={saving||dirty||paging||!port.reconcile} onClick={()=>void reconcile()}>Find previous own receipt</button>}
+          {!unresolved&&observation?.kind==='committed'&&<button type="button" className="button button-secondary" disabled={saving||dirty||!!review} onClick={()=>void reconcile(observation.receipt.revision)}>Find older own receipt</button>}
+          {unresolved&&<button type="button" className="button button-quiet" disabled={saving} onClick={()=>{
+            if(window.confirm('Original outcome may remain unresolved. Leaving discards local text and request identity. Continue?')){lock(false);onReload()}
+          }}>Leave unresolved and reload chart</button>}
+        </div>
+      </section>}
       {notice&&<p role="status" className="clinical-feedback">{notice}</p>}
       <div className="clinical-actions">
         <button type="submit" className="button button-primary"
-          disabled={!canWrite||!dirty||saving||conflict}>
-          {saving?'Awaiting acknowledgement…':unresolved?'Retry same draft request':canWrite?'Save encounter DRAFT':'Save unavailable — not connected'}
+          disabled={!canWrite||!dirty||saving||conflict||unresolved||currentUnverified||!!review}>
+          {saving?'Awaiting acknowledgement…':unresolved?'Save locked — check receipt':canWrite?'Save encounter DRAFT':'Save unavailable — not connected'}
         </button>
         <button type="button" className="button button-secondary"
           onClick={()=>{if(persistentSave&&(busy.current||pending.current))return;setForm({...authoritative});pending.current=null;
             setErrors({});setNotice('Local edits restored to the last verified response. Reload to recheck remote state.')}} disabled={!dirty||saving||unresolved}>
           Discard local edits
         </button>
-        <button type="button" className="button button-quiet" disabled={saving||unresolved} onClick={onReload}>
+        <button type="button" className="button button-quiet" disabled={saving||unresolved} onClick={()=>{if(!dirty||window.confirm('Discard unsaved local clinical text and reload?')){onPendingChange(false);onReload()}}}>
           {dirty?'Discard local edits and reload':conflict?'Reload after conflict':'Reload authoritative history'}
         </button>
       </div>

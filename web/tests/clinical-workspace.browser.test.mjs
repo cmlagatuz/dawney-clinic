@@ -28,7 +28,7 @@ function installClinicalFixture(){
   const sessionFor=account=>({user:account,access_token:['{"alg":"HS256","typ":"JWT"}',JSON.stringify({sub:account.id,exp:expiry}),'fixture']
     .map(x=>btoa(x).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')).join('.'),refresh_token:'synthetic-test',expires_at:expiry})
   localStorage.setItem('dawney.auth.v1',JSON.stringify(sessionFor(user)))
-  window.__clinicalCalls={paths:[],mutations:[],assertions:[],unexpected:[],draftRequests:[],chartReads:[],released:0}
+  window.__clinicalCalls={paths:[],mutations:[],assertions:[],unexpected:[],draftRequests:[],chartReads:[],receiptReads:[],released:0}
   const coverage=mode==='persist-coverage'
   let gate=null,readerFailure=null
   window.__clinicalControl={
@@ -92,6 +92,13 @@ function installClinicalFixture(){
       }
       if(mode==='persist-denied'||p.p_branch!==ids.naga||p.p_pet!==ids.pet||p.p_limit!==50)return reply({code:'42501'},403)
       return reply({kind:'ok',accountId:ids.user,branchId:ids.naga,section:p.p_section,patient:{id:ids.pet,ownerId:ids.owner,name:'Synthetic clinical patient',species:'Dog',breed:null,sex:'unknown',birthDate:null,taxonomyReviewNeeded:false},items:p.p_section==='drafts'&&draft?[mode==='persist-mismatch'?{...draft,complaint:'Mismatched fixture readback'}:draft]:[],hasMore:false,nextCursor:null})
+    }
+    if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/reconcile_staff_clinical_draft'){
+      const p=await req.json();window.__clinicalCalls.receiptReads.push(p)
+      if(coverage||p.p_branch!==ids.naga||p.p_pet!==ids.pet||p.p_appointment!==ids.secondAppointment)return reply({code:'42501'},403)
+      const context={accountId:user.id,branchId:p.p_branch,petId:p.p_pet,appointmentId:p.p_appointment,requestId:p.p_request_id,beforeRevision:p.p_before_revision}
+      const found=receiptPayload&&(p.p_request_id===null||p.p_request_id===receiptPayload.p_request_id)&&(p.p_before_revision===null||receipt.revision<p.p_before_revision)
+      return reply({...context,kind:found?'committed':'not_found',currentRevision:draft?.revision??0,draftId:draft?.id??null,receipt:found?{requestId:receiptPayload.p_request_id,revision:receipt.revision,auditEventId:String(receipt.revision),savedAt:receipt.updatedAt}:null})
     }
     if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/save_staff_clinical_encounter_draft'){
       const p=await req.json();window.__clinicalCalls.draftRequests.push(p)
@@ -294,7 +301,7 @@ test('CLOUD clinical browser: staff-scoped chart, themes/widths, keyboard, no wr
   }
 })
 
-test('CLOUD real clinical route: exact visit, lost ACK, same ID and authoritative draft revisions', {timeout:120000},async()=>{
+test('CLOUD real clinical route: exact visit, lost ACK, exact receipt and authoritative draft revisions', {timeout:120000},async()=>{
  process.env.VITE_SUPABASE_URL='https://issue51-fixtures.supabase.co'
  process.env.VITE_SUPABASE_PUBLISHABLE_KEY='sb_publishable_issue51_offline'
  process.env.VITE_CLINICAL_WORKSPACE_UI='true'
@@ -316,12 +323,17 @@ test('CLOUD real clinical route: exact visit, lost ACK, same ID and authoritativ
    await browser.send('Input.insertText',{text:'Synthetic persistent complaint'})
    await browser.until('!!document.querySelector(".clinical-encounter-editor button[type=submit]:not(:disabled)")')
    await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
-   await browser.until('document.querySelector(".clinical-encounter-editor button[type=submit]")?.textContent.includes("Retry same draft request")')
+   await browser.until('document.querySelector(".clinical-encounter-editor button[type=submit]")?.textContent.includes("Save locked")')
    assert.equal(await browser.value('document.querySelector("#clinical-branch").disabled&&document.querySelector("#clinical-day").disabled&&document.querySelector("#clinical-tab-history").disabled&&document.querySelector(".clinical-encounter-editor textarea").disabled'),true)
-   await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
+   assert.equal(await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").disabled'),true)
+   await browser.value('[...document.querySelectorAll(".clinical-encounter-editor button")].find(b=>b.textContent==="Check original request receipt").focus();true')
+   await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r',unmodifiedText:'\r'})
+   await browser.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
    await browser.until('document.body.textContent.includes("Authoritative draft revision 1")')
    const calls=await browser.value('window.__clinicalCalls.draftRequests')
-   assert.equal(calls.length,2);assert.deepEqual(calls[0],calls[1])
+   assert.equal(calls.length,1,'receipt lookup must never replay a mutation')
+   assert.deepEqual(await browser.value('window.__clinicalCalls.receiptReads'),[{p_branch:calls[0].p_branch,p_pet:calls[0].p_pet,p_appointment:calls[0].p_appointment,p_request_id:calls[0].p_request_id,p_before_revision:null}])
+   assert.equal(await browser.value('document.body.textContent.includes("Exact original request committed")'),true)
    assert.equal(calls[0].p_appointment,'20000000-0000-4000-8000-000000000008')
    assert.equal(calls[0].p_expected_revision,0)
    await browser.value('document.querySelector(".clinical-encounter-editor textarea").focus();true')
@@ -329,10 +341,16 @@ test('CLOUD real clinical route: exact visit, lost ACK, same ID and authoritativ
    await browser.until('!!document.querySelector(".clinical-encounter-editor button[type=submit]:not(:disabled)")')
    await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
    await browser.until('document.body.textContent.includes("Authoritative draft revision 2")')
-   assert.equal(await browser.value('window.__clinicalCalls.draftRequests[2].p_expected_revision'),1)
+   assert.equal(await browser.value('window.__clinicalCalls.draftRequests[1].p_expected_revision'),1)
    await browser.value('document.querySelector("#clinical-tab-history").click();true')
    await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
    await browser.until('document.body.textContent.includes("Authoritative draft revision 2")')
+   await browser.value('[...document.querySelectorAll(".clinical-encounter-editor button")].find(b=>b.textContent==="Find previous own receipt").click();true')
+   await browser.until('document.body.textContent.includes("Verified current chart revision 2")')
+   assert.equal(await browser.value('document.body.textContent.includes("Previous own receipt found")&&!document.body.textContent.includes("Exact original request committed")'),true)
+   assert.equal(await browser.value('window.__clinicalCalls.draftRequests.length'),2)
+   await browser.value('[...document.querySelectorAll(".clinical-encounter-editor button")].find(b=>b.textContent==="Review and use current chart").click();true')
+   await browser.until('!!document.querySelector(".clinical-encounter-editor textarea:not(:disabled)")')
    assert.equal(await browser.value('document.documentElement.scrollWidth<=innerWidth'),true)
    assert.deepEqual(await browser.value('window.__clinicalCalls.mutations'),[])
    assert.deepEqual(await browser.value('window.__clinicalCalls.unexpected'),[])
@@ -360,7 +378,7 @@ test('CLOUD real clinical route: exact visit, lost ACK, same ID and authoritativ
    await browser.send('Input.insertText',{text:'Mismatch fixture original'})
    await browser.until('!!document.querySelector(".clinical-encounter-editor button[type=submit]:not(:disabled)")')
    await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
-   await browser.until('document.querySelector(".clinical-encounter-editor button[type=submit]")?.textContent.includes("Retry same draft request")')
+   await browser.until('document.querySelector(".clinical-encounter-editor button[type=submit]")?.textContent.includes("Save locked")')
    assert.equal(await browser.value('document.body.textContent.includes("Verified persisted DRAFT saved")'),false)
    assert.equal(await browser.value('window.__clinicalCalls.draftRequests.length'),1)
    assert.equal(await browser.value('document.querySelector(".clinical-encounter-editor textarea").disabled'),true)
@@ -390,6 +408,7 @@ test('CLOUD connected clinical route: administrator, responsive keyboard, read r
    const clean=async()=>{
     const calls=await browser.value('window.__clinicalCalls')
     assert.deepEqual(calls.draftRequests,[],'administrator never dispatches draft RPC')
+    assert.deepEqual(calls.receiptReads,[],'administrator never dispatches receipt RPC')
     assert.deepEqual(calls.mutations,[],'no unsupported clinical writes')
     assert.deepEqual(calls.unexpected,[])
     assert.equal(calls.paths.some(x=>/\/rest\/v1\/(pets|clinical_records)(?:$|\?)/.test(x)),false,'no unscoped reader')

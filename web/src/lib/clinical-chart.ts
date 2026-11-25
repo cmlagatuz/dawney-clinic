@@ -150,3 +150,48 @@ export async function createStaffAppointmentClinicalRecord(user:User,input:Clini
   throw Error('Malformed clinical record acknowledgement')
  return data as SavedClinicalRecord
 }
+
+/** #22: metadata only; never treats receipt discovery as identification of a lost save. */
+export type ReceiptQuery={accountId:string;branchId:string;petId:string;appointmentId:string;
+ requestId:string|null;beforeRevision:number|null}
+export type Receipt={requestId:string;revision:number;auditEventId:string;savedAt:string}
+export type ReceiptObservation=
+ |{kind:'committed';currentRevision:number;draftId:string;receipt:Receipt}
+ |{kind:'not_found';currentRevision:number;draftId:string|null;receipt:null}
+ |{kind:'unknown';reason:'visit_busy'|'receipt_unverified';currentRevision:null;draftId:null;receipt:null}
+const receiptRevision=(x:unknown):x is number=>typeof x==='number'&&Number.isSafeInteger(x)&&x>=0&&x<=2147483647
+export function validateClinicalReceipt(raw:unknown,q:ReceiptQuery):ReceiptObservation{
+ if(!obj(raw)||raw.accountId!==q.accountId||raw.branchId!==q.branchId||raw.petId!==q.petId||
+ raw.appointmentId!==q.appointmentId||raw.requestId!==q.requestId||raw.beforeRevision!==q.beforeRevision)
+ throw Error('Unverified receipt scope')
+ if(raw.kind==='unknown'&&(raw.reason==='visit_busy'||raw.reason==='receipt_unverified')&&
+ raw.currentRevision===null&&raw.draftId===null&&raw.receipt===null)
+ return {kind:'unknown',reason:raw.reason,currentRevision:null,draftId:null,receipt:null}
+ if(!receiptRevision(raw.currentRevision))throw Error('Unverified receipt revision')
+ const currentRevision=raw.currentRevision
+ if(raw.kind==='not_found'&&raw.receipt===null&&
+ (currentRevision===0?raw.draftId===null:str(raw.draftId)&&validId(raw.draftId)))
+ return {kind:'not_found',currentRevision,draftId:raw.draftId as string|null,receipt:null}
+ const x=raw.receipt
+ if(raw.kind!=='committed'||!str(raw.draftId)||!validId(raw.draftId)||!obj(x)||
+ !str(x.requestId)||!validId(x.requestId)||(q.requestId!==null&&x.requestId!==q.requestId)||
+ !receiptRevision(x.revision)||x.revision<1||x.revision>currentRevision||
+ (q.beforeRevision!==null&&x.revision>=q.beforeRevision)||
+ !str(x.auditEventId)||!/^[1-9][0-9]{0,18}$/.test(x.auditEventId)||!timestamp(x.savedAt))
+ throw Error('Unverified receipt')
+ return {kind:'committed',currentRevision,draftId:raw.draftId,
+ receipt:{requestId:x.requestId,revision:x.revision,auditEventId:x.auditEventId,savedAt:x.savedAt}}
+}
+export async function reconcileStaffClinicalDraft(user:User,q:ReceiptQuery,signal?:AbortSignal):Promise<ReceiptObservation>{
+ if(q.accountId!==user.id||![q.accountId,q.branchId,q.petId,q.appointmentId].every(validId)||
+ (q.requestId!==null&&!validId(q.requestId))||
+ (q.beforeRevision!==null&&(!receiptRevision(q.beforeRevision)||q.beforeRevision<1||q.requestId!==null)))
+ throw Error('Invalid receipt query')
+ await authenticate(user)
+ if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
+ const {data,error}=await client().rpc('reconcile_staff_clinical_draft',{
+ p_branch:q.branchId,p_pet:q.petId,p_appointment:q.appointmentId,p_request_id:q.requestId,p_before_revision:q.beforeRevision})
+ if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
+ if(error)throw error
+ return validateClinicalReceipt(data,q)
+}
