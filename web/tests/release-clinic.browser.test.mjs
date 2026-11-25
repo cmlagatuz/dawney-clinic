@@ -29,6 +29,11 @@ test('CLOUD RELEASE: full clinic owner-to-operator route acceptance with source-
     await withChromium(async browser=>{
       await browser.send('Page.addScriptToEvaluateOnNewDocument',
         {source:'('+releaseClinicFixture.toString()+')()'})
+      // Short desktop: all verified staff navigation and sign-out must remain reachable.
+      await browser.send('Emulation.setDeviceMetricsOverride',{width:1440,height:480,deviceScaleFactor:1,mobile:false})
+      await browser.goto(url+'/app/overview?actor=staff&theme=dark')
+      await browser.until('!!document.querySelector(".sidebar a[href=\\"/app/ops\\"]")',9000)
+      assert.equal(await browser.value('(()=>{const s=document.querySelector(".sidebar");s.scrollTop=s.scrollHeight;const b=s.querySelector(".sidebar-bottom button");return s.scrollHeight>s.clientHeight&&s.scrollTop>0&&b.getBoundingClientRect().bottom<=s.getBoundingClientRect().bottom+1})()'),true,'desktop navigation scrolls to sign-out')
       // Use the existing real owner form to issue one request (not a staff-created appointment).
       await browser.send('Emulation.setDeviceMetricsOverride',
         {width:768,height:900,deviceScaleFactor:1,mobile:false})
