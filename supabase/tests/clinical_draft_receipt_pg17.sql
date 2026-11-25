@@ -68,6 +68,7 @@ reset role;
 -- New session after sign-out: actor is durable, session is not a receipt key.
 insert into auth.sessions(id,user_id) values
  ('a2200000-1111-4111-8111-000000000001','dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+delete from auth.sessions where id='c4444444-aaaa-4aaa-8aaa-444444444444';
 set role authenticated;
 set request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"a2200000-1111-4111-8111-000000000001"}';
 do $reload$
@@ -121,6 +122,102 @@ begin
  then raise exception 'RECEIPT_FAIL: another veterinarian receipt'; end if;
 end $actor$;
 rollback;
+-- Additional role isolation, exact visit and session negatives.
+set role authenticated;
+do $role_matrix$
+declare x record;
+begin
+ for x in select * from (values
+ ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','c2222222-aaaa-4aaa-8aaa-222222222222'),
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','c3333333-aaaa-4aaa-8aaa-333333333333'),
+ ('90909090-aaaa-4aaa-8aaa-222222222222','90909090-bbbb-4bbb-8bbb-222222222222'),
+ ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','b1111111-aaaa-4aaa-8aaa-111111111111')) m(actor,sid)
+ loop
+  perform set_config('request.jwt.claim.sub',x.actor,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('role','authenticated',
+   'is_anonymous',false,'exp',4102444800,'session_id',x.sid)::text,true);
+  begin
+   perform public.reconcile_staff_clinical_draft('22222222-0000-4000-8000-000000000077',
+    '44444444-4444-4444-8444-444444444444','a1210000-0000-4000-8000-000000000001');
+   raise exception 'RECEIPT_FAIL: non-veterinarian role';
+  exception when insufficient_privilege then null; end;
+ end loop;
+end $role_matrix$;
+set request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+do $session_matrix$
+declare x jsonb;
+begin
+ for x in select * from (values
+ ('{"role":"authenticated","is_anonymous":false,"exp":1,"session_id":"a2200000-1111-4111-8111-000000000001"}'::jsonb),
+ ('{"role":"authenticated","is_anonymous":true,"exp":4102444800,"session_id":"a2200000-1111-4111-8111-000000000001"}'::jsonb),
+ ('{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c4444444-aaaa-4aaa-8aaa-444444444444"}'::jsonb),
+ ('{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c2222222-aaaa-4aaa-8aaa-222222222222"}'::jsonb),
+ ('{"role":"authenticated","is_anonymous":false,"exp":4102444800}'::jsonb)) m(claims)
+ loop
+  perform set_config('request.jwt.claims',x::text,true);
+  begin
+   perform public.reconcile_staff_clinical_draft('11111111-0000-4000-8000-000000000077',
+    '33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa');
+   raise exception 'RECEIPT_FAIL: expired/anonymous/old/mismatched/missing session';
+  exception when insufficient_privilege then null; end;
+ end loop;
+end $session_matrix$;
+reset role;
+set request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"a2200000-1111-4111-8111-000000000001"}';
+begin;
+update public.staff_branch_memberships set is_active=false
+ where user_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+ and branch_id='11111111-0000-4000-8000-000000000077';
+set local role authenticated;
+do $branch$
+begin
+ begin
+  perform public.reconcile_staff_clinical_draft('11111111-0000-4000-8000-000000000077',
+   '33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa');
+  raise exception 'RECEIPT_FAIL: revoked branch';
+ exception when insufficient_privilege then null; end;
+end $branch$;
+rollback;
+begin;
+update auth.users set banned_until=clock_timestamp()+interval '2 hours'
+ where id='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+set local role authenticated;
+do $banned$
+begin
+ begin
+  perform public.reconcile_staff_clinical_draft('11111111-0000-4000-8000-000000000077',
+   '33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa');
+  raise exception 'RECEIPT_FAIL: banned Auth user';
+ exception when insufficient_privilege then null; end;
+end $banned$;
+rollback;
+begin;
+set local role authenticated;
+select public.save_staff_clinical_encounter_draft('11111111-0000-4000-8000-000000000077',
+ '33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',
+ 'a2200000-0000-4000-8000-000000000004',2,'synthetic rolled back','','','');
+rollback;
+set role authenticated;
+do $rollback$
+declare x jsonb; v uuid;
+begin
+ x:=public.reconcile_staff_clinical_draft('11111111-0000-4000-8000-000000000077',
+ '33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',
+ 'a2200000-0000-4000-8000-000000000004');
+ if x->>'kind' is distinct from 'not_found' or x->>'currentRevision' is distinct from '2'
+ then raise exception 'RECEIPT_FAIL: rolled-back save counted';end if;
+ select id into v from public.appointments where branch_id='11111111-0000-4000-8000-000000000077'
+ and pet_id='33333333-3333-4333-8333-333333333333'
+ and concern='CI synthetic Naga queue' order by id limit 1;
+ if v is null then raise exception 'RECEIPT_FAIL: missing independent visit fixture';end if;
+ x:=public.reconcile_staff_clinical_draft('11111111-0000-4000-8000-000000000077',
+ '33333333-3333-4333-8333-333333333333',v,'a2200000-0000-4000-8000-000000000001');
+ if x->>'kind' is distinct from 'not_found' or x->'receipt' is distinct from 'null'::jsonb
+ then raise exception 'RECEIPT_FAIL: previous visit receipt crossed visit boundary';end if;
+end $rollback$;
+reset role;
+\echo 'PASS: current admin/receptionist/accountant/owner denied; session replacement, expiry, branch revocation, ban, rolled-back receipt and exact second visit'
+
 do $preserved$
 begin
  if (select count(*) from public.clinical_encounter_drafts where appointment_id='aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa' and revision=2)<>1

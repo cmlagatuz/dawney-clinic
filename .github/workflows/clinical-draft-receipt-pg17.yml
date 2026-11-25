@@ -1,4 +1,4 @@
-name: Clinical #22 durable receipt — disposable PG17
+name: 'Clinical #22 durable receipt — disposable PG17'
 on:
   pull_request:
     paths:
@@ -139,7 +139,7 @@ jobs:
           begin;
           set local role authenticated;
           set local request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
-          set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c4444444-aaaa-4aaa-8aaa-444444444444"}';
+          set local request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"a2200000-1111-4111-8111-000000000001"}';
           select public.save_staff_clinical_encounter_draft('11111111-0000-4000-8000-000000000077',
            '33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',
            'a2200000-0000-4000-8000-000000000003',2,'synthetic in progress','','','');
@@ -157,7 +157,7 @@ jobs:
             psql -XAtq -v ON_ERROR_STOP=1 <<'SQL'
           set role authenticated;
           set request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
-          set request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"c4444444-aaaa-4aaa-8aaa-444444444444"}';
+          set request.jwt.claims='{"role":"authenticated","is_anonymous":false,"exp":4102444800,"session_id":"a2200000-1111-4111-8111-000000000001"}';
           select public.reconcile_staff_clinical_draft('11111111-0000-4000-8000-000000000077',
            '33333333-3333-4333-8333-333333333333','aaaaaaaa-7777-4777-8777-aaaaaaaaaaaa',
            'a2200000-0000-4000-8000-000000000003')->>'kind';
