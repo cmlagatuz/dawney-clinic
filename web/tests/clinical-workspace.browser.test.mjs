@@ -108,11 +108,11 @@ function installClinicalFixture(){
       if(coverage||p.p_branch!==ids.naga||p.p_pet!==ids.pet||p.p_appointment!==ids.secondAppointment)return reply({code:'42501'},403)
       const context={accountId:user.id,branchId:p.p_branch,petId:p.p_pet,appointmentId:p.p_appointment,requestId:p.p_request_id,beforeRevision:p.p_before_revision}
       if(receiptGate){const g=receiptGate;g.started=true;await g.promise}
-      if(receiptOutcome==='unknown')return reply({...context,kind:'unknown',reason:'visit_busy',currentRevision:null,draftId:null,receipt:null})
+      if(receiptOutcome==='unknown'||receiptOutcome==='unverified')return reply({...context,kind:'unknown',reason:receiptOutcome==='unknown'?'visit_busy':'receipt_unverified',currentRevision:null,draftId:null,receipt:null})
       if(receiptOutcome==='unavailable')return reply({code:'PGRST202'},404)
       if(receiptOutcome==='malformed')return reply({...context,accountId:ids.secondUser,kind:'not_found',currentRevision:0,draftId:null,receipt:null})
       const found=receiptOutcome!=='missing'&&receipts.slice().reverse().find(x=>(p.p_request_id===null||p.p_request_id===x.requestId)&&(p.p_before_revision===null||x.revision<p.p_before_revision))
-      return reply({...context,kind:found?'committed':'not_found',currentRevision:draft?.revision??0,draftId:draft?.id??null,receipt:found||null})
+      return reply({...context,kind:found?'committed':'not_found',currentRevision:draft?.revision??0,draftId:draft?.id??null,receipt:found?(receiptOutcome==='wrong-request'?{...found,requestId:uuid(99)}:found):null})
     }
     if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/save_staff_clinical_encounter_draft'){
       const p=await req.json();window.__clinicalCalls.draftRequests.push(p)
@@ -569,7 +569,7 @@ test('CLOUD durable receipt route: unknown, missing, malformed, readback failure
     assert.equal(await browser.value('document.querySelector(".clinical-encounter-editor textarea").value'),'Synthetic interrupted draft')
     assert.equal(await browser.value('document.body.textContent.includes("Verified persisted DRAFT saved")'),false)
    }
-   for(const [outcome,phrase] of [['unknown','Receipt unresolved: visit busy'],['missing','No matching receipt at observation time'],['malformed','Receipt lookup or current chart readback could not be verified'],['unavailable','Receipt lookup or current chart readback could not be verified']]){
+   for(const [outcome,phrase] of [['unknown','Receipt unresolved: visit busy'],['unverified','Receipt unresolved: receipt unverified'],['missing','No matching receipt at observation time'],['wrong-request','Receipt lookup or current chart readback could not be verified'],['malformed','Receipt lookup or current chart readback could not be verified'],['unavailable','Receipt lookup or current chart readback could not be verified']]){
     await browser.value('window.__clinicalControl.setReceiptOutcome('+JSON.stringify(outcome)+');true')
     await click('Check original request receipt');await has(phrase)
     await browser.until('!('+button('Check original request receipt')+').disabled')

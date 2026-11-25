@@ -222,6 +222,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;operation.current?.abort()}},[])
   const [observation,setObservation]=useState<ReceiptObservation|null>(null)
   const [lookupExact,setLookupExact]=useState(false)
+  const [lookupCursor,setLookupCursor]=useState<number|null>(null)
   const [currentUnverified,setCurrentUnverified]=useState(false)
   const [review,setReview]=useState<{page:VerifiedPage;draft:ChartDraft|null}|null>(null)
   const lock=(value:boolean)=>{setUnresolved(value);if(persistentSave)onPendingChange(value)}
@@ -264,7 +265,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
     const exact=!!ticket
     if(exact&&beforeRevision!==null)return
     const controller=new AbortController();operation.current=controller
-    busy.current=true;setSaving(true);setLookupExact(exact);setObservation(null);setReview(null);setCurrentUnverified(true);setNotice('Checking durable receipt…')
+    busy.current=true;setSaving(true);setLookupExact(exact);setLookupCursor(beforeRevision);setObservation(null);setReview(null);setCurrentUnverified(true);setNotice('Checking durable receipt…')
     try{
       const result=await port.reconcile({accountId,branchId,petId,appointmentId,requestId:ticket?.requestId??null,beforeRevision},controller.signal)
       if(!mounted.current||controller.signal.aborted)return
@@ -290,6 +291,9 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
         (result.draftId!==null&&(!matched||matched.id!==result.draftId))||
         (matched?.revision??0)<result.currentRevision)
         throw Error('Current chart identity or revision unverified')
+      if(result.kind==='committed'&&matched&&matched.revision===result.receipt.revision&&
+        (matched.editorId!==accountId||Date.parse(matched.updatedAt)!==Date.parse(result.receipt.savedAt)))
+        throw Error('Receipt attribution did not match current draft')
       if(exact&&result.kind==='committed'&&matched&&matched.revision===result.receipt.revision){
         if(draftSnapshot(matched)!==ticket!.snapshot)throw Error('Original saved content did not match readback')
         applyReview(verified,matched);setNotice('Verified persisted DRAFT saved. Exact request receipt and current chart confirmed.');return
@@ -297,6 +301,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
       setCurrentUnverified(false);setReview({page:verified,draft:matched})
       setNotice(exact&&result.kind==='not_found'?
         'Original request remains unresolved. Snapshot absence does not exclude a later commit. Review the current chart before deciding what to do.':
+        exact?'Original receipt is confirmed; the current chart has a newer revision. Review before editing.':
         'Review the current chart before editing. Discovery identifies previous own saves, not an unidentified lost request.')
     }catch(error){
       if(!mounted.current||controller.signal.aborted)return
@@ -395,11 +400,11 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
   return <section className="clinical-encounter-editor" aria-label="Encounter draft editor">
     <h4>Veterinarian encounter DRAFT</h4>
     <p role="status" className="clinical-inline-warning">
-      {currentUnverified?'Current chart is not verified.':dirty?'Unsaved local edits — not persisted.':saved?
+      {currentUnverified?'Current chart is not verified.':review?'Current chart readback verified; explicit review required before editing.':dirty?'Unsaved local edits — not persisted.':saved?
         'Authoritative draft revision '+saved.revision+' acknowledged by the reader.':
         'No saved draft for this appointment has been verified.'}
     </p>
-    {saved&&!currentUnverified&&<dl className="clinical-attribution">
+    {saved&&!currentUnverified&&!review&&<dl className="clinical-attribution">
       <dt>Created by</dt><dd>{brief(saved.authorId)}</dd>
       <dt>Last edited by</dt><dd>{brief(saved.editorId)}</dd>
       <dt>Revision</dt><dd>{saved.revision}</dd>
@@ -418,12 +423,12 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
         {errors[key]&&<span className="clinical-validation" id={'chart-error-'+key}>{errors[key]}</span>}
       </label>)}
       </div>
-      {persistentSave&&unresolved&&<p role="alert">Original draft request {pending.current?.requestId} is unresolved. Text and context are locked. Check its receipt, not another save. Reloading loses in-memory identity and unsaved text.</p>}
+      {persistentSave&&unresolved&&<p role="alert">Original draft request {pending.current?.requestId} {lookupExact&&observation?.kind==='committed'?'committed; current chart verification or review remains required.':'is unresolved.'} Text and context are locked. Check its receipt, not another save. Reloading loses in-memory identity and unsaved text.</p>}
       {persistentSave&&role==='veterinarian'&&<section aria-label="Clinical save receipts">
         <h5>Save reconciliation</h5>
         <p>Previous own receipts confirm historical saves only. They cannot identify an unknown lost submission or recover unsaved text.</p>
         {observation?.kind==='committed'&&<p role="status">{lookupExact?'Exact original request committed.':'Previous own receipt found.'} Saved revision {observation.receipt.revision}. Chart revision at receipt lookup {observation.currentRevision}.</p>}
-        {observation?.kind==='not_found'&&<p role="status">No matching receipt at observation time. This does not prove that a delayed request will never commit.</p>}
+        {observation?.kind==='not_found'&&<p role="status">No matching receipt at observation time. {lookupExact?'This does not prove that a delayed request will never commit.':'End of own receipt discovery for this cursor.'}</p>}
         {observation?.kind==='unknown'&&<p role="status">Receipt unresolved: {observation.reason==='visit_busy'?'visit busy':'receipt unverified'}.</p>}
         {review&&<div role="region" aria-label="Current chart review">
           <h5>Verified current chart revision {review.draft?.revision??0}</h5>
@@ -436,6 +441,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
         <div className="clinical-actions">
           {unresolved?<button type="button" className="button button-secondary" disabled={saving||!port.reconcile} onClick={()=>void reconcile()}>Check original request receipt</button>:
           <button type="button" className="button button-secondary" disabled={saving||dirty||paging||!port.reconcile} onClick={()=>void reconcile()}>Find previous own receipt</button>}
+          {!unresolved&&currentUnverified&&lookupCursor!==null&&<button type="button" className="button button-secondary" disabled={saving||dirty||!port.reconcile} onClick={()=>void reconcile(lookupCursor)}>Retry receipt page</button>}
           {!unresolved&&observation?.kind==='committed'&&<button type="button" className="button button-secondary" disabled={saving||dirty||!!review} onClick={()=>void reconcile(observation.receipt.revision)}>Find older own receipt</button>}
           {unresolved&&<button type="button" className="button button-quiet" disabled={saving} onClick={()=>{
             if(window.confirm('Original outcome may remain unresolved. Leaving discards local text and request identity. Continue?')){lock(false);onReload()}
