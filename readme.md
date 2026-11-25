@@ -17,6 +17,14 @@
 | Clinical chart connection | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `1f1dd8a7ef8f56d87cfa2eb726e4150262054c61` | Scoped SOL source security and TERRA in-page functional PASS; 309/309 frontend; flags OFF |
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
+
+### PM checkpoint — 26 November 2026, 01:49 Asia/Riyadh
+
+- PR137 `2f371836ff5b91c5de7742bb9b1d40c403b7e14d`: [actual React job](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45714814635/job/139558038533) 310/310, #112 PASS, TypeScript/Vite PASS; 4/5 workflows, historical clinical PG17 pin fails. Final delta one browser fixture file +11/-1. PM accepts frontend CI correction within scope; independent corrected UI and receipt integration pending.
+- PR139 `2a79d535ec7b473581381a0122a20afbcefc3256`: [SOL scoped source PASS](https://github.com/cmlagatuz/dawney-clinic/pull/139#issuecomment-7176597516) and [TERRA scoped contract PASS](https://github.com/cmlagatuz/dawney-clinic/pull/139#issuecomment-7176615757); PM accepts additive #22 within scope. Existing clinical read/save live-session authorization alignment remains a separate activation blocker. CHART-01 remains open until combined receipt UI and independent acceptance. Seven of ten workflows green; reconcile historical guards without bypass.
+- PM decision: one next RC2 integrated candidate, with RC1 frozen; ASTRA owns additive clinical authorization alignment and subsequent exact imports, CLOUD owns receipt UI and bounded human-read design polish, SOL and TERRA independently review. No third-party execution, new automation or production action.
+- Fresh provider metadata: production healthy with six migrations; synthetic staging healthy with eleven. Real hosted Auth/DB/Storage recovery, staging persistence and clinic-live acceptance remain NOT VERIFIED. No merge or clinical activation.
+
 ### Latest verified checkpoint — 26 November 2026
 
 | Deliverable | Exact evidence and standing |
