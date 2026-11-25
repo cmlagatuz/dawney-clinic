@@ -41,41 +41,47 @@ export function KpiGrid({kpis, loading}: {kpis: OpsKpi[]; loading: boolean}) {
     })}</ul></section>
 }
 
-export function VisitCard({row, lane}: {row: OpsRow; lane?: string}) {
+export function VisitCard({row, lane, onSelect}: {row: OpsRow; lane?: string; onSelect?: (id:string)=>void}) {
   const mins = durationMinutes(row.starts_at, row.ends_at)
   return <li className="ops-visit">
     <div className="ops-visit-top"><time dateTime={row.starts_at}>{formatClinicTime(row.starts_at)}</time><StatusBadge status={row.status} /></div>
     <p className="ops-visit-ref">Patient ref <code>{shortRef(row.pet_id)}</code> · Owner ref <code>{shortRef(row.owner_id)}</code></p>
     <p className="ops-visit-meta">{mins} min · Resource <code>{shortRef(row.resource_id)}</code></p>
     <p className="ops-visit-concern">{row.concern}</p>
-    {lane === 'expected' && <button type="button" className="button button-secondary button-small" disabled title={TRANSITION_REASON}>Check in (not enabled)</button>}
-    {lane === 'checked_in' && <button type="button" className="button button-secondary button-small" disabled title={TRANSITION_REASON}>Complete visit (not enabled)</button>}
+    {onSelect
+      ? <button type="button" className="button button-secondary button-small" onClick={()=>onSelect(row.id)}
+          aria-label={`Review appointment ${shortRef(row.id)}`}>Review appointment</button>
+      : lane === 'expected' || lane === 'checked_in'
+        ? <button type="button" className="button button-secondary button-small" disabled title={TRANSITION_REASON}>Staff status actions not enabled</button>
+        : null}
   </li>
 }
 
-export function FlowBoard({win}: {win: OpsWindow}) {
+export function FlowBoard({win,onSelect}: {win: OpsWindow;onSelect?: (id:string)=>void}) {
   const flow = buildFlow(win.items)
   return <section aria-labelledby="ops-flow-h" className="ops-section"><h2 id="ops-flow-h" className="ops-h2">Appointment flow</h2>
     <p className="ops-help">{TRANSITION_REASON} Lanes show persisted appointment statuses only.</p>
     <div className="ops-board">{flow.lanes.map(l => <section key={l.key} className={l.persisted ? 'ops-lane' : 'ops-lane is-gap'} aria-labelledby={`lane-${l.key}`}>
       <header><h3 id={`lane-${l.key}`}>{l.label}</h3>{l.persisted && <span className="ops-count" aria-label={`${l.items.length}${win.hasMore ? ' or more' : ''} appointments`}>{win.hasMore ? '≥' : ''}{l.items.length}</span>}</header>
       {l.persisted
-        ? l.items.length ? <ul className="ops-visits">{l.items.map(r => <VisitCard key={r.id} row={r} lane={l.key} />)}</ul>
+        ? l.items.length ? <ul className="ops-visits">{l.items.map(r => <VisitCard key={r.id} row={r} lane={l.key} onSelect={onSelect} />)}</ul>
           : <p className="ops-lane-empty">{l.hint}<br />None in this view.</p>
         : <p className="ops-lane-gap"><strong>Not available.</strong> {l.hint}</p>}
     </section>)}</div>
     {flow.closed.length > 0 && <details className="ops-closed"><summary>Cancelled and no-show ({win.hasMore ? 'at least ' : ''}{flow.closed.length})</summary>
-      <ul className="ops-visits">{flow.closed.map(r => <VisitCard key={r.id} row={r} />)}</ul></details>}
+      <ul className="ops-visits">{flow.closed.map(r => <VisitCard key={r.id} row={r} onSelect={onSelect} />)}</ul></details>}
   </section>
 }
 
-export function DayList({win}: {win: OpsWindow}) {
+export function DayList({win,onSelect}: {win: OpsWindow;onSelect?: (id:string)=>void}) {
   const groups = groupByResource(win.items)
   return <ul className="ops-resources">{groups.map(g => <li key={g.id} className="ops-resource">
     <h4>Resource <code>{shortRef(g.id)}</code></h4>
     <ol className="ops-timeline">{g.rows.map(r => <li key={r.id} className={`ops-block ops-block-${r.status}`}>
       <time dateTime={r.starts_at}>{formatClinicTime(r.starts_at)}–{formatClinicTime(r.ends_at)}</time>
-      <span className="ops-block-main">Patient <code>{shortRef(r.pet_id)}</code> · {r.concern}</span><StatusBadge status={r.status} /></li>)}</ol></li>)}</ul>
+      <span className="ops-block-main">Patient <code>{shortRef(r.pet_id)}</code> · {r.concern}</span><StatusBadge status={r.status} />
+      {onSelect&&<button type="button" className="button button-secondary button-small" onClick={()=>onSelect(r.id)}
+        aria-label={`Review appointment ${shortRef(r.id)}`}>Review appointment</button>}</li>)}</ol></li>)}</ul>
 }
 
 export function WeekGrid({dates, week, onPick, onRetry}: {dates: string[]; week: Record<string, Read<OpsWindow>>; onPick: (d: string) => void; onRetry: () => void}) {

@@ -10,8 +10,8 @@ function ExtLink({ href, children, secondary = true, hint }: { href: string; chi
     {children}<span className="visually-hidden"> ({hint}, opens in a new tab)</span></a>
 }
 /** Contact facts for one branch (Naga by default). Hours are owner-supplied display hours; Sunday is never asserted. */
-export function ContactDetails({ branch = NAGA, headingLevel = 3 }: { branch?: Branch; headingLevel?: 2 | 3 }) {
-  const H = `h${headingLevel}` as 'h2' | 'h3'
+export function ContactDetails({ branch = NAGA, headingLevel = 3 }: { branch?: Branch; headingLevel?: 2 | 3 | 4 }) {
+  const H = `h${headingLevel}` as 'h2' | 'h3' | 'h4'
   const tel = telHref(CLINIC_PHONE)
   return <div className="contact-details">
     <H>Address</H><p>{branch.address}</p>
@@ -31,7 +31,7 @@ export function BranchCard({ branch, primary = false, headingLevel = 3 }: { bran
   return <article className={primary ? 'card branch-card' : 'card card-muted branch-card'} aria-labelledby={`branch-${branch.id}`}>
     <span className="eyebrow">{primary ? 'Primary branch' : 'Secondary branch'}</span>
     <H id={`branch-${branch.id}`}>{branch.name}</H>
-    <ContactDetails branch={branch} headingLevel={headingLevel === 2 ? 3 : 3} />
+    <ContactDetails branch={branch} headingLevel={headingLevel === 2 ? 3 : 4} />
     <div className="cta-row"><MessageButton branch={branch} secondary={!primary} /><DirectionsButton branch={branch} secondary /></div>
   </article>
 }
@@ -40,7 +40,7 @@ export function BranchDirectory({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) 
 }
 export { CAVITE, NAGA }
 
-const links = [{ to: '/', label: 'Home', end: true }, { to: '/services', label: 'Services' }, { to: '/about', label: 'About & location' }] as const
+const links = [{ to: '/', label: 'Home', end: true }, { to: '/services', label: 'Services' }, { to: '/about', label: 'About' }, { to: '/location', label: 'Locations' }, { to: '/contact', label: 'Contact' }] as const
 
 export function SiteLayout() {
   const { user } = useAuth()
@@ -78,7 +78,7 @@ export function SiteLayout() {
       <div className="site-footer-grid">
         <div><strong>{NAGA.name}</strong><p>{NAGA.address}</p><p className="small-help">{NAGA.hours[0]}</p><div className="cta-row"><MessageButton secondary /><DirectionsButton secondary /></div>
           <p className="small-help"><strong>Also:</strong> {CAVITE.name}, {CAVITE.address}. <a href={CAVITE.facebookUrl} target="_blank" rel="noopener noreferrer">Cavite Facebook page<span className="visually-hidden"> (opens in a new tab)</span></a> · <a href={CAVITE.mapsUrl} target="_blank" rel="noopener noreferrer">Cavite directions<span className="visually-hidden"> (opens Google Maps in a new tab)</span></a></p></div>
-        <nav aria-label="Footer"><Link to="/services">Services</Link><Link to="/about">About & location</Link><Link to="/book">Book an appointment</Link><Link to="/auth/signin">Sign in</Link></nav>
+        <nav aria-label="Footer"><Link to="/services">Services</Link><Link to="/about">About</Link><Link to="/location">Locations</Link><Link to="/contact">Contact</Link><Link to="/book">Book an appointment</Link><Link to="/auth/signin">Sign in</Link></nav>
         <p className="small-help">Online requests are not confirmed appointments until the clinic confirms them. Never enter private medical details in public pages.</p>
       </div>
     </footer>

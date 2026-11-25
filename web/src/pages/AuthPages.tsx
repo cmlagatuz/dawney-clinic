@@ -64,7 +64,7 @@ export function LoginPage() {
       <label>Password<input autoComplete="current-password" name="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
       <button className="button button-primary" disabled={pending}>{pending ? 'Signing in…' : 'Sign in'}</button>
     </form>
-    <p className="form-links"><Link to="/auth/forgot">Forgot password?</Link><span>New to Dawney? <Link to={`/auth/signup${suffix}`}>Create an account</Link></span></p>
+    <p className="form-links"><Link to={`/auth/forgot${suffix}`}>Forgot password?</Link><span>New to Dawney? <Link to={`/auth/signup${suffix}`}>Create an account</Link></span></p>
   </Panel>
 }
 
@@ -141,6 +141,7 @@ export function VerifyPage() {
 }
 
 export function ForgotPasswordPage() {
+  const { suffix } = useAfterAuth(true)
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<string|null>(null)
   const [error, setError] = useState<string|null>(null)
@@ -157,12 +158,15 @@ export function ForgotPasswordPage() {
     <ErrorMessage error={error}/><SuccessMessage message={status}/><form className="form-stack" onSubmit={e=>void submit(e)}>
       <label>Email address<input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)}/></label>
       <button className="button button-primary" disabled={pending}>Send recovery link</button></form>
+    <p className="form-links"><Link to={`/auth/signin${suffix}`}>Back to sign in</Link>{suffix && <Link to="/book">Back to booking</Link>}</p>
+    {suffix && <p className="field-help">If your recovery email opens a new tab, return to booking from the clinic website after signing in. Your choices may need to be selected again.</p>}
   </Panel>
 }
 
 export function RecoveryPage() {
   const navigate = useNavigate()
   const { user, checking, recovery } = useAuth()
+  const { suffix } = useAfterAuth(true)
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string|null>(null)
   const [pending, setPending] = useState(false)
@@ -176,14 +180,15 @@ export function RecoveryPage() {
     try {const {error}=await supabase.auth.updateUser({password})
       if(error) throw error
       await supabase.auth.signOut({scope:'local'})
-      navigate('/auth/signin', {replace:true})
+      navigate(`/auth/signin${suffix}`, {replace:true})
     }catch(e){setError(normalizeError(e))}finally{setPending(false)}
   }
   return <Panel title="Set a new password" intro="Choose a strong, unique password for your clinic account.">
     <ErrorMessage error={error}/>{checking ? <p role="status">Checking recovery link…</p> : !user && !recovery ?
-      <p className="alert alert-error">Recovery link has expired or has not been verified. <Link to="/auth/forgot">Request a new link</Link>.</p> :
+      <p role="alert" className="alert alert-error">Recovery link has expired or has not been verified. <Link to={`/auth/forgot${suffix}`}>Request a new link</Link>.</p> :
       <form className="form-stack" onSubmit={e=>void submit(e)}><label>New password <small>(8+ characters, with letters and numbers; 12+ recommended)</small><input type="password" minLength={8} maxLength={1024} pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,1024}" title="At least 8 characters including a letter and a number" required autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)}/></label>
         <button className="button button-primary" disabled={pending}>Update password</button></form>}
+    <p className="form-links"><Link to={`/auth/signin${suffix}`}>Back to sign in</Link><Link to="/book">Back to booking</Link></p>
   </Panel>
 }
 

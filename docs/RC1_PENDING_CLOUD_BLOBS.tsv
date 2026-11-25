@@ -1,0 +1,13 @@
+# Git blob SHA\tRepo path — PROVISIONAL PR131 @ 00e7f072e58a684970f00ea15d2b9b614ce8aebe; NOT YET IMPORTED
+00f3f176e8f6fdcbf72abf7ed4453ba80280484a	docs/CLOUD_STAFF_APPOINTMENT_LIFECYCLE_2026.md
+e4e73272bf31a96b4d8c46ee384178689aba372b	readme.md
+6436b1aa5fd6d18c7ac92aa8b17546131282bcd0	web/src/appointments/lifecycle.d.mts
+0101256c03e89c80f09cd39eddfac19a745dbf43	web/src/appointments/lifecycle.mjs
+378deefec10fbc193296e54be5aa2417af974ac5	web/src/appointments/port.ts
+ee6785e327daa59558ec60932a2c6f93b6a35ab1	web/src/components/ops/OpsParts.tsx
+1cf6d196a10afb78bfe9791fc9b2778e0d9c8001	web/src/pages/staff/AppointmentLifecyclePanel.tsx
+31cc2707cec9f20962887a99422f624e29898da7	web/src/pages/staff/OpsPage.tsx
+716cf1053defc641554e95c380ccaa94a8fc4a80	web/src/pages/staff/appointment-lifecycle.css
+b4c475c2d3ac0b366fcb23b8107085a7b4150fbe	web/tests/appointment-lifecycle.test.mjs
+a7368c204e8789613816e6ea8f1b3a2ce1771486	web/tests/fixtures/staff-lifecycle-http.mjs
+89e02c737eb1fbb9b9718a0a449b9df7346f1881	web/tests/staff-appointment-lifecycle.browser.test.mjs

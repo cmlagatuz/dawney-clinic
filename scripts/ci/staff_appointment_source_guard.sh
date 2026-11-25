@@ -3,6 +3,7 @@
 set -Eeuo pipefail
 fail(){ echo "APPOINTMENT21_SOURCE_BLOCKED: $*" >&2; exit 1; }
 FROZEN=078053120774e856c9ddaa8c8027b3c891e9e8f6
+BACKEND=b6ee64b38ca4ce2965f2b02f09a4e5584aa56608
 [[ "${GITHUB_ACTIONS:-}" == true && "${GITHUB_EVENT_NAME:-}" == pull_request &&
    "${GITHUB_REPOSITORY:-}" == cmlagatuz/dawney-clinic &&
    "${EXPECTED_HEAD_SHA:-}" =~ ^[0-9a-f]{40}$ &&
@@ -12,6 +13,8 @@ git merge-base --is-ancestor "$FROZEN" HEAD || fail 'not descendant of frozen PR
 git fetch --no-tags origin 'refs/pull/129/head:refs/remotes/origin/frozen-rc0-pr129'
 [[ "$(git rev-parse refs/remotes/origin/frozen-rc0-pr129)" == "$FROZEN" ]] ||
  fail 'frozen PR129 changed during test'
+git merge-base --is-ancestor "$BACKEND" HEAD || fail 'missing accepted appointment backend ancestry'
+# Preserve the historical isolated ten-path contract on the exact accepted backend.
 diff -u <(cat <<'EXPECTED'
 .github/workflows/operational-p2-recovery-pg17.yml
 .github/workflows/staff-appointment-lifecycle-pg17.yml
@@ -24,7 +27,7 @@ scripts/recovery/tests/appointment21-signed-restore.sh
 supabase/migrations/20261123210000_staff_appointment_lifecycle.sql
 supabase/tests/staff_appointment_lifecycle_pg17.sql
 EXPECTED
-) <(git diff --name-only "$FROZEN" HEAD) || fail 'unreviewed changed path'
+) <(git diff --name-only "$FROZEN" "$BACKEND") || fail 'unreviewed changed path'
 mapfile -t old < <(git ls-tree -r --name-only "$FROZEN" supabase/migrations | grep -E '\.sql$')
 mapfile -t now < <(git ls-tree -r --name-only HEAD supabase/migrations | grep -E '\.sql$')
 [[ ${#old[@]} == 20 && ${#now[@]} == 21 ]] || fail 'historical migration count modified'
@@ -41,4 +44,8 @@ for path in AGENTS.md MANUS.md docs/FIVE_AGENT_ORCHESTRATION.md scripts/ci/rc0_s
  [[ "$(git rev-parse "HEAD:$path")" == "$(git rev-parse "$FROZEN:$path")" ]] ||
  fail "frozen instruction/CI guard mutated: $path"
 done
-echo "PASS: exact PR129 frozen SHA, all 20 original migration blobs and 10-file additive child only"
+[[ "$(git rev-parse "$BACKEND:${now[20]}")" == 969db983facf7082e243d9ebae6e3fe7cdf65a39 &&
+   "$(git rev-parse "HEAD:${now[20]}")" == 969db983facf7082e243d9ebae6e3fe7cdf65a39 &&
+   "$(git hash-object "${now[20]}")" == 969db983facf7082e243d9ebae6e3fe7cdf65a39 ]] || fail 'migration 21 drift'
+bash scripts/ci/rc1_integrated_source_guard.sh
+echo 'PASS: frozen PR129/130 historical ten-path contract and exact integrated RC1 source; 21 immutable migrations'

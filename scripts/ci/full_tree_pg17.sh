@@ -7,11 +7,24 @@ fail(){ echo "FULL_TREE_GATE_BLOCKED: $*" >&2; exit 1; }
 RC0_BACKEND=5bb687ee33a670618b1eb60762b1a5625a810bf4
 RC0_CLOUD=930a7c7a13cf1d5516f04ea024e68dfabd5df064
 RC0_PRIVACY=2e06b9b16866e16e551d3bb9e9e0f3f38e102e33
+RC1_BACKEND=b6ee64b38ca4ce2965f2b02f09a4e5584aa56608
+RC1_APPROVED=8209a545960baa48396e507fbff21ae39f54be01
+# Only explicitly superseded historical pins can use this exact approved overlay.
+rc1_overlay_blob(){
+ local p="$1" historical="$2" approved
+ [[ "$(git rev-parse "$RC1_BACKEND:$p")" == "$historical" ]] || return 1
+ approved="$(git rev-parse "$RC1_APPROVED:$p")" || return 1
+ [[ "$(git rev-parse "HEAD:$p")" == "$approved" && "$(git hash-object "$p")" == "$approved" ]]
+}
 rc0_cloud_blob(){
  local p="$1" got reviewed
  got="$(git rev-parse "HEAD:$p" 2>/dev/null)" || return 1
  reviewed="$(git rev-parse "$RC0_CLOUD:$p" 2>/dev/null)" || return 1
- [[ "$got" == "$reviewed" && "$(git hash-object "$p")" == "$reviewed" ]]
+ if [[ "$p" == web/src/pages/staff/OpsPage.tsx ]]; then
+  rc1_overlay_blob "$p" "$reviewed"
+ else
+  [[ "$got" == "$reviewed" && "$(git hash-object "$p")" == "$reviewed" ]]
+ fi
 }
 rc0_privacy_blob(){
  local p="$1" got reviewed
@@ -374,9 +387,8 @@ web/src/lib/clinical-chart.ts 62221ba4c8a854456da99f044ca1ddb36acbed03
 CLINICAL16_BLOBS
 while read -r path sha; do
  [[ "$(git rev-parse "c1f2751740792b069ca2a3da38efa7ce538f7489:$path")" == "$sha" &&
-    "$(git rev-parse "HEAD:$path")" == "$sha" &&
-    "$(git hash-object "$path")" == "$sha" ]] ||
- fail "CLOUD PR99 reviewed source drift: $path"
+    "$(git rev-parse "$RC1_BACKEND:$path")" == "$sha" ]] &&
+ rc1_overlay_blob "$path" "$sha" || fail "CLOUD PR99 historical or approved RC1 source drift: $path"
 done <<'CLOUD_PR99_EXACT_BLOBS'
 web/src/components/SiteLayout.tsx f4bd3adb932e87a4b4ac0751b0c678fa02d7bfaa
 web/tests/public-owner-journeys.test.mjs 9097c181801b72325e23b4581d4606bc19532604
@@ -450,8 +462,10 @@ while IFS= read -r path; do
  case "$path" in
   docs/AI_HANDOFF.md)
    # Child #21 handoff is reviewed independently; original CLOUD blobs frozen.
-   [[ "$(git rev-parse "HEAD:$path")" == 9b36a298aef332759d3c55dfe63ab8e387675ea6 &&
-      "$(git hash-object "$path")" == 9b36a298aef332759d3c55dfe63ab8e387675ea6 ]] ||
+   [[ "$(git rev-parse "$RC1_BACKEND:$path")" == 9b36a298aef332759d3c55dfe63ab8e387675ea6 &&
+      "$(git rev-parse "$RC1_APPROVED:$path")" == 3b5b866778579cd0e792ee961fd4234aa2257291 &&
+      "$(git rev-parse "HEAD:$path")" == f5d906afd80e0c9a44515fd42e169b304a5543dd &&
+      "$(git hash-object "$path")" == f5d906afd80e0c9a44515fd42e169b304a5543dd ]] ||
     fail 'unreviewed #21 AI handoff blob'
    ;;
   web/src/pages/AppointmentsPage.tsx|web/tests/owner-booking-view.test.mjs)
@@ -641,7 +655,12 @@ while IFS= read -r path; do
        scripts/recovery/tests/appointment21-signed-restore.sh|\
        supabase/migrations/20261123210000_staff_appointment_lifecycle.sql|\
        supabase/tests/staff_appointment_lifecycle_pg17.sql) ;;
-       *) fail "source outside frozen RC0 and explicit #21 child: $path";;
+       *) # Every extra path is either in the immutable accepted RC1 checkpoint or the exact CI reconciliation delta.
+          if git diff --name-only "$RC1_BACKEND" "$RC1_APPROVED" | grep -Fxq "$path"; then
+            : # Current bytes checked by integrated source guard above.
+          else
+            fail "source outside frozen RC0, #21 and exact RC1 checkpoint: $path"
+          fi;;
      esac
     fi;;
  esac
@@ -659,9 +678,11 @@ while read -r path sha; do
    # separately pinned to its exact PR99 blob by CLOUD_PR99_EXACT_BLOBS.
    ;;
   *)
-   [[ "$(git rev-parse "HEAD:$path")" == "$sha" &&
-      "$(git hash-object "$path")" == "$sha" ]] ||
-    fail "untouched PR79 public source drift: $path"
+   if [[ "$path" == web/src/pages/public/AboutPage.tsx || "$path" == web/src/pages/public/HomePage.tsx ]]; then
+    rc1_overlay_blob "$path" "$sha" || fail "historical PR79 or approved RC1 source drift: $path"
+   else
+    [[ "$(git rev-parse "HEAD:$path")" == "$sha" && "$(git hash-object "$path")" == "$sha" ]] || fail "untouched PR79 public source drift: $path"
+   fi
    ;;
  esac
 done <<'NAGA_PUBLIC_BLOBS'

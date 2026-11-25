@@ -57,7 +57,11 @@ function StaffAccessAccount({user}:{user:User}){
     const [status,raw]=await Promise.all([port.my(),listClinicBranches()])
     const catalog=raw.map((b:{id:string;display_name:string})=>({id:b.id,display_name:b.display_name}))
     let branches:OpsBranch[]=[]
-    if(status.state==='approved'&&status.role!=='accountant'&&status.branches.length){
+    // A first administrator can be provisioned by a trusted bootstrap, with
+    // a live role+branch but no self-service application (state=none).
+    if(status.role!=='accountant'&&status.branches.length){
+     if(status.state!=='approved'&&status.state!=='none')
+      throw Object.assign(Error('Staff application conflicts with active role'),{code:'42501'})
      branches=await verifiedStaffNavigationBranches(user)
      if(status.branches.some(id=>!branches.some(b=>b.id===id))||
        branches.some(b=>!status.branches.includes(b.id)))
@@ -79,7 +83,7 @@ function StaffAccessAccount({user}:{user:User}){
  const refresh=()=>{setNotice('');setState({kind:'loading'});setAttempt(n=>n+1)}
  const status=state.kind==='ready'?state.status:null
  const hasActive=state.kind==='ready'&&state.branches.length>0
- const canRequest=operationalFlags.staff&&state.kind==='ready'&&status?.state!=='pending'&&
+ const canRequest=operationalFlags.staff&&state.kind==='ready'&&!hasActive&&status?.role===null&&status?.state!=='pending'&&
    status?.state!=='approved'&&status?.state!=='revoked'&&Boolean(branchId)&&!busy
  async function submit(){
   if(!canRequest&&!uncertain)return
@@ -117,10 +121,11 @@ function StaffAccessAccount({user}:{user:User}){
    <div className="operator-state-grid">
     <div className="card"><h2>1. Email verified</h2><p>Your verified signed-in identity is confirmed by Dawney authentication. Signup never grants staff privileges.</p></div>
     <div className="card"><h2>2. Approval status</h2>
-     {operationalFlags.staff&&status?
+     {hasActive?<p role="status">Verified existing staff access: {state.branches.map(b=>b.name+' ('+b.role+')').join(', ')}.
+       {status?.state==='none'?' No separate staff application is required for this already authorized account.':''}</p>:
+      operationalFlags.staff&&status?
       <p role="status"><strong>{LABELS[status.state]}</strong> · {status.role??'No active role'}.
        {status.state==='approved'&&status.role==='accountant'?' Restricted accountant — no clinical, stock or admin access.':''}</p>:
-      hasActive?<p role="status">Approved branch access: {state.branches.map(b=>b.name+' ('+b.role+')').join(', ')}.</p>:
       <p role="status">No approved staff access. A pending request cannot be confirmed: the request reader is not yet implemented.</p>}
     </div>
     <div className="card"><h2>3. Your workspaces</h2>

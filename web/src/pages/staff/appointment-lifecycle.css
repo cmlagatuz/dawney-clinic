@@ -1,0 +1,14 @@
+/* CLOUD appointment lifecycle UI — scoped theme tokens, responsive and accessible. */
+.appointment-lifecycle{margin:1.1rem 0;border:1px solid var(--border);min-width:0}
+.lifecycle-title{display:flex;align-items:start;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
+.lifecycle-title h2{margin:.1rem 0 .6rem;font-size:1.12rem}
+.lifecycle-lock{display:inline-block;padding:.35rem .65rem;font-size:.82rem;border:1px solid var(--border-strong);border-radius:999px;background:var(--surface-2);color:var(--text)}
+.lifecycle-status{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap}
+.lifecycle-message,.lifecycle-confirm,.lifecycle-unavailable{margin:.9rem 0;padding:.8rem .95rem;border-radius:var(--radius-sm);border:1px solid var(--border-strong);background:var(--surface-2)}
+.lifecycle-danger{border-inline-start:4px solid var(--danger)}
+.lifecycle-success{border-inline-start:4px solid var(--primary)}
+.lifecycle-buttons{display:flex;flex-wrap:wrap;gap:.5rem;margin:.8rem 0}
+.lifecycle-buttons button{white-space:normal;min-height:38px;text-align:center}
+.appointment-lifecycle button:focus-visible,.ops-visit button:focus-visible,.ops-block button:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+.appointment-lifecycle button:disabled{opacity:.64;cursor:not-allowed}
+@media(max-width:680px){.lifecycle-buttons{display:grid;grid-template-columns:minmax(0,1fr)}.lifecycle-buttons button{width:100%}.lifecycle-title{display:block}}

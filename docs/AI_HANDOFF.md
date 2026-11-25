@@ -1,3 +1,25 @@
+## Current RC1 release standing — 25 November 2026
+
+Authoritative draft [PR132](https://github.com/cmlagatuz/dawney-clinic/pull/132); approved frontend PR135 `f464c4494615147297f8802dc5299fadd95786c9` imported at `8209a545960baa48396e507fbff21ae39f54be01` (8/8 exact, 28 cumulative pins). CI reconciliation checkpoint `ed75eb76789632c1044f7f6795cea73c26011cce` retains all 21 migration blobs and historical guards. On that exact checkpoint, integrated provenance, unified PG17, #21 appointment SQL/ban race/nonce CAS/rollback and signed restore steps, operational signed PG17 restore, clinical draft PG17, signed five-component recovery and encrypted isolated database restore passed. See exact [Actions evidence](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45609400350) and PR132 for final head and complete CI status. This documentation update requires its own exact-head CI; do not inherit green. Final independent SOL/TERRA and hosted owner acceptance are still required. No clinical GO, hosted SQL, flags, merge or deploy authorized. Clinical chart adapter remains disconnected; no claim of end-to-end clinical persistence. Finalization, vaccination, prescriptions, dispensing, transfer/adjustment, billing/payment, consent/outbox and durable reload reconciliation remain unsupported or partial. See [Issue120](https://github.com/cmlagatuz/dawney-clinic/issues/120).
+
+## Historical release notes (superseded by current standing above)
+
+## RC1 source integration — 25 November 2026
+
+Exact PR134 `73067fcdbce7846522e55c33cd0e0ca2051335f4` eight-path correction accepted by PM [7152144119](https://github.com/cmlagatuz/dawney-clinic/pull/132#issuecomment-7152144119), SOL and TERRA; imported without other frontend edits. All 21 migrations remain frozen. Integrated CI and final independent acceptance pending; no clinic-live GO. Memory-only unresolved-operation warning is not durable reload reconciliation. No new SQL contract authorized. Hosted operations and relevant write flags remain OFF.
+
+## ASTRA — RC1 approved frontend source import (CI pending)
+
+PR133 exact `052a97da1e7ff4e95d46331f6b657f199592bd84` accepted by SOL and PM. Nineteen exact frontend/document blobs imported; README reconciles both sources. All 21 backend migration blobs unchanged. Historical CI guards still require explicit RC1 reconciliation; no integrated acceptance or hosted authorization. CLOUD must await green exact-head baseline and PM confirmation.
+
+## ASTRA — RC1 preparation only, 2026-11-24 (current first entry)
+
+- Isolated child `ai/astra/rc1-pr130-source-prep-20261124` directly from corrected SOL-source-PASS PR130 `b6ee64b38ca4ce2965f2b02f09a4e5584aa56608`. No frontend/SQL/CI security pin edits, no hosted writes, no merges.
+- Authoritative docs: `docs/RC1_INTEGRATION_HANDOFF.md`, `docs/RC1_STAGING_ACCEPTANCE_ROLLBACK.md`, `docs/RC1_MIGRATION_BLOBS.tsv`, `docs/RC1_PENDING_CLOUD_BLOBS.tsv`; offline-only `scripts/release/rc1_staging_preflight.sh`. Top-level actual filename is `readme.md` (lowercase).
+- Backend proposed migration #21 Git blob `969db983facf7082e243d9ebae6e3fe7cdf65a39`; historical original 20 frozen. PM reports staging 11, production 6; NO independently executed staged acceptance. PR131 `00e7f072e58a684970f00ea15d2b9b614ce8aebe` 12-file frontend manifest pinned but *not imported* until final PM-accepted hardening/SOL contract assessment.
+- Prior exact-head CI is *inherited evidence* for PR129/PR130/PR131, NOT a new combined exact-head test. This preflight packet is deliberately NOT executed. No RC1 source GO.
+- Next accountable action: PM receives CLOUD final hardening SHA + SOL contract assessment; ASTRA may then integrate exact accepted frontend blobs on this one child, reconcile strict source guards, run complete exact-head CI and request SOL/TERRA independent acceptance before owner-gated hosted UAT.
+
 ## ASTRA 2026-11-24 — SOL PR130 P2 Auth-user ban race repair (source-only)
 
 - Exact frozen parent PR129 remains `078053120774e856c9ddaa8c8027b3c891e9e8f6`; original migration #1–#20 hashes are unchanged. **Existing draft PR130 only**; no second branch or deployed SQL.

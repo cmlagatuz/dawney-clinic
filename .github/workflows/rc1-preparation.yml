@@ -1,0 +1,35 @@
+name: RC1 integrated source provenance (NO hosted actions)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/rc1-preparation.yml'
+      - 'docs/AI_HANDOFF.md'
+      - 'docs/RC1_INTEGRATION_HANDOFF.md'
+      - 'docs/RC1_MIGRATION_BLOBS.tsv'
+      - 'docs/RC1_PENDING_CLOUD_BLOBS.tsv'
+      - 'docs/RC1_STAGING_ACCEPTANCE_ROLLBACK.md'
+      - 'readme.md'
+      - 'scripts/ci/rc1_preparation_source_guard.sh'
+      - 'scripts/ci/rc1_integrated_source_guard.sh'
+      - 'scripts/ci/rc1_integrated_source_guard_test.sh'
+      - 'scripts/release/rc1_staging_preflight.sh'
+permissions:
+  contents: read
+jobs:
+  source-provenance:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact reviewed paths and frozen migration/frontend manifests
+        shell: bash
+        run: bash scripts/ci/rc1_integrated_source_guard_test.sh
+      - name: Offline synthetic history and drift rehearsal (no hosted operations)
+        run: bash scripts/release/rc1_staging_preflight_test.sh

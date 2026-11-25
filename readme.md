@@ -1,5 +1,22 @@
 # Dawney Veterinary Clinic
 
+## Current RC1 release standing — 25 November 2026
+
+Authoritative draft [PR132](https://github.com/cmlagatuz/dawney-clinic/pull/132); approved frontend PR135 `f464c4494615147297f8802dc5299fadd95786c9` imported at `8209a545960baa48396e507fbff21ae39f54be01` (8/8 exact, 28 cumulative pins). CI reconciliation checkpoint `ed75eb76789632c1044f7f6795cea73c26011cce` retains all 21 migration blobs and historical guards. On that exact checkpoint, integrated provenance, unified PG17, #21 appointment SQL/ban race/nonce CAS/rollback and signed restore steps, operational signed PG17 restore, clinical draft PG17, signed five-component recovery and encrypted isolated database restore passed. See exact [Actions evidence](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45609400350) and PR132 for final head and complete CI status. This documentation update requires its own exact-head CI; do not inherit green. Final independent SOL/TERRA and hosted owner acceptance are still required. No clinical GO, hosted SQL, flags, merge or deploy authorized. Clinical chart adapter remains disconnected; no claim of end-to-end clinical persistence. Finalization, vaccination, prescriptions, dispensing, transfer/adjustment, billing/payment, consent/outbox and durable reload reconciliation remain unsupported or partial. See [Issue120](https://github.com/cmlagatuz/dawney-clinic/issues/120).
+
+## Historical release notes (superseded by current standing above)
+
+## RC1 source integration — 25 November 2026
+
+Exact PR134 `73067fcdbce7846522e55c33cd0e0ca2051335f4` eight-path correction accepted by PM [7152144119](https://github.com/cmlagatuz/dawney-clinic/pull/132#issuecomment-7152144119), SOL and TERRA; imported without other frontend edits. All 21 migrations remain frozen. Integrated CI and final independent acceptance pending; no clinic-live GO. Memory-only unresolved-operation warning is not durable reload reconciliation. No new SQL contract authorized. Hosted operations and relevant write flags remain OFF.
+
+
+> **AUTHORITATIVE RC1 RELEASE STATUS — 24 November 2026:** The RC1 preparation DRAFT descends from frozen SOL-source-PASS [PR #130](https://github.com/cmlagatuz/dawney-clinic/pull/130) at `b6ee64b38ca4ce2965f2b02f09a4e5584aa56608`, containing **21 proposed source migrations**. [PR #129](https://github.com/cmlagatuz/dawney-clinic/pull/129) RC0 is frozen; [CLOUD PR #131](https://github.com/cmlagatuz/dawney-clinic/pull/131) staff appointment UI is separately tested (302/302 synthetic frontend) but **SOURCE IMPORTED — CI PENDING**, with SOL/PM accepted PR133 hardening; integrated CI pending. Both appointment writes and Operations flags remain OFF. PM reports **staging 11 / production 6 applied migrations**; these counts do not mean the rest are deployed. Cloudflare preview ≠ hosted RLS/Storage/recovery UAT ≠ clinic-live. No clinic-live GO, hosted SQL, production merge, or flag activation authorized. See [RC1 integration handoff](docs/RC1_INTEGRATION_HANDOFF.md) and [non-executed staging/rollback packet](docs/RC1_STAGING_ACCEPTANCE_ROLLBACK.md).
+
+> **Architecture/operations snapshot:** Legacy Laravel 5.8/PHP/MySQL preserved in the same repository; the independent `web/` React/TypeScript/Vite frontend targets Cloudflare Pages Free with Supabase Free Auth/Postgres/private Storage. Source modules cover public site, owner and patient portal, requested booking, branch staff Operations/day-week schedule, approval and transactional inventory, clinical *drafts*, and billing UI with unimplemented financial server writes disabled. ASTRA owns backend+CI+recovery; CLOUD frontend; SOL independent security; TERRA independent functional QA; Supervisor/PM coordinates; Qwen assists QA, Manus suspended. This draft contains approved frontend source; integrated acceptance is pending.
+
+> **Historical notes below are dated records, not an authoritative current deployment statement.** Older sections predate source-only PR129–131 and may describe functionality as not yet implemented which is now present only in unmerged source.
+
 **Veterinary clinic management system — modernization in progress**
 
 > **New P0 scope (14 Nov 2026):** No public customer-facing home/services/contact/location page exists on current `master`. `/` redirects into the signed-in owner portal, and customers currently must register/authenticate, complete owner/pet records and request (not confirm) a provisional device-local 30-minute appointment. Dawney Animal Clinic is in **General Trias, Cavite, Philippines**; exact phone, unit and opening hours require owner verification. [Public clinic website + safe booking contract](docs/PHASE4_PUBLIC_SITE_BOOKING_SPEC.md) · [Issue #42](https://github.com/cmlagatuz/dawney-clinic/issues/42). Claude PRs #34 and #41 are open/NOT deployed; Astra PR #40 is open/NOT live. No Phase4 migrations applied.\n
@@ -128,3 +145,8 @@ Legacy code includes overlapping-booking race conditions, charged SMS behavior, 
 - [Phase 1 audit](docs/PHASE1_LEGACY_AUDIT.md)
 
 **Documentation policy:** Update verified feature statuses and hosting URL on each major merge/release. Do not turn anticipated capabilities into completed claims.
+
+
+### CLOUD accepted appointment source
+
+| Supabase schema | Six applied migrations: 7 public RLS tables, staff audit, appointment lifecycle/overlap and private Storage object policies | SQL tests passed; owner Auth/JWT baseline passed; clinical and Storage API negative tests pending |

@@ -29,7 +29,10 @@ export function operationalHttpFixture(){
  const admin=actor==='staff'&&mode==='administrator'
  const validBranch=x=>x===ids.naga
  const baseFetch=window.fetch.bind(window)
- window.__operationalMock={calls:[],blocked:[],receipts:[],getDb:load}
+ let catalogGate=null
+ window.__operationalMock={calls:[],blocked:[],receipts:[],getDb:load,
+  holdCatalog(){let release;const promise=new Promise(resolve=>{release=resolve});catalogGate={promise,release}},
+  releaseCatalog(){const gate=catalogGate;catalogGate=null;gate?.release()}}
  window.fetch=async(input,init)=>{
   const req=new Request(input,init),url=new URL(req.url)
   if(url.origin!==remote)return baseFetch(input,init)
@@ -44,6 +47,7 @@ export function operationalHttpFixture(){
   if(path==='/rest/v1/staff_branch_memberships'&&mode==='accountant')
    return json([{user_id:ids.staff,branch_id:ids.naga,role:'accountant',is_active:true}])
   if(path==='/rest/v1/medicine_catalog'){
+   if(catalogGate)await catalogGate.promise
    const existing={id:ids.existing,product_code:'QA-INTEGRATION',generic_name:'Synthetic medicine',
     formulation:'vial',strength:'1 unit',stock_unit:'vial',
     minimum_shelf_life_days:0,requires_refrigeration:false,is_controlled:false,is_active:true}
@@ -85,7 +89,7 @@ export function operationalHttpFixture(){
   if(ops==='network')throw TypeError('Synthetic network timeout')
   if(which==='get_my_staff_access'){
    const request=actor==='owner'?s.ownRequest:null
-   const state=actor==='owner'?(request?.state??'none'):mode==='revoked'?'revoked':'approved'
+   const state=actor==='owner'?(request?.state??'none'):mode==='revoked'?'revoked':ops==='bootstrap'?'none':'approved'
    const role=actor==='owner'||mode==='revoked'?null:mode==='administrator'?'administrator':
     mode==='receptionist'?'receptionist':mode==='accountant'?'accountant':'veterinarian'
    return json({kind:'my_staff_access',state,role,
@@ -154,6 +158,9 @@ export function operationalHttpFixture(){
     unit:body.p_unit,revision:1,onHandUnits:0,batchId:null}
    s.receipts[body.p_request_id]=reply
    save(s)
+   if(ops==='create-timeout-once'&&!s.sentOnce[body.p_request_id]){
+    s.sentOnce[body.p_request_id]=true;save(s);throw TypeError('Synthetic lost Add Item acknowledgement')
+   }
    return json(reply)
   }
   if(which==='receive_branch_inventory_stock'){
