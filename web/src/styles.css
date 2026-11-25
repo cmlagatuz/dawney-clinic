@@ -226,6 +226,8 @@ input:user-invalid, textarea:user-invalid, select:user-invalid { border-color: v
 /* ---------- 6. App shell ---------- */
 .app-layout { display: flex; min-height: 100vh; }
 .sidebar { width: 268px; position: sticky; top: 0; flex-shrink: 0; height: 100vh; background: var(--side-bg); color: var(--side-text); display: flex; flex-direction: column; padding: 1.5rem 1rem 1.2rem; gap: 2rem; overflow-y: auto; border-right: 1px solid var(--side-border); }
+.sidebar > * { flex-shrink: 0; }
+.sidebar { overscroll-behavior-y: contain; }
 .sidebar .brand { margin-left: .4rem; color: #fff; }
 .sidebar .brand small { color: var(--side-muted); }
 .sidebar a:focus-visible, .sidebar button:focus-visible { outline-color: var(--side-ring); }

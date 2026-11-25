@@ -64,7 +64,7 @@ test('CLOUD: public routes, Naga/Cavite, two themes and three widths, fail close
     const origin = 'http://127.0.0.1:' + vite.httpServer.address().port
     await withChromium(async browser => {
       await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: '(' + syntheticPublicSession.toString() + ')()' })
-      const paths = ['/', '/services', '/location', '/book']
+      const paths = ['/', '/services', '/about', '/location', '/contact', '/book', '/not-a-clinic-page']
       for (const width of [360, 768, 1440]) {
         await browser.send('Emulation.setDeviceMetricsOverride', {
           width, height: 900, deviceScaleFactor: 1, mobile: false
@@ -85,7 +85,14 @@ test('CLOUD: public routes, Naga/Cavite, two themes and three widths, fail close
             assert.deepEqual(actual.writes, [], 'no clinical writes')
             assert.deepEqual(actual.unexpected, [], 'no third-party requests')
             if (path === '/services') assert.equal(actual.categories, 8, 'eight informational Naga categories')
-            if (path === '/location') assert.equal(actual.branches, 2, 'Naga plus contact-only Cavite')
+            if (['/about','/location','/contact'].includes(path)) {
+              assert.equal(actual.branches, 2, 'Naga plus contact-only Cavite')
+              assert.equal(await browser.value('document.querySelectorAll(".branch-directory article h4").length'), 6)
+            }
+            if (path === '/contact') assert.equal(actual.heading, 'Contact')
+            if (path === '/location') assert.equal(actual.heading, 'Clinic locations')
+            if (path === '/not-a-clinic-page') assert.equal(actual.heading, 'Page not found')
+            if (path === '/' || path === '/about') assert.equal(await browser.value('document.querySelector("#main-content").textContent.includes("not open yet")'), false, 'no hardcoded booking closure')
             if (path === '/book') {
               assert.equal(actual.forms, 0, 'no booking form without approved policy')
               assert.equal(actual.slots, 0, 'no fabricated slots')
@@ -120,6 +127,10 @@ test('CLOUD: public routes, Naga/Cavite, two themes and three widths, fail close
       await browser.until('document.querySelector("button.site-menu") === document.activeElement')
       assert.equal(await browser.value('document.querySelector("#site-nav").classList.contains("is-open")'), false, 'Escape closes menu')
 
+      await browser.goto(origin + '/auth/forgot?next=%2Fbook')
+      await browser.until('!!document.querySelector("#auth-title")')
+      assert.equal(await browser.value('!!document.querySelector(\'a[href="/auth/signin?next=%2Fbook"]\')'), true)
+      assert.equal(await browser.value('!!document.querySelector(\'a[href="/book"]\')'), true)
       // A denied policy read differs from an intentionally unapproved policy.
       // Both must block booking; keyboard retry must never submit a request.
       await browser.goto(origin + '/book?case=failure&theme=light')
