@@ -144,7 +144,7 @@ export function ChartIntegration({accountId,branchId,petId,ownerId,appointmentId
         accountId={accountId}
         branchId={branchId} petId={petId} appointmentId={appointmentId} role={role}
         page={view.page} port={port} syntheticSave={syntheticSave} persistentSave={persistentSave} ownerId={ownerId}
-        onPendingChange={lock} onVerified={verified=>{pageRef.current=verified;setView({kind:'ok',page:verified})}}
+        paging={paging} onPendingChange={lock} onVerified={verified=>{pageRef.current=verified;setView({kind:'ok',page:verified})}}
         onDenied={onDenied} onReload={retry}/>}
     </>}
     {mode==='encounter'&&view.kind!=='ok'&&role==='veterinarian'&&
@@ -195,9 +195,9 @@ function HistoryRow({section,item}:{section:string;item:ChartItem}){
   return null
 }
 function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
-  syntheticSave,persistentSave,ownerId,onPendingChange,onVerified,onDenied,onReload}:{accountId:string;branchId:string;petId:string;
+  syntheticSave,persistentSave,ownerId,paging,onPendingChange,onVerified,onDenied,onReload}:{accountId:string;branchId:string;petId:string;
   appointmentId:string;role:OpsRole;page:VerifiedPage;port:ClinicalChartPort;
-  syntheticSave:boolean;persistentSave:boolean;ownerId:string;onPendingChange:(value:boolean)=>void;onVerified:(page:VerifiedPage)=>void;onDenied?:()=>void;onReload:()=>void}){
+  syntheticSave:boolean;persistentSave:boolean;ownerId:string;paging:boolean;onPendingChange:(value:boolean)=>void;onVerified:(page:VerifiedPage)=>void;onDenied?:()=>void;onReload:()=>void}){
   const draft=page.items.find((item):item is ChartDraft=>
     'appointmentId' in item&&item.appointmentId===appointmentId)??null
   const [form,setForm]=useState<DraftContent>(()=>draft?{
@@ -217,15 +217,17 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
   const pending=useRef<SaveTicket|null>(null)
   const busy=useRef(false)
   const mounted=useRef(false)
+  const operation=useRef<AbortController|null>(null)
   const [unresolved,setUnresolved]=useState(false)
-  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[])
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;operation.current?.abort()}},[])
   useUnresolvedOperationWarning(persistentSave&&unresolved)
   const lock=(value:boolean)=>{setUnresolved(value);if(persistentSave)onPendingChange(value)}
   const validContext=!!draft||!page.hasMore // Never assume a draft is absent while unseen pages remain.
-  const canWrite=(syntheticSave||persistentSave)&&!!port.saveDraft&&role==='veterinarian'&&validContext&&revision<2147483647
+  const canWrite=(syntheticSave||persistentSave)&&!!port.saveDraft&&role==='veterinarian'&&validContext&&!paging&&revision<2147483647
   const dirty=draftSnapshot(form)!==baseline
   useEffect(()=>{latest.current=form},[form])
   const update=(key:keyof DraftContent,value:string)=>{
+    if(persistentSave&&(busy.current||pending.current))return
     setForm(old=>({...old,[key]:value}))
     setErrors(old=>({...old,[key]:''}))
     setNotice('')
@@ -237,13 +239,17 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
     setErrors(result.errors)
     if(!result.valid){setNotice('Correct the highlighted fields. Nothing was saved.');return}
     const content=persistentSave?{...form,complaint:form.complaint.replace(/^ +| +$/g,'')}:form
+    if(persistentSave&&pending.current&&(pending.current.snapshot!==draftSnapshot(content)||pending.current.expectedRevision!==revision)){
+      setNotice('Original request context changed. Do not submit another draft until reconciled.');return
+    }
     const ticket=prepareSaveTicket(pending.current,{...content,expectedRevision:revision},()=>crypto.randomUUID())
     pending.current=ticket
     const request:DraftSaveRequest={branchId,petId,appointmentId,requestId:ticket.requestId,
       expectedRevision:revision,...content}
     busy.current=true;setSaving(true);if(persistentSave)lock(true);setNotice('Save requested; awaiting verified server acknowledgement…')
     try{
-      const raw=await port.saveDraft!(request)
+      const controller=new AbortController();operation.current=controller
+      const raw=await port.saveDraft!(request,controller.signal)
       if(!mounted.current)return
       if(raw&&typeof raw==='object'&&'kind' in raw&&raw.kind!=='saved'){
         if(raw.kind==='conflict'){pending.current=null;lock(false);setConflict(true);setNotice('Revision conflict. Reload the authoritative draft before trying again.')}
@@ -258,12 +264,13 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
       }
       const ack=validateDraftAcknowledgement(raw,request,accountId)
       if(persistentSave){
+        if(draft&&(ack.id!==draft.id||ack.authorId!==draft.authorId))throw Error('Draft identity changed')
         let cursor:ChartCursor|null=null,verified:VerifiedPage|null=null
         let matched:ChartDraft|undefined
         // #17 pages by immutable createdAt; bound the readback, never assume absence.
         for(let n=0;n<50;n++){
           const query:ChartRequest={accountId,branchId,petId,ownerId,section:'drafts',cursor,limit:50}
-          const next=validateChartPage(await port.read(query),query)
+          const next=validateChartPage(await port.read(query,controller.signal),query)
           if(!mounted.current)return
           if(next.kind==='denied'){pending.current=null;lock(false);onDenied?.();return}
           if(next.kind!=='ok')throw Error('Draft readback unavailable')
@@ -301,7 +308,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
       }
       else if(kind==='unavailable')setNotice('Draft backend unavailable. Save not verified; retry is possible.')
       else setNotice('Save was not verified. Retry unchanged text with the same request ID.')
-    }finally{busy.current=false;if(mounted.current)setSaving(false)}
+    }finally{operation.current=null;busy.current=false;if(mounted.current)setSaving(false)}
   }
   const labels:readonly [keyof DraftContent,string][]=[
     ['complaint','Presenting complaint'],['examination','Examination findings'],
@@ -339,7 +346,7 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
           {saving?'Awaiting acknowledgement…':unresolved?'Retry same draft request':canWrite?'Save encounter DRAFT':'Save unavailable — not connected'}
         </button>
         <button type="button" className="button button-secondary"
-          onClick={()=>{setForm({...authoritative});pending.current=null;
+          onClick={()=>{if(persistentSave&&(busy.current||pending.current))return;setForm({...authoritative});pending.current=null;
             setErrors({});setNotice('Local edits restored to the last verified response. Reload to recheck remote state.')}} disabled={!dirty||saving||unresolved}>
           Discard local edits
         </button>

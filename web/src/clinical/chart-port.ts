@@ -20,9 +20,10 @@ export function createPersistentChartPort(user:User,branchId:string,role:OpsRole
    if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
    return validateChartPage(result,request)
   },
-  ...(role==='veterinarian'?{async saveDraft(request:DraftSaveRequest){
+  ...(role==='veterinarian'?{async saveDraft(request:DraftSaveRequest,signal?:AbortSignal){
+   if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
    if(request.branchId!==branchId)return {kind:'denied'}
-   return saveStaffEncounterDraft(user,request)
+   return saveStaffEncounterDraft(user,request,signal)
   }}:{})
  }
 }

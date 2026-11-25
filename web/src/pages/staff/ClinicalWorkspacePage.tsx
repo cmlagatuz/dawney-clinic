@@ -117,7 +117,7 @@ function ClinicalDay({port,branch,accountId,onDenied,chartPort,pending,onPending
   const rows=read.status==='ready'?read.rows.items:[]
   const patients=chartPort?rows:Array.from(new Map(rows.map(row=>[row.pet_id,row])).values())
   const keyFor=(p:OpsRow)=>chartPort?p.id:p.pet_id
-  const selected=patients.find(p=>keyFor(p)===selectedId)??null
+  const selected=(chartPort?patients.find(p=>keyFor(p)===selectedId):rows.find(p=>p.pet_id===selectedId))??null
   return <section aria-label={branch.name+' clinical appointments'}>
     <div className="clinical-daybar">
       <label htmlFor="clinical-day">Clinic date</label>

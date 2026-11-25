@@ -54,7 +54,7 @@ function installClinicalFixture(){
     if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/read_staff_patient_chart'){
       const p=await req.json()
       if(mode==='persist-denied'||p.p_branch!==ids.naga||p.p_pet!==ids.pet||p.p_limit!==50)return reply({code:'42501'},403)
-      return reply({kind:'ok',accountId:ids.user,branchId:ids.naga,section:p.p_section,patient:{id:ids.pet,ownerId:ids.owner,name:'Synthetic clinical patient',species:'Dog',breed:null,sex:'unknown',birthDate:null,taxonomyReviewNeeded:false},items:p.p_section==='drafts'&&draft?[draft]:[],hasMore:false,nextCursor:null})
+      return reply({kind:'ok',accountId:ids.user,branchId:ids.naga,section:p.p_section,patient:{id:ids.pet,ownerId:ids.owner,name:'Synthetic clinical patient',species:'Dog',breed:null,sex:'unknown',birthDate:null,taxonomyReviewNeeded:false},items:p.p_section==='drafts'&&draft?[mode==='persist-mismatch'?{...draft,complaint:'Mismatched fixture readback'}:draft]:[],hasMore:false,nextCursor:null})
     }
     if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/save_staff_clinical_encounter_draft'){
       const p=await req.json();window.__clinicalCalls.draftRequests.push(p)
@@ -76,10 +76,10 @@ function installClinicalFixture(){
       return mode==='expired'?reply({message:'JWT expired'},401):reply(user)
     if(url.pathname==='/rest/v1/staff_memberships'){
       if(mode==='denied')return reply([])
-      return reply([{user_id:ids.user,role:mode==='reception'||mode==='role-mismatch'?'receptionist':'veterinarian',is_active:true}])
+      return reply([{user_id:ids.user,role:mode==='reception'||mode==='role-mismatch'||mode==='persist-reception'?'receptionist':'veterinarian',is_active:true}])
     }
     if(url.pathname==='/rest/v1/staff_branch_memberships'){
-      const rows=[{user_id:ids.user,branch_id:ids.naga,role:mode==='reception'?'receptionist':'veterinarian',is_active:true}]
+      const rows=[{user_id:ids.user,branch_id:ids.naga,role:mode==='reception'||mode==='persist-reception'?'receptionist':'veterinarian',is_active:true}]
       if(mode==='two')rows.push({user_id:ids.user,branch_id:ids.cavite,role:'veterinarian',is_active:true})
       return reply(rows)
     }
@@ -302,6 +302,28 @@ test('CLOUD real clinical route: exact visit, lost ACK, same ID and authoritativ
    await browser.until('!!document.querySelector(".clinical-failure")')
    assert.equal(await browser.value('window.__clinicalCalls.draftRequests.length'),0)
    assert.equal(await browser.value('!!document.querySelector(".clinical-chart")'),false)
+   await browser.goto(origin+'/app/clinical?case=persist-reception')
+   await browser.until('document.querySelectorAll(".clinical-patient").length===2')
+   await browser.value('document.querySelector(".clinical-patient").click();true')
+   await browser.until('document.body.textContent.includes("Synthetic clinical patient")')
+   await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
+   await browser.until('document.body.textContent.includes("Receptionists can view")')
+   assert.equal(await browser.value('window.__clinicalCalls.draftRequests.length'),0)
+   assert.equal(await browser.value('!!document.querySelector(".clinical-encounter-editor")'),false)
+   await browser.goto(origin+'/app/clinical?case=persist-mismatch')
+   await browser.until('document.querySelectorAll(".clinical-patient").length===2')
+   await browser.value('document.querySelectorAll(".clinical-patient")[1].click();true')
+   await browser.until('document.body.textContent.includes("Synthetic clinical patient")')
+   await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
+   await browser.until('!!document.querySelector(".clinical-encounter-editor textarea")')
+   await browser.value('document.querySelector(".clinical-encounter-editor textarea").focus();true')
+   await browser.send('Input.insertText',{text:'Mismatch fixture original'})
+   await browser.until('!!document.querySelector(".clinical-encounter-editor button[type=submit]:not(:disabled)")')
+   await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
+   await browser.until('document.querySelector(".clinical-encounter-editor button[type=submit]")?.textContent.includes("Retry same draft request")')
+   assert.equal(await browser.value('document.body.textContent.includes("Verified persisted DRAFT saved")'),false)
+   assert.equal(await browser.value('window.__clinicalCalls.draftRequests.length'),1)
+   assert.equal(await browser.value('document.querySelector(".clinical-encounter-editor textarea").disabled'),true)
   })
  }finally{await vite.close();delete process.env.VITE_CLINICAL_DRAFT_PERSISTENCE_UI}
 })

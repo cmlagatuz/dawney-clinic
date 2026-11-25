@@ -39,7 +39,10 @@ const cursor=(x:unknown):x is ChartCursor=>obj(x)&&timestamp(x.at)&&str(x.id)&&v
 function client(){if(!supabase)throw Error('Clinic database is not configured');return supabase}
 async function authenticate(user:User){
  const {data,error}=await client().auth.getUser()
- if(error)throw error
+ if(error){
+  if(error.status===401||error.status===403)throw Object.assign(Error('Clinical session is not verified'),{code:'42501'})
+  throw error
+ }
  if(!data.user||data.user.id!==user.id||!data.user.email_confirmed_at||data.user.is_anonymous)throw Object.assign(Error('Clinical session is not verified'),{code:'42501'})
 }
 function status(error:{code?:string}):'denied'|'unavailable'|'conflict'|'invalid'{
@@ -95,7 +98,7 @@ export async function readStaffPatientChart(user:User,branchId:string,petId:stri
  if(obj(data)&&data.kind==='not_found')return {kind:'not_found'}
  return parsePage(data,section,branchId,petId,user.id,limit)
 }
-export async function saveStaffEncounterDraft(user:User,input:DraftInput):Promise<DraftResult>{
+export async function saveStaffEncounterDraft(user:User,input:DraftInput,signal?:AbortSignal):Promise<DraftResult>{
  const {branchId,petId,appointmentId,requestId,expectedRevision,complaint,examination,assessment,plan}=input
  if(![branchId,petId,appointmentId,requestId].every(validId)||
  !Number.isSafeInteger(expectedRevision)||expectedRevision<0||expectedRevision>2147483646||
@@ -103,6 +106,8 @@ export async function saveStaffEncounterDraft(user:User,input:DraftInput):Promis
  [examination,assessment,plan].some(s=>typeof s!=='string'||s.length>4000))
  return {kind:'invalid'}
  await authenticate(user)
+ // Context may have unmounted while getUser was pending; do not dispatch a stale write.
+ if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
  const {data,error}=await client().rpc('save_staff_clinical_encounter_draft',{
   p_branch:branchId,p_pet:petId,p_appointment:appointmentId,p_request_id:requestId,
   p_expected_revision:expectedRevision,p_complaint:complaint,p_examination:examination,
