@@ -145,7 +145,7 @@ export function AppLayout() {
         {error && <p role="alert" className="error-text">{error}</p>}
       </div>
     </aside>
-    <div className={navOpen ? 'nav-backdrop is-open' : 'nav-backdrop'} onClick={() => setNavOpen(false)} aria-hidden="true" />
+    <div className={navOpen ? 'nav-backdrop is-open' : 'nav-backdrop'} onClick={() => { setNavOpen(false); toggleRef.current?.focus() }} aria-hidden="true" />
     <div className="app-content">
       <header className="topbar">
         <div className="topbar-title">
