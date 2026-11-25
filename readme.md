@@ -1,6 +1,36 @@
 # Dawney Veterinary Clinic
 
-## Current RC1 release standing — 25 November 2026
+## Project Manager milestone register — 26 November 2026
+
+**Release verdict: accepted RC1 source and bounded preview; clinic-live NO-GO.** The December 3 target remains unchanged. This documentation-only update does not promote source or authorize deployment.
+
+| Milestone | Exact evidence | Standing |
+| --- | --- | --- |
+| Integrated RC0 | [PR129](https://github.com/cmlagatuz/dawney-clinic/pull/129) `078053120774e856c9ddaa8c8027b3c891e9e8f6` | Historical source checkpoint; 16/16 CI |
+| Staff appointment lifecycle | [PR130](https://github.com/cmlagatuz/dawney-clinic/pull/130) `b6ee64b38ca4ce2965f2b02f09a4e5584aa56608` | Reviewed source, additive migration 21; hosted activation pending |
+| Frontend hardening and public navigation | [PR134](https://github.com/cmlagatuz/dawney-clinic/pull/134), [PR135](https://github.com/cmlagatuz/dawney-clinic/pull/135) | Accepted exact source imported into RC1 |
+| Integrated RC1 | [PR132](https://github.com/cmlagatuz/dawney-clinic/pull/132) `2e029697fc2c446171a951167b30bcf7679c286e` | 15/15 workflows successful; 21 migration pins and 28 approved frontend blobs preserved; disposable PG17 and signed synthetic recovery passed |
+| Independent RC1 acceptance | [SOL](https://github.com/cmlagatuz/dawney-clinic/pull/132#issuecomment-7162248449), [TERRA](https://github.com/cmlagatuz/dawney-clinic/pull/132#issuecomment-7162230088) | Scoped source security and functional CI PASS |
+| Public preview and promotion preflight | [TERRA](https://github.com/cmlagatuz/dawney-clinic/pull/132#issuecomment-7163002880), [ASTRA](https://github.com/cmlagatuz/dawney-clinic/pull/132#issuecomment-7162980136) | Seven public routes rendered; promotion feasible, not executed |
+| Manual backup direction | [Owner-approved direction](https://github.com/cmlagatuz/dawney-clinic/pull/132#issuecomment-7163439457) | Supabase retained; no dedicated recovery computer or scheduled agent automation |
+| Manual recovery correction | [PR136](https://github.com/cmlagatuz/dawney-clinic/pull/136) `e8537d5535ac7b5277cd790968ac26d7494c8bad` | 4/4 CI; guided menu, differentiated errors and signed synthetic recovery; corrected head independent acceptance pending; collection/import still manual, hosted restoration NOT VERIFIED |
+| Clinical chart connection | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `1f1dd8a7ef8f56d87cfa2eb726e4150262054c61` | Scoped SOL source security and TERRA in-page functional PASS; 309/309 frontend; flags OFF |
+| Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
+
+### Professional engineering quality initiative
+
+- [Unslop](https://github.com/avivgerz-hue/unslop/tree/ca9a3969233e83f768d2d0975fcd805099b7c6cb) 2.1.2: evaluated upstream; advisory design baseline and Dawney-specific design system, Linear Precision as inspiration. CLOUD owns frontend implementation. No automatic preset installation or wholesale theme replacement.
+- [Vibe Shield](https://github.com/avivgerz-hue/vibe-shield/tree/81cc23361ab7f147487ea68ba17bd6f23cbbade7) 2.1.3: supplemental defensive static analysis evaluation by SOL; upstream tests 359/359, publish authentication failure. Not a replacement for actual authorization evidence.
+- [Ghost QA](https://github.com/avivgerz-hue/ghost-qa/tree/19cc3ab24eeb1fd40c4f9ddab5f009ef5cc7d149) 2.1.2: independent synthetic browser QA evaluation by TERRA; upstream Node22 122/123, version assertion mismatch. No live-clinic crawling or autonomous interactions.
+- All three are MIT-licensed upstream source candidates, not installed or accepted dependencies. Pin and review exact artifacts, license and execution boundaries before use. No arbitrary latest, instruction/config overwrites, clinical data, privileged credentials, hosted scans or automatic repair loops. Advisory results never replace existing CI or manual acceptance.
+
+### Current team and release policy
+
+PM governs priorities, evidence and release gates; ASTRA owns backend/integration/recovery; CLOUD owns frontend; SOL owns independent security; TERRA owns independent functional QA. Claude replaced by CLOUD, Qwen paused, Manus suspended, Grok and KIMI retired (historical contributions preserved). Supabase + Cloudflare Pages + GitHub remain the architecture, with zero additional spending. Last verified hosted migration standing: production 6, synthetic staging 11; accepted source has 21. Hosted recovery, staging acceptance, clinical policies, durable clinical save reconciliation, finalization, vaccination, prescriptions, dispensing, transfers, billing/payment and consent/outbox remain outstanding or partial. No production merge, hosted migration, feature activation or clinical release authorized.
+
+**Milestone documentation rule:** Every new accepted milestone must include exact head, actual CI and review evidence, scope/limitations, provider standing, and release verdict. PM maintains this register; ASTRA reconciles it into the next approved integrated release, preserving historical entries. Historical sections below describe earlier checkpoints and do not override this register.
+
+## Historical RC1 release standing — 25 November 2026 (superseded by milestone register)
 
 Authoritative draft [PR132](https://github.com/cmlagatuz/dawney-clinic/pull/132); approved frontend PR135 `f464c4494615147297f8802dc5299fadd95786c9` imported at `8209a545960baa48396e507fbff21ae39f54be01` (8/8 exact, 28 cumulative pins). CI reconciliation checkpoint `ed75eb76789632c1044f7f6795cea73c26011cce` retains all 21 migration blobs and historical guards. On that exact checkpoint, integrated provenance, unified PG17, #21 appointment SQL/ban race/nonce CAS/rollback and signed restore steps, operational signed PG17 restore, clinical draft PG17, signed five-component recovery and encrypted isolated database restore passed. See exact [Actions evidence](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45609400350) and PR132 for final head and complete CI status. This documentation update requires its own exact-head CI; do not inherit green. Final independent SOL/TERRA and hosted owner acceptance are still required. No clinical GO, hosted SQL, flags, merge or deploy authorized. Clinical chart adapter remains disconnected; no claim of end-to-end clinical persistence. Finalization, vaccination, prescriptions, dispensing, transfer/adjustment, billing/payment, consent/outbox and durable reload reconciliation remain unsupported or partial. See [Issue120](https://github.com/cmlagatuz/dawney-clinic/issues/120).
 
