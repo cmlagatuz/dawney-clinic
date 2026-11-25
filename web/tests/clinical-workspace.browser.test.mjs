@@ -444,10 +444,20 @@ test('CLOUD connected clinical route: administrator, responsive keyboard, read r
    await browser.value('window.__clinicalControl.setHistoryFailure("malformed");'+retry+'.click();true')
    await has('Invalid clinical response')
    assert.equal(await browser.value('!!document.querySelector("[aria-label=\'Verified records history\']")'),false)
+   const retryReadStart=await browser.value('window.__clinicalCalls.chartReads.length')
    await browser.value('window.__clinicalControl.setHistoryFailure(null);'+retry+'.focus();true')
-   await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
+   assert.equal(await browser.value('document.activeElement==='+retry),true,'retry button has keyboard focus')
+   await browser.value('window.__clinicalRetryClicks=[];'+retry+'.addEventListener("click",e=>window.__clinicalRetryClicks.push({trusted:e.isTrusted,detail:e.detail}));true')
+   // CDP keyDown without text sends no keypress/default button activation for Enter.
+   // Supply the actual carriage return, preserving native keyboard activation.
+   await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r',unmodifiedText:'\r'})
    await browser.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
+   assert.deepEqual(await browser.value('window.__clinicalRetryClicks'),[{trusted:true,detail:0}],'Enter must activate the native retry button exactly once')
+   await browser.until('window.__clinicalCalls.chartReads.length>'+retryReadStart)
+   const retryReads=await browser.value('window.__clinicalCalls.chartReads.slice('+retryReadStart+')')
+   assert.ok(retryReads.every(x=>x.account===id(9)&&x.p_branch===id(1)&&x.p_pet===id(3)&&x.p_section==='records'&&x.p_after_at===null&&x.p_after_id===null&&x.p_limit===50),'keyboard retry must request the same authorized history')
    await has('Naga synthetic history')
+   assert.equal(await browser.value('!!document.querySelector("[aria-label=\'Verified records history\']")&&!document.querySelector(".clinical-chart-gateway [role=alert]")'),true,'verified history replaces the error')
    // Hold a scoped Naga response, switch to a permitted Cavite patient, release the old response.
    await tab('overview');await has('Naga synthetic patient')
    await browser.value('window.__clinicalControl.holdHistory('+JSON.stringify(id(1))+');true');await tab('history')
