@@ -5,6 +5,7 @@ import {classifyChartError,draftSnapshot,prepareSaveTicket,
 import type {ChartCursor,ChartDraft,ChartItem,ChartPatient,ChartRequest,
   ChartResult,DraftContent,DraftSaveRequest,SaveTicket} from './chart-model.mjs'
 import {unconnectedClinicalPort,type ClinicalChartPort} from './chart-port'
+import {useUnresolvedOperationWarning} from '../hooks/useUnresolvedOperationWarning'
 import {OPS_UI_ENABLED} from '../ops/flag'
 import type {OpsRole} from '../ops/ops-model.mjs'
 
@@ -15,7 +16,7 @@ type Mode='overview'|'visits'|'history'|'encounter'
 type Props={accountId:string;branchId:string;petId:string;ownerId:string;appointmentId:string;
   role:OpsRole;mode:Mode;port?:ClinicalChartPort;onDenied?:()=>void;
   /** Only a test-only fixture may pass true. Production never enables this. */
-  syntheticSave?:boolean}
+  syntheticSave?:boolean; persistentSave?:boolean; onPendingChange?:(value:boolean)=>void}
 const blank=():DraftContent=>({complaint:'',examination:'',assessment:'',plan:''})
 const copy:Record<FailKind,string>={
   denied:'The clinic did not authorize this patient or branch. Clinical details have been cleared.',
@@ -39,12 +40,14 @@ const sectionFor=(mode:Mode)=>mode==='history'?'records':mode==='encounter'?'dra
 
 /** Executable UI over an injected, strictly checked reader. Hosted clinical APIs remain unwired. */
 export function ChartIntegration({accountId,branchId,petId,ownerId,appointmentId,role,mode,
-  port=unconnectedClinicalPort,onDenied,syntheticSave=false}:Props){
+  port=unconnectedClinicalPort,onDenied,syntheticSave=false,persistentSave=false,onPendingChange}:Props){
   const section=sectionFor(mode)
   const allowed=section==='appointments'||role!=='receptionist'
   const [view,setView]=useState<View>({kind:'loading'})
   const [attempt,setAttempt]=useState(0)
   const [paging,setPaging]=useState(false)
+  const [pendingWrite,setPendingWrite]=useState(false)
+  const lock=(value:boolean)=>{setPendingWrite(value);onPendingChange?.(value)}
   const generation=useRef(0)
   const pageRef=useRef<VerifiedPage|null>(null)
   const controller=useRef<AbortController|null>(null)
@@ -77,7 +80,7 @@ export function ChartIntegration({accountId,branchId,petId,ownerId,appointmentId
   },[accountId,branchId,petId,ownerId,section,port,attempt,allowed])
   const loadMore=()=>{
     const previous=pageRef.current
-    if(!previous?.hasMore||!previous.nextCursor||paging)return
+    if(!previous?.hasMore||!previous.nextCursor||paging||pendingWrite)return
     const version=generation.current
     const aborter=controller.current
     if(!aborter||aborter.signal.aborted)return
@@ -133,14 +136,15 @@ export function ChartIntegration({accountId,branchId,petId,ownerId,appointmentId
       {view.page.hasMore&&<div className="clinical-chart-pagination">
         <p>Loaded {view.page.items.length} authorized entries; more history exists.</p>
         <button type="button" className="button button-secondary button-small"
-          disabled={paging} onClick={loadMore}>{paging?'Loading older entries…':'Load older entries (up to 50)'}</button>
+          disabled={paging||pendingWrite} onClick={loadMore}>{paging?'Loading older entries…':'Load older entries (up to 50)'}</button>
       </div>}
       {!view.page.hasMore&&<p className="clinical-muted">End of verified {section} history · {view.page.items.length} entries loaded.</p>}
       {mode==='encounter'&&<EncounterEditor
         key={appointmentId+':'+(view.page.items.find(item=>'appointmentId' in item&&item.appointmentId===appointmentId)?.id??'none')}
         accountId={accountId}
         branchId={branchId} petId={petId} appointmentId={appointmentId} role={role}
-        page={view.page} port={port} syntheticSave={syntheticSave}
+        page={view.page} port={port} syntheticSave={syntheticSave} persistentSave={persistentSave} ownerId={ownerId}
+        onPendingChange={lock} onVerified={verified=>{pageRef.current=verified;setView({kind:'ok',page:verified})}}
         onDenied={onDenied} onReload={retry}/>}
     </>}
     {mode==='encounter'&&view.kind!=='ok'&&role==='veterinarian'&&
@@ -191,9 +195,9 @@ function HistoryRow({section,item}:{section:string;item:ChartItem}){
   return null
 }
 function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
-  syntheticSave,onDenied,onReload}:{accountId:string;branchId:string;petId:string;
+  syntheticSave,persistentSave,ownerId,onPendingChange,onVerified,onDenied,onReload}:{accountId:string;branchId:string;petId:string;
   appointmentId:string;role:OpsRole;page:VerifiedPage;port:ClinicalChartPort;
-  syntheticSave:boolean;onDenied?:()=>void;onReload:()=>void}){
+  syntheticSave:boolean;persistentSave:boolean;ownerId:string;onPendingChange:(value:boolean)=>void;onVerified:(page:VerifiedPage)=>void;onDenied?:()=>void;onReload:()=>void}){
   const draft=page.items.find((item):item is ChartDraft=>
     'appointmentId' in item&&item.appointmentId===appointmentId)??null
   const [form,setForm]=useState<DraftContent>(()=>draft?{
@@ -212,8 +216,13 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
   const latest=useRef(form)
   const pending=useRef<SaveTicket|null>(null)
   const busy=useRef(false)
+  const mounted=useRef(false)
+  const [unresolved,setUnresolved]=useState(false)
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[])
+  useUnresolvedOperationWarning(persistentSave&&unresolved)
+  const lock=(value:boolean)=>{setUnresolved(value);if(persistentSave)onPendingChange(value)}
   const validContext=!!draft||!page.hasMore // Never assume a draft is absent while unseen pages remain.
-  const canWrite=syntheticSave&&!!port.saveDraft&&role==='veterinarian'&&validContext
+  const canWrite=(syntheticSave||persistentSave)&&!!port.saveDraft&&role==='veterinarian'&&validContext&&revision<2147483647
   const dirty=draftSnapshot(form)!==baseline
   useEffect(()=>{latest.current=form},[form])
   const update=(key:keyof DraftContent,value:string)=>{
@@ -227,45 +236,72 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
     const result=validateEncounter(form)
     setErrors(result.errors)
     if(!result.valid){setNotice('Correct the highlighted fields. Nothing was saved.');return}
-    const ticket=prepareSaveTicket(pending.current,{...form,expectedRevision:revision},()=>crypto.randomUUID())
+    const content=persistentSave?{...form,complaint:form.complaint.replace(/^ +| +$/g,'')}:form
+    const ticket=prepareSaveTicket(pending.current,{...content,expectedRevision:revision},()=>crypto.randomUUID())
     pending.current=ticket
     const request:DraftSaveRequest={branchId,petId,appointmentId,requestId:ticket.requestId,
-      expectedRevision:revision,...form}
-    busy.current=true;setSaving(true);setNotice('Save requested; awaiting verified server acknowledgement…')
+      expectedRevision:revision,...content}
+    busy.current=true;setSaving(true);if(persistentSave)lock(true);setNotice('Save requested; awaiting verified server acknowledgement…')
     try{
       const raw=await port.saveDraft!(request)
+      if(!mounted.current)return
       if(raw&&typeof raw==='object'&&'kind' in raw&&raw.kind!=='saved'){
-        if(raw.kind==='conflict'){setConflict(true);setNotice('Revision conflict. Reload the authoritative draft before trying again.')}
+        if(raw.kind==='conflict'){pending.current=null;lock(false);setConflict(true);setNotice('Revision conflict. Reload the authoritative draft before trying again.')}
         else if(raw.kind==='denied'){
           setForm(blank());setAuthoritative(blank());setBaseline(draftSnapshot(blank()))
-          pending.current=null;onDenied?.()
+          pending.current=null;lock(false);onDenied?.()
         }
-        else setNotice(raw.kind==='invalid'?'Server rejected invalid draft data. Nothing was saved.':
-          'Save was not confirmed. The same unchanged request can be retried.')
+        else {if(raw.kind==='invalid'){pending.current=null;lock(false)}
+          setNotice(raw.kind==='invalid'?'Server rejected invalid draft data. Nothing was saved.':
+          'Save was not confirmed. The same unchanged request can be retried.')}
         return
       }
       const ack=validateDraftAcknowledgement(raw,request,accountId)
+      if(persistentSave){
+        let cursor:ChartCursor|null=null,verified:VerifiedPage|null=null
+        let matched:ChartDraft|undefined
+        // #17 pages by immutable createdAt; bound the readback, never assume absence.
+        for(let n=0;n<50;n++){
+          const query:ChartRequest={accountId,branchId,petId,ownerId,section:'drafts',cursor,limit:50}
+          const next=validateChartPage(await port.read(query),query)
+          if(!mounted.current)return
+          if(next.kind==='denied'){pending.current=null;lock(false);onDenied?.();return}
+          if(next.kind!=='ok')throw Error('Draft readback unavailable')
+          verified=verified?combine(verified,next):next
+          matched=next.items.find((item):item is ChartDraft=>'appointmentId' in item&&item.appointmentId===appointmentId)
+          if(matched||!next.hasMore)break
+          cursor=next.nextCursor
+        }
+        if(!matched||!verified||matched.id!==ack.id)throw Error('Draft readback not verified')
+        if(matched.revision>ack.revision){pending.current=null;lock(false);setConflict(true);setNotice('A newer server revision exists. Reload authoritative history before editing.');return}
+        if(matched.revision!==ack.revision||matched.authorId!==ack.authorId||matched.editorId!==ack.editorId||
+          matched.updatedAt!==ack.updatedAt||draftSnapshot(matched)!==ticket.snapshot)
+          throw Error('Draft readback did not match acknowledgement')
+        setForm({...content});latest.current=content
+        onVerified(verified)
+      }
       setRevision(ack.revision)
       setSaved({revision:ack.revision,authorId:ack.authorId,editorId:ack.editorId,updatedAt:ack.updatedAt})
       setAuthoritative({complaint:request.complaint,examination:request.examination,
         assessment:request.assessment,plan:request.plan})
       setBaseline(ticket.snapshot)
-      pending.current=null
+      pending.current=null;lock(false)
       setNotice(draftSnapshot(latest.current)===ticket.snapshot?
-        'Server-acknowledged DRAFT saved (synthetic fixture only).':
+        (persistentSave?'Verified persisted DRAFT saved.':'Server-acknowledged DRAFT saved (synthetic fixture only).'):
         'An earlier version was acknowledged. Newer unsaved edits remain in this browser.')
     }catch(error){
+      if(!mounted.current)return
       const kind=classifyChartError(error)
       if(error&&typeof error==='object'&&'code' in error&&
         (error.code==='40001'||error.code==='23505')){
-        setConflict(true);setNotice('Revision or request-ID conflict. Reload authoritative history; no overwrite was attempted.')
+        pending.current=null;lock(false);setConflict(true);setNotice('Revision or request-ID conflict. Reload authoritative history; no overwrite was attempted.')
       }else if(kind==='denied'){
         setForm(blank());setAuthoritative(blank());setBaseline(draftSnapshot(blank()))
-        pending.current=null;onDenied?.()
+        pending.current=null;lock(false);onDenied?.()
       }
       else if(kind==='unavailable')setNotice('Draft backend unavailable. Save not verified; retry is possible.')
       else setNotice('Save was not verified. Retry unchanged text with the same request ID.')
-    }finally{busy.current=false;setSaving(false)}
+    }finally{busy.current=false;if(mounted.current)setSaving(false)}
   }
   const labels:readonly [keyof DraftContent,string][]=[
     ['complaint','Presenting complaint'],['examination','Examination findings'],
@@ -289,30 +325,30 @@ function EncounterEditor({accountId,branchId,petId,appointmentId,role,page,port,
       {labels.map(([key,label])=><label className="clinical-field" key={key}>
         <span>{label}{key==='complaint'?' *':''}</span>
         <textarea rows={3} maxLength={4000} value={form[key]}
-          disabled={role!=='veterinarian'||conflict||saving}
+          disabled={role!=='veterinarian'||conflict||saving||unresolved}
           aria-invalid={!!errors[key]} aria-describedby={errors[key]?'chart-error-'+key:undefined}
           onChange={event=>update(key,event.target.value)}/>
         {errors[key]&&<span className="clinical-validation" id={'chart-error-'+key}>{errors[key]}</span>}
       </label>)}
       </div>
+      {persistentSave&&unresolved&&<p role="alert">Original draft request {pending.current?.requestId} is unresolved. Text and context are locked. Retry the same request; leaving or reloading loses its in-memory identity. Reconcile with an authorized supervisor before another save.</p>}
       {notice&&<p role="status" className="clinical-feedback">{notice}</p>}
       <div className="clinical-actions">
         <button type="submit" className="button button-primary"
           disabled={!canWrite||!dirty||saving||conflict}>
-          {saving?'Awaiting acknowledgement…':canWrite?'Save encounter DRAFT':'Save unavailable — not connected'}
+          {saving?'Awaiting acknowledgement…':unresolved?'Retry same draft request':canWrite?'Save encounter DRAFT':'Save unavailable — not connected'}
         </button>
         <button type="button" className="button button-secondary"
           onClick={()=>{setForm({...authoritative});pending.current=null;
-            setErrors({});setNotice('Local edits restored to the last verified response. Reload to recheck remote state.')}} disabled={!dirty}>
+            setErrors({});setNotice('Local edits restored to the last verified response. Reload to recheck remote state.')}} disabled={!dirty||saving||unresolved}>
           Discard local edits
         </button>
-        <button type="button" className="button button-quiet" onClick={onReload}>
+        <button type="button" className="button button-quiet" disabled={saving||unresolved} onClick={onReload}>
           {dirty?'Discard local edits and reload':conflict?'Reload after conflict':'Reload authoritative history'}
         </button>
       </div>
     </form>
     <p className="clinical-muted">This form cannot finalize a chart, prescribe medication, vaccinate,
-      dispense stock, change appointment status or issue an invoice. Clinical write integration is OFF
-      in production until SOL acceptance, hosted RLS and persistence checks, and owner approval.</p>
+      dispense stock, change appointment status or issue an invoice. Clinical persistence requires explicit release authorization; default activation remains OFF.</p>
   </section>
 }

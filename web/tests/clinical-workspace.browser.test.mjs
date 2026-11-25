@@ -30,7 +30,8 @@ function installClinicalFixture(){
   localStorage.setItem('dawney.auth.v1',JSON.stringify({
     user,access_token:token,refresh_token:'synthetic-test',expires_at:expiry
   }))
-  window.__clinicalCalls={paths:[],mutations:[],assertions:[],unexpected:[]}
+  window.__clinicalCalls={paths:[],mutations:[],assertions:[],unexpected:[],draftRequests:[]}
+  let draft=null,receipt=null,receiptPayload=null
   const oldFetch=window.fetch.bind(window)
   const reply=(body,status=200)=>new Response(JSON.stringify(body),{
     status,headers:{'content-type':'application/json','access-control-allow-origin':'*'}
@@ -49,6 +50,23 @@ function installClinicalFixture(){
       if(params.p_branch!==ids.naga&&params.p_branch!==ids.cavite)
         return reply({code:'42501',message:'Branch access not authorized'},403)
       return reply(params.p_branch)
+    }
+    if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/read_staff_patient_chart'){
+      const p=await req.json()
+      if(mode==='persist-denied'||p.p_branch!==ids.naga||p.p_pet!==ids.pet||p.p_limit!==50)return reply({code:'42501'},403)
+      return reply({kind:'ok',accountId:ids.user,branchId:ids.naga,section:p.p_section,patient:{id:ids.pet,ownerId:ids.owner,name:'Synthetic clinical patient',species:'Dog',breed:null,sex:'unknown',birthDate:null,taxonomyReviewNeeded:false},items:p.p_section==='drafts'&&draft?[draft]:[],hasMore:false,nextCursor:null})
+    }
+    if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/save_staff_clinical_encounter_draft'){
+      const p=await req.json();window.__clinicalCalls.draftRequests.push(p)
+      if(p.p_branch!==ids.naga||p.p_pet!==ids.pet||p.p_appointment!==ids.secondAppointment)return reply({code:'42501'},403)
+      if(receiptPayload?.p_request_id===p.p_request_id){if(JSON.stringify(receiptPayload)!==JSON.stringify(p))return reply({code:'23505'},409);return reply(receipt)}
+      if(p.p_expected_revision!==(draft?.revision??0))return reply({code:'40001'},409)
+      const updatedAt='2026-11-20T01:00:00Z'
+      draft={id:uuid(12),appointmentId:p.p_appointment,branchId:ids.naga,petId:ids.pet,authorId:ids.user,editorId:ids.user,revision:p.p_expected_revision+1,status:'draft',complaint:p.p_complaint,examination:p.p_examination,assessment:p.p_assessment,plan:p.p_plan,createdAt:updatedAt,updatedAt}
+      receipt={kind:'saved',id:draft.id,appointmentId:draft.appointmentId,branchId:draft.branchId,petId:draft.petId,authorId:draft.authorId,editorId:draft.editorId,revision:draft.revision,status:'draft',updatedAt}
+      receiptPayload=p
+      if(mode==='persist'&&draft.revision===1)return reply({code:'500'},503)
+      return reply(receipt)
     }
     if(req.method!=='GET'){
       window.__clinicalCalls.mutations.push(req.method+' '+url.pathname)
@@ -77,8 +95,8 @@ function installClinicalFixture(){
         starts_at:'2026-11-20T02:00:00Z',ends_at:'2026-11-20T02:30:00Z',
         status:'confirmed',concern:'Synthetic fixture concern'
       }]
-      if(mode==='patient-switch')rows.push({
-        id:ids.secondAppointment,pet_id:ids.secondPet,owner_id:ids.owner,
+      if(mode==='patient-switch'||mode.startsWith('persist'))rows.push({
+        id:ids.secondAppointment,pet_id:mode.startsWith('persist')?ids.pet:ids.secondPet,owner_id:ids.owner,
         resource_id:ids.resource,branch_id:ids.naga,
         starts_at:'2026-11-20T03:00:00Z',ends_at:'2026-11-20T03:30:00Z',
         status:'requested',concern:'Second synthetic fixture concern'
@@ -234,4 +252,56 @@ test('CLOUD clinical browser: staff-scoped chart, themes/widths, keyboard, no wr
     await vite.close()
     delete process.env.VITE_CLINICAL_WORKSPACE_UI
   }
+})
+
+test('CLOUD real clinical route: exact visit, lost ACK, same ID and authoritative draft revisions', {timeout:120000},async()=>{
+ process.env.VITE_SUPABASE_URL='https://issue51-fixtures.supabase.co'
+ process.env.VITE_SUPABASE_PUBLISHABLE_KEY='sb_publishable_issue51_offline'
+ process.env.VITE_CLINICAL_WORKSPACE_UI='true'
+ process.env.VITE_CLINICAL_DRAFT_PERSISTENCE_UI='true'
+ const vite=await createServer({root:fileURLToPath(new URL('../',import.meta.url)),server:{host:'127.0.0.1',port:0,strictPort:false}})
+ try{
+  await vite.listen()
+  await withChromium(async browser=>{
+   await browser.send('Page.addScriptToEvaluateOnNewDocument',{source:'('+installClinicalFixture.toString()+')()'})
+   await browser.send('Emulation.setDeviceMetricsOverride',{width:360,height:900,deviceScaleFactor:1,mobile:false})
+   const origin='http://127.0.0.1:'+vite.httpServer.address().port
+   await browser.goto(origin+'/app/clinical?case=persist&theme=dark')
+   await browser.until('document.querySelectorAll(".clinical-patient").length===2')
+   await browser.value('document.querySelectorAll(".clinical-patient")[1].click();true')
+   await browser.until('document.body.textContent.includes("Synthetic clinical patient")')
+   await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
+   await browser.until('!!document.querySelector(".clinical-encounter-editor textarea")')
+   await browser.value('document.querySelector(".clinical-encounter-editor textarea").focus();true')
+   await browser.send('Input.insertText',{text:'Synthetic persistent complaint'})
+   await browser.until('!!document.querySelector(".clinical-encounter-editor button[type=submit]:not(:disabled)")')
+   await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
+   await browser.until('document.querySelector(".clinical-encounter-editor button[type=submit]")?.textContent.includes("Retry same draft request")')
+   assert.equal(await browser.value('document.querySelector("#clinical-branch").disabled&&document.querySelector("#clinical-day").disabled&&document.querySelector("#clinical-tab-history").disabled&&document.querySelector(".clinical-encounter-editor textarea").disabled'),true)
+   await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
+   await browser.until('document.body.textContent.includes("Authoritative draft revision 1")')
+   const calls=await browser.value('window.__clinicalCalls.draftRequests')
+   assert.equal(calls.length,2);assert.deepEqual(calls[0],calls[1])
+   assert.equal(calls[0].p_appointment,'20000000-0000-4000-8000-000000000008')
+   assert.equal(calls[0].p_expected_revision,0)
+   await browser.value('document.querySelector(".clinical-encounter-editor textarea").focus();true')
+   await browser.send('Input.insertText',{text:' revised'})
+   await browser.until('!!document.querySelector(".clinical-encounter-editor button[type=submit]:not(:disabled)")')
+   await browser.value('document.querySelector(".clinical-encounter-editor button[type=submit]").click();true')
+   await browser.until('document.body.textContent.includes("Authoritative draft revision 2")')
+   assert.equal(await browser.value('window.__clinicalCalls.draftRequests[2].p_expected_revision'),1)
+   await browser.value('document.querySelector("#clinical-tab-history").click();true')
+   await browser.value('document.querySelector("#clinical-tab-encounter").click();true')
+   await browser.until('document.body.textContent.includes("Authoritative draft revision 2")')
+   assert.equal(await browser.value('document.documentElement.scrollWidth<=innerWidth'),true)
+   assert.deepEqual(await browser.value('window.__clinicalCalls.mutations'),[])
+   assert.deepEqual(await browser.value('window.__clinicalCalls.unexpected'),[])
+   await browser.goto(origin+'/app/clinical?case=persist-denied')
+   await browser.until('document.querySelectorAll(".clinical-patient").length===2')
+   await browser.value('document.querySelector(".clinical-patient").click();true')
+   await browser.until('!!document.querySelector(".clinical-failure")')
+   assert.equal(await browser.value('window.__clinicalCalls.draftRequests.length'),0)
+   assert.equal(await browser.value('!!document.querySelector(".clinical-chart")'),false)
+  })
+ }finally{await vite.close();delete process.env.VITE_CLINICAL_DRAFT_PERSISTENCE_UI}
 })

@@ -39,11 +39,11 @@ const cursor=(x:unknown):x is ChartCursor=>obj(x)&&timestamp(x.at)&&str(x.id)&&v
 function client(){if(!supabase)throw Error('Clinic database is not configured');return supabase}
 async function authenticate(user:User){
  const {data,error}=await client().auth.getUser()
- if(error||!data.user||data.user.id!==user.id||!data.user.email_confirmed_at||
-  data.user.is_anonymous)throw Error('Clinical session is not verified')
+ if(error)throw error
+ if(!data.user||data.user.id!==user.id||!data.user.email_confirmed_at||data.user.is_anonymous)throw Object.assign(Error('Clinical session is not verified'),{code:'42501'})
 }
 function status(error:{code?:string}):'denied'|'unavailable'|'conflict'|'invalid'{
- if(error.code==='42501')return 'denied'
+ if(['42501','401','403','PGRST301'].includes(String(error.code??'')))return 'denied'
  if(error.code==='40001'||error.code==='23505')return 'conflict'
  if(error.code==='22023'||error.code==='23514')return 'invalid'
  return 'unavailable'

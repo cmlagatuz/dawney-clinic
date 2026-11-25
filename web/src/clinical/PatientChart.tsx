@@ -19,6 +19,9 @@ type Props={
   chartPort?:ClinicalChartPort
   onDenied?:()=>void
   syntheticSave?:boolean
+  persistentSave?:boolean
+  pending?:boolean
+  onPendingChange?:(value:boolean)=>void
 }
 const localSections=new Set<ClinicalSectionId>(['encounter','treatments','vaccinations','prescriptions'])
 const scratchTypes=['encounter','treatments','vaccinations','prescriptions'] as const
@@ -28,7 +31,7 @@ function emptyDrafts():Drafts{
     vaccinations:newDraft('vaccinations'),prescriptions:newDraft('prescriptions')}
 }
 
-export function PatientChart({petId,rows,branchName,role,accountId,ownerId,branchId,appointmentId,chartPort,onDenied,syntheticSave=false}:Props){
+export function PatientChart({petId,rows,branchName,role,accountId,ownerId,branchId,appointmentId,chartPort,onDenied,syntheticSave=false,persistentSave=false,pending=false,onPendingChange}:Props){
   const [section,setSection]=useState<ClinicalSectionId>('overview')
   const tabs=useRef<Array<HTMLButtonElement|null>>([])
   const headingRef=useRef<HTMLHeadingElement>(null)
@@ -42,7 +45,7 @@ export function PatientChart({petId,rows,branchName,role,accountId,ownerId,branc
   const visits=selectPatientVisits({items:rows},petId)
   const focusTab=(index:number)=>{
     const section=CLINICAL_SECTIONS[index]
-    if(!section)return
+    if(!section||pending)return
     setSection(section.id)
     setErrors({})
     setNotice('')
@@ -82,15 +85,15 @@ export function PatientChart({petId,rows,branchName,role,accountId,ownerId,branc
       <div><p className="eyebrow">Verified appointment · {branchName}</p>
         <h2 ref={headingRef} tabIndex={-1}>Patient record {shortRef(petId)}</h2>
         <p className="clinical-muted">Only a branch-authorized appointment establishes this patient context.
-          The secure patient profile read is not connected. No species, breed, owner identity or medical history is inferred.</p></div>
-      <span className="clinical-state">Chart preview · read-only backend</span>
+          {persistentSave?'Demographics and history require verified scoped reads.':'The secure patient profile read is not connected. No species, breed, owner identity or medical history is inferred.'}</p></div>
+      <span className="clinical-state">{persistentSave?'Clinical chart · draft only':'Chart preview · read-only backend'}</span>
     </header>
     <div className="clinical-tabs" role="tablist" aria-label="Patient chart sections">
       {CLINICAL_SECTIONS.map((item,index)=><button key={item.id}
         ref={el=>{tabs.current[index]=el}} id={'clinical-tab-'+item.id}
-        role="tab" type="button" aria-selected={section===item.id} tabIndex={section===item.id?0:-1}
+        role="tab" type="button" disabled={pending&&section!==item.id} aria-selected={section===item.id} tabIndex={section===item.id?0:-1}
         aria-controls={'clinical-panel-'+item.id}
-        onClick={()=>{setSection(item.id);setErrors({});setNotice('')}}
+        onClick={()=>{if(!pending){setSection(item.id);setErrors({});setNotice('')}}}
         onKeyDown={e=>onTabsKey(e,index)}>{item.label}</button>)}
     </div>
     <section className="clinical-panel" role="tabpanel" id={'clinical-panel-'+section}
@@ -101,7 +104,7 @@ export function PatientChart({petId,rows,branchName,role,accountId,ownerId,branc
         <ChartIntegration key={accountId+':'+branchId+':'+petId+':'+appointmentId+':'+section}
           mode={section==='overview'?'overview':section==='visits'?'visits':section==='history'?'history':'encounter'}
           accountId={accountId} ownerId={ownerId} branchId={branchId} petId={petId} appointmentId={appointmentId}
-          role={role} port={chartPort} onDenied={onDenied} syntheticSave={syntheticSave}/>}
+          role={role} port={chartPort} onDenied={onDenied} syntheticSave={syntheticSave} persistentSave={persistentSave} onPendingChange={onPendingChange}/>}
 
       {section==='overview'&&<div className="clinical-two">
         <div className="clinical-card">
@@ -109,14 +112,13 @@ export function PatientChart({petId,rows,branchName,role,accountId,ownerId,branc
           <dl><dt>Branch</dt><dd>{branchName}</dd>
             <dt>Patient identifier</dt><dd>{shortRef(petId)} (abbreviated)</dd>
             <dt>Verified appointments in selected day</dt><dd>{visits.length}</dd>
-            <dt>Patient name and demographics</dt><dd>Unavailable — scoped chart contract required</dd>
+            {!persistentSave&&<><dt>Patient name and demographics</dt><dd>Unavailable — scoped chart contract required</dd></>}
             <dt>Allergy / medication safety flags</dt><dd>Not verified — do not infer absence</dd></dl>
         </div>
         <div className="clinical-card">
           <h4>Clinical readiness</h4>
-          <p>Historical clinical records, vaccines, prescriptions, treatments and attachments cannot be
-            verified for this branch and patient with the currently approved API.</p>
-          <p role="status" className="clinical-inline-warning">No clinical chart updates or medical orders can be sent from this preview.</p>
+          <p>{persistentSave?'Verified chart history and encounter drafts only. Vaccines, prescriptions, treatment orders and attachments remain unavailable.':'Historical clinical records, vaccines, prescriptions, treatments and attachments cannot be verified for this branch and patient with the currently approved API.'}</p>
+          <p role="status" className="clinical-inline-warning">{persistentSave?'Draft saves do not finalize records or issue medical orders.':'No clinical chart updates or medical orders can be sent from this preview.'}</p>
         </div></div>}
       {section==='visits'&&<div className="clinical-timeline">
         <p className="clinical-muted">Appointments shown are only from the selected branch and clinic day.
@@ -128,14 +130,14 @@ export function PatientChart({petId,rows,branchName,role,accountId,ownerId,branc
           <p className="clinical-muted">Resource {shortRef(v.resource_id)} · Requested/confirmed and completed are distinct recorded states.</p>
         </article>)}
       </div>}
-      {section==='history'&&<div className="clinical-empty">
+      {section==='history'&&!persistentSave&&<div className="clinical-empty">
         <h4>Historical clinical records unavailable</h4>
         <p>The existing staff-wide clinical-record reader does not prove patient membership
           in the selected branch. Showing its results here would risk disclosing unrelated records.</p>
         <p>This is <strong>not</strong> a verified empty chart. ASTRA must provide a branch-asserted,
           patient-scoped history reader, with pagination and access-denial semantics.</p>
       </div>}
-      {localSections.has(section)&&<ClinicalDraft key={section} kind={section as DraftSection}
+      {localSections.has(section)&&!(persistentSave&&section==='encounter')&&<ClinicalDraft key={section} kind={section as DraftSection}
         value={drafts[section as DraftSection]} clinician={clinician}
         errors={errors} notice={notice} change={change} check={check} discard={discard}/>}
     </section>
