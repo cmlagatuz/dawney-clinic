@@ -462,7 +462,10 @@ while IFS= read -r path; do
  case "$path" in
   docs/AI_HANDOFF.md)
    # Child #21 handoff is reviewed independently; original CLOUD blobs frozen.
-   rc1_overlay_blob "$path" 9b36a298aef332759d3c55dfe63ab8e387675ea6 ||
+   [[ "$(git rev-parse "$RC1_BACKEND:$path")" == 9b36a298aef332759d3c55dfe63ab8e387675ea6 &&
+      "$(git rev-parse "$RC1_APPROVED:$path")" == 3b5b866778579cd0e792ee961fd4234aa2257291 &&
+      "$(git rev-parse "HEAD:$path")" == f5d906afd80e0c9a44515fd42e169b304a5543dd &&
+      "$(git hash-object "$path")" == f5d906afd80e0c9a44515fd42e169b304a5543dd ]] ||
     fail 'unreviewed #21 AI handoff blob'
    ;;
   web/src/pages/AppointmentsPage.tsx|web/tests/owner-booking-view.test.mjs)

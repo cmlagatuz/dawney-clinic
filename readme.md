@@ -1,5 +1,11 @@
 # Dawney Veterinary Clinic
 
+## Current RC1 release standing — 25 November 2026
+
+Authoritative draft [PR132](https://github.com/cmlagatuz/dawney-clinic/pull/132); approved frontend PR135 `f464c4494615147297f8802dc5299fadd95786c9` imported at `8209a545960baa48396e507fbff21ae39f54be01` (8/8 exact, 28 cumulative pins). CI reconciliation checkpoint `ed75eb76789632c1044f7f6795cea73c26011cce` retains all 21 migration blobs and historical guards. On that exact checkpoint, integrated provenance, unified PG17, #21 appointment SQL/ban race/nonce CAS/rollback and signed restore steps, operational signed PG17 restore, clinical draft PG17, signed five-component recovery and encrypted isolated database restore passed. See exact [Actions evidence](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45609400350) and PR132 for final head and complete CI status. This documentation update requires its own exact-head CI; do not inherit green. Final independent SOL/TERRA and hosted owner acceptance are still required. No clinical GO, hosted SQL, flags, merge or deploy authorized. Clinical chart adapter remains disconnected; no claim of end-to-end clinical persistence. Finalization, vaccination, prescriptions, dispensing, transfer/adjustment, billing/payment, consent/outbox and durable reload reconciliation remain unsupported or partial. See [Issue120](https://github.com/cmlagatuz/dawney-clinic/issues/120).
+
+## Historical release notes (superseded by current standing above)
+
 ## RC1 source integration — 25 November 2026
 
 Exact PR134 `73067fcdbce7846522e55c33cd0e0ca2051335f4` eight-path correction accepted by PM [7152144119](https://github.com/cmlagatuz/dawney-clinic/pull/132#issuecomment-7152144119), SOL and TERRA; imported without other frontend edits. All 21 migrations remain frozen. Integrated CI and final independent acceptance pending; no clinic-live GO. Memory-only unresolved-operation warning is not durable reload reconciliation. No new SQL contract authorized. Hosted operations and relevant write flags remain OFF.

@@ -16,7 +16,15 @@ diff -u <(printf '%s\n' .github/workflows/rc1-preparation.yml docs/AI_HANDOFF.md
 # Reconciliation may change only three exact CI scripts from the PM-approved checkpoint.
 CHECKPOINT=8209a545960baa48396e507fbff21ae39f54be01
 git merge-base --is-ancestor "$CHECKPOINT" HEAD || die 'accepted RC1 checkpoint ancestry'
-diff -u <(printf '%s\n' scripts/ci/full_tree_pg17.sh scripts/ci/rc1_integrated_source_guard.sh scripts/ci/staff_appointment_source_guard.sh) <(git diff --name-only "$CHECKPOINT" HEAD) || die 'unexpected delta from accepted RC1 checkpoint'
+diff -u <(printf '%s\n' docs/AI_HANDOFF.md docs/RC1_INTEGRATION_HANDOFF.md docs/RC1_STAGING_ACCEPTANCE_ROLLBACK.md readme.md scripts/ci/full_tree_pg17.sh scripts/ci/rc1_integrated_source_guard.sh scripts/ci/staff_appointment_source_guard.sh) <(git diff --name-only "$CHECKPOINT" HEAD) || die 'unexpected delta from accepted RC1 checkpoint'
+# Exact documentation-only additions to the tested reconciliation checkpoint.
+RECONCILED=ed75eb76789632c1044f7f6795cea73c26011cce
+git merge-base --is-ancestor "$RECONCILED" HEAD || die 'reconciled checkpoint ancestry'
+diff -u <(printf '%s\n' docs/AI_HANDOFF.md docs/RC1_INTEGRATION_HANDOFF.md docs/RC1_STAGING_ACCEPTANCE_ROLLBACK.md readme.md scripts/ci/full_tree_pg17.sh scripts/ci/rc1_integrated_source_guard.sh) <(git diff --name-only "$RECONCILED" HEAD) || die 'unexpected delta from reconciled checkpoint'
+[[ "$(git rev-parse HEAD:docs/AI_HANDOFF.md)" == f5d906afd80e0c9a44515fd42e169b304a5543dd && "$(git hash-object docs/AI_HANDOFF.md)" == f5d906afd80e0c9a44515fd42e169b304a5543dd ]] || die 'release documentation drift: docs/AI_HANDOFF.md'
+[[ "$(git rev-parse HEAD:docs/RC1_INTEGRATION_HANDOFF.md)" == a2f50ac866271aca1b51f931c22ed2a31d3c869d && "$(git hash-object docs/RC1_INTEGRATION_HANDOFF.md)" == a2f50ac866271aca1b51f931c22ed2a31d3c869d ]] || die 'release documentation drift: docs/RC1_INTEGRATION_HANDOFF.md'
+[[ "$(git rev-parse HEAD:docs/RC1_STAGING_ACCEPTANCE_ROLLBACK.md)" == 2208de0ec3e2a2ff8b6c8faa0e51ad9777a2ddc5 && "$(git hash-object docs/RC1_STAGING_ACCEPTANCE_ROLLBACK.md)" == 2208de0ec3e2a2ff8b6c8faa0e51ad9777a2ddc5 ]] || die 'release documentation drift: docs/RC1_STAGING_ACCEPTANCE_ROLLBACK.md'
+[[ "$(git rev-parse HEAD:readme.md)" == b53c3a2f45dabf43a126829bf9d4366ea5b3d0cc && "$(git hash-object readme.md)" == b53c3a2f45dabf43a126829bf9d4366ea5b3d0cc ]] || die 'release documentation drift: readme.md'
 [[ -z "$(git status --porcelain)" ]] || die 'dirty checkout'
 diff -u <(git ls-tree -r "$BASE" -- supabase/migrations) <(git ls-tree -r HEAD -- supabase/migrations) || die 'migration tree drift'
 [[ "$(git ls-tree -r --name-only HEAD -- supabase/migrations | grep -c '\.sql$')" == 21 ]] || die 'migration count'
