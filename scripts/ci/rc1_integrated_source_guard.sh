@@ -15,7 +15,7 @@ diff -u <(printf '%s\n' .github/workflows/rc1-preparation.yml docs/AI_HANDOFF.md
 [[ -z "$(git status --porcelain)" ]] || die 'dirty checkout'
 diff -u <(git ls-tree -r "$BASE" -- supabase/migrations) <(git ls-tree -r HEAD -- supabase/migrations) || die 'migration tree drift'
 [[ "$(git ls-tree -r --name-only HEAD -- supabase/migrations | grep -c '\.sql$')" == 21 ]] || die 'migration count'
-while IFS=
+while IFS=$(printf '\\t') read -r blob path source; do
  [[ "$(git rev-parse "$source:$path")" == "$blob" && "$(git rev-parse "HEAD:$path")" == "$blob" && "$(git hash-object "$path")" == "$blob" ]] || die "approved frontend drift: $path"
 done <<'APPROVED'
 00f3f176e8f6fdcbf72abf7ed4453ba80280484a	docs/CLOUD_STAFF_APPOINTMENT_LIFECYCLE_2026.md	052a97da1e7ff4e95d46331f6b657f199592bd84
