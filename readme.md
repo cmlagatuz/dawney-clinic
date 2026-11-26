@@ -18,6 +18,10 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 26 November 2026, 18:42 Asia/Riyadh
+
+- Owner selects existing Windows computer as recovery feasibility candidate and authorizes prerequisite assessment only. [ASTRA assessment directive](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7196634582); [owner decision record](https://github.com/cmlagatuz/dawney-clinic/issues/63#issuecomment-7196635380). Destination nominated, not qualified; actual local OS/runtime/capacity/compatibility/encryption/isolation and custody evidence pending. No assumed local access. SOL independent review after ASTRA's observed evidence; CLOUD/TERRA remain gated. Frozen RC2 `8bb23dd31a516c16bc3e6544a25ef0cf9bb7403b` unchanged. No backup/export/restore, installations, hosted changes, source changes, activation, merge/deploy or spending authorized. Actual hosted UAT NOT RUN; clinic-live NO-GO.
+
 ### PM checkpoint — 26 November 2026, 18:24 Asia/Riyadh
 
 - **SOURCE READY / final technical acceptance:** PM accepts [SOL final security/provenance/CI](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7193794846), [TERRA final functional/CI/DOM](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7194239754), and [CLOUD final frontend compatibility](https://github.com/cmlagatuz/dawney-clinic/pull/137#issuecomment-7194229029) at frozen PR140 `8bb23dd31a516c16bc3e6544a25ef0cf9bb7403b`. Exact SHA unchanged; 20/20 triggered workflows directly reverified, actual Chromium7/7+10/10+1/1, static13/13+314/314+9/9 and signed current PG17 restore inspected. Close remaining technical Chromium blocker. No new confirmed application or mandatory CI defects in final reviewed delta. Twelve standalone definitions not independently triggered; hosted jobs not run. Artifact15118357365 remains synthetic CI output, not production approval.
