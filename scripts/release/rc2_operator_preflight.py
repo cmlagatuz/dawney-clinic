@@ -19,6 +19,12 @@ RC1 = "2e029697fc2c446171a951167b30bcf7679c286e"
 PREPARATION = "939bc5f1237d90df431d06408e8812682fd58421"
 CLINICAL_IMPORT = "32606649a3e4359df998d26d9ace50aab91cef64"
 CLINICAL_WEB_TREE = "8152e80d44df78c0486aa46f066a8204300b9d66"
+CI_CHECKPOINT = "8a3b35f94b63ac318b9f977d33d4f7153fbd2cc5"
+FINAL_IMPORT = "a811b6e4a3f692839ff574678f885a4622e44b75"
+FINAL_WEB_TREE = "f5dc0a98bf82fc75db7a5bf144f23236523505b8"
+FINAL_README_BLOB = "c4e6929a5d64b31124d999c6cf5970e1fafccf47"
+FINAL_LEDGER = "docs/RC2_FINAL_SOURCE_BLOBS.tsv"
+FINAL_PATHS = [".github/workflows/full-tree-pg17-security.yml",".github/workflows/phase3-release.yml",".github/workflows/rc1-preparation.yml",".github/workflows/staff-appointment-lifecycle-pg17.yml","docs/AI_HANDOFF.md","docs/RC2_CI_INTEGRITY.md","docs/RC2_FINAL_IMPORT_BLOBS.tsv","docs/RC2_OPERATIONAL_REGISTER.md","docs/RC2_OPERATOR_RELEASE_PACKET.md","docs/RC2_RECOVERY_OPERATOR_GUIDE.md","scripts/ci/rc2_backend_source_guard.sh","scripts/ci/rc2_backend_source_guard_test.sh","scripts/ci/rc2_frozen_checks.sh","scripts/release/mandatory-test-gate.mjs","scripts/release/rc2_operator_preflight.py","scripts/release/rc2_operator_preflight_test.py"]
 LEDGER = "docs/RC2_MIGRATION_BLOBS.tsv"
 LEDGER_BLOB = "2ddb4814f6bfd383f4acccac38a510f8ba71baea"
 RC1_PREFLIGHT = "scripts/release/rc1_staging_preflight.sh"
@@ -101,8 +107,16 @@ def verify_source(expected):
          "INCORRECT_CLINICAL_IMPORT_PARENT")
     need(git("rev-parse", CLINICAL_IMPORT + ":web").decode().strip() == CLINICAL_WEB_TREE,
          "INCORRECT_CLINICAL_IMPORT_TREE")
-    need(git("rev-parse", expected + ":web").decode().strip() == CLINICAL_WEB_TREE,
+    git("merge-base", "--is-ancestor", CI_CHECKPOINT, expected)
+    git("merge-base", "--is-ancestor", FINAL_IMPORT, expected)
+    need(git("rev-parse", FINAL_IMPORT + "^").decode().strip() == CI_CHECKPOINT,
+         "INCORRECT_FINAL_IMPORT_PARENT")
+    need(git("rev-parse", FINAL_IMPORT + ":web").decode().strip() == FINAL_WEB_TREE,
+         "INCORRECT_FINAL_IMPORT_TREE")
+    need(git("rev-parse", expected + ":web").decode().strip() == FINAL_WEB_TREE,
          "UNAPPROVED_FRONTEND_TREE")
+    need(git("rev-parse", expected + ":readme.md").decode().strip() == FINAL_README_BLOB,
+         "UNAPPROVED_README")
     actual = tree(expected)
     # Inspect actual checked-out bytes and executable bits, not just index flags.
     need(not git("status", "--porcelain=v1", "--untracked-files=all",
@@ -136,6 +150,12 @@ def verify_source(expected):
     # Even ignored extra files in the migration directory are refused.
     need(set(Path("supabase/migrations").iterdir()) == {Path(p) for p in ordered},
          "UNEXPECTED_MIGRATION_FILE")
+    baseline = tree(FINAL_IMPORT)
+    delta = sorted(name for name in set(actual) | set(baseline) if actual.get(name) != baseline.get(name))
+    need(delta == sorted(FINAL_PATHS + [FINAL_LEDGER]), "UNAPPROVED_FINAL_DELTA")
+    final_rows = Path(FINAL_LEDGER).read_text(encoding="utf-8").splitlines()
+    need(len(final_rows) == len(FINAL_PATHS) + 1 and final_rows[0] == "# mode\tblob\tpath", "FINAL_MANIFEST_DISCREPANCY")
+    need(final_rows[1:] == ["\t".join((*actual[name], name)) for name in FINAL_PATHS], "FINAL_MANIFEST_DISCREPANCY")
     return versions, ordered
 
 def verify_packet(path, purpose, target, expected, versions):

@@ -89,6 +89,10 @@ def main():
             commit_change(migration,migration.read_bytes()+b"\n-- synthetic drift\n","MIGRATION_TREE_DRIFT")
             frontend=work/"web/src/lib/clinical-chart.ts"
             commit_change(frontend,frontend.read_bytes()+b"\n// synthetic drift\n","UNAPPROVED_FRONTEND_TREE")
+            path=work/"readme.md"
+            commit_change(path,path.read_bytes()+b"\nsynthetic drift\n","UNAPPROVED_README")
+            path=work/"docs/RC2_FINAL_SOURCE_BLOBS.tsv"
+            commit_change(path,path.read_bytes()+b"\n","FINAL_MANIFEST_DISCREPANCY")
             print("PASS: offline RC2 preflight synthetic regression (no provider operations)")
         finally:
             git("worktree","remove","--force",str(work))

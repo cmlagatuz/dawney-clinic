@@ -21,3 +21,6 @@ printf '\nsynthetic drift\n' >> readme.md; commit; deny readme-drift
 git reset --hard "$base" >/dev/null
 printf '\n// synthetic gate drift\n' >> scripts/release/mandatory-test-gate.mjs; commit; deny gate-drift; git reset --hard "$base" >/dev/null
 sed -i '2s/[0-9a-f]\{40\}/0000000000000000000000000000000000000000/' docs/RC2_CI_INTEGRITY_BLOBS.tsv; commit; deny ci-manifest-drift
+
+git reset --hard "$base" >/dev/null
+sed -i '2s/[0-9a-f]\{40\}/0000000000000000000000000000000000000000/' docs/RC2_FINAL_SOURCE_BLOBS.tsv; commit; deny final-manifest-drift
