@@ -18,6 +18,10 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 27 November 2026, 01:04 Asia/Riyadh
+
+- [ASTRA Windows-native limited database export delivery](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7203936695) scope accepted; standalone chat script not accessible for PM source inspection, actual Windows/provider execution NOT RUN. [PM setup decision](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7204348788), [SOL exact-file review](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7204349454). Free PG17 clients and Gpg4win, no full stack. Synthetic-only staging first after actual script review; D warning retained. No sensitive production export on current unprotected host, no repairs, hosted writes, restore or spending. Frozen RC2 unchanged; all20 triggered reverified. Clinic-live NO-GO.
+
 ### PM checkpoint — 27 November 2026, limited database export
 
 - Owner declines formatting D: and narrows immediate task to portable database-only export into existing D:\DAWNEY_BACKUPS folders. [ASTRA practical export directive](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7203658376). No repeated storage diagnostics, repair, cleanup, full local server or spending. D volume warning remains; encrypted export is provisional, not sole qualified recovery medium. Native logical archive scope and managed restore limitations must be explicit. Existing full recovery utility and frozen RC2 unchanged. No actual export performed by PM, no provider writes or restore; independent full recovery/hosted acceptance remain outstanding, clinic-live NO-GO.
