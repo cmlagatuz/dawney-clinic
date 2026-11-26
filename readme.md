@@ -18,6 +18,10 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 26 November 2026, portable media qualification gate
+
+- PM accepts [ASTRA corrected D qualification](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7201143849) within read-only scope. Owner confirms independent recoverable personal-file copies and stable drive before optional read-only chkdsk D: without repair switches. [PM decision](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7201786232); [SOL bounded changed-evidence review](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7201786908). No repair/format/encryption/install, actual backup/restore or spending. Frozen RC2 unchanged, all20 triggered successful, master unchanged, provider health and production6/staging11 histories reverified. Actual hosted UAT NOT RUN. Clinic-live NO-GO.
+
 ### PM checkpoint — 26 November 2026, 21:49 Asia/Riyadh
 
 - Corrected owner evidence: D disk1 USB, disk reported Healthy/Online; exFAT volume Warning/Full Repair Needed, 931.45 GiB total/122.67 free (35.21 historical, +87.46). Owner created PRODUCTION and STAGING folders. PM accepts [ASTRA portable operator handoff](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7200552598) within scope; [corrected evidence directive](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7200904552). D preferred archive candidate, not qualified pending filesystem integrity, encryption and independent copy; K excluded. Actual backup size/restore compatibility unknown. No additional cleanup requested; no repair, format, encryption, installation, actual backup/restore, hosted changes or spending authorized. Frozen RC2 unchanged; clinic-live NO-GO.
