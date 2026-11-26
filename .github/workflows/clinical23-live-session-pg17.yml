@@ -44,6 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
           git merge-base --is-ancestor 2e029697fc2c446171a951167b30bcf7679c286e HEAD
           git diff --exit-code 2e029697fc2c446171a951167b30bcf7679c286e HEAD -- docs/RC1_MIGRATION_BLOBS.tsv
           while IFS=$'\t' read -r seq sha path; do
@@ -197,6 +198,10 @@ jobs:
           test "$(psql -XAtq -c "select count(*) from clinic_private.clinical_draft_audit where request_id='a2300000-0000-4000-8000-000000000001' and revision=4")" = 1
           test "$(psql -XAtq -c "select count(*) from clinic_private.clinical_record_provenance where request_id='a2300000-0000-4000-8000-000000000002'")" = 1
           echo 'PASS: corrected clinical draft and record committed once'
+      - name: Known-row clinical and attachment scope and independent session ordering
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/tests/clinical23_attachment_scope_pg17.sql
+          bash scripts/ci/clinical23_session_order_pg17.sh
       - name: Signed encrypted clinical23 database restoration
         shell: bash
         run: |

@@ -48,7 +48,8 @@ jobs:
         run: |
           set -euo pipefail
           export EXPECTED_HEAD_SHA='${{ github.event.pull_request.head.sha }}'
-          bash scripts/ci/staff_appointment_source_guard.sh
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+          bash scripts/ci/rc2_frozen_checks.sh appointment
           git worktree add --detach .ci-frozen-rc0 078053120774e856c9ddaa8c8027b3c891e9e8f6
           test "$(git -C .ci-frozen-rc0 rev-parse HEAD)" = 078053120774e856c9ddaa8c8027b3c891e9e8f6
           # The old 20-migration restore runs on EXACT frozen RC0 source. The

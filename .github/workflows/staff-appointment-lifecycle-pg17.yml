@@ -47,7 +47,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/ci/staff_appointment_source_guard.sh
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+          bash scripts/ci/rc2_frozen_checks.sh appointment
           bash -n scripts/recovery/tests/appointment21-signed-restore.sh
           bash -n scripts/ci/staff_auth_user_ban_race_pg17.sh
           tmp="$(mktemp -d)"; trap 'git worktree remove --force "$tmp/rc0" >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT

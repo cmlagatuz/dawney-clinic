@@ -30,6 +30,9 @@ jobs:
           persist-credentials: false
       - name: Exact reviewed paths and frozen migration/frontend manifests
         shell: bash
-        run: bash scripts/ci/rc1_integrated_source_guard_test.sh
+        run: |
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+          bash scripts/ci/rc2_backend_source_guard_test.sh
+          bash scripts/ci/rc2_frozen_checks.sh rc1-provenance
       - name: Offline synthetic history and drift rehearsal (no hosted operations)
-        run: bash scripts/release/rc1_staging_preflight_test.sh
+        run: bash scripts/ci/rc2_frozen_checks.sh rc1-preflight

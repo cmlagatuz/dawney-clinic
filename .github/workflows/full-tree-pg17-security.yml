@@ -121,7 +121,9 @@ jobs:
           command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
           bash -n scripts/ci/full_tree_pg17.sh
       - name: Run actual full-tree six + four + Storage correction, RLS and mandatory policy rejection
-        run: bash scripts/ci/full_tree_pg17.sh
+        run: |
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+          bash scripts/ci/rc2_frozen_checks.sh full-tree
 
   full-tree-node-typescript-vite:
     runs-on: ubuntu-latest

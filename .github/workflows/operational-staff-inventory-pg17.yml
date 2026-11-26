@@ -47,7 +47,8 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           git merge-base --is-ancestor ebe6caf8a1f9f17fb00739986b1ebdb83e2d9d0d HEAD
-          bash scripts/ci/rc0_source_guard.sh
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+          bash scripts/ci/rc2_frozen_checks.sh rc0
       - name: Install PostgreSQL17 client
         run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
       - name: Apply synthetic 11 + 12–15 + 16 and execute real PG17 security
