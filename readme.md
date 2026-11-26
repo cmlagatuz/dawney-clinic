@@ -18,6 +18,13 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 26 November 2026, 08:18 Asia/Riyadh
+
+- [RC2 PR140](https://github.com/cmlagatuz/dawney-clinic/pull/140) `be49e7b25ff7ab3a5eee3ef42b6e62cc50c84267`: six backend paths, additive #23; [dedicated PG17 and signed restore PASS](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45717570833/job/139567459688), 7/10 workflows; three historical guard failures before SQL. Independent SOL review pending; no integrated acceptance.
+- [CLOUD PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `24cc6f35f6cd0ca7a0c0578a9e59147f0b01d813`: five-path receipt UI delta; [actual React CI](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45717602276/job/139567569667) 311/311, #112/#113 PASS, 0 failed/skipped, tsc/Vite PASS. 4/5 workflows; historical PG17 guard blocked. Independent SOL/TERRA acceptance pending; CHART-01 open, design pilot not yet delivered. No real reload/provider persistence proof.
+- SOL Phase A matrix delivered [PR139](https://github.com/cmlagatuz/dawney-clinic/pull/139); no #23 or new UI verdict located. TERRA latest scoped receipt contract PASS predates new UI. PM freezes both new checkpoints for review; ASTRA prepares exact integration evidence; CLOUD prepares bounded design baseline, source changes after PM review. No duplicate development.
+- Both Supabase projects healthy, production 6/staging 11 migrations; GitHub Cloudflare bot reports separate RC2 and frontend previews. No provider-side live acceptance, real recovery, merge or activation. RC1 remains frozen fallback; Dec3 target and clinic-live NO-GO unchanged.
+
 ### PM checkpoint — 26 November 2026, 01:49 Asia/Riyadh
 
 - PR137 `2f371836ff5b91c5de7742bb9b1d40c403b7e14d`: [actual React job](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45714814635/job/139558038533) 310/310, #112 PASS, TypeScript/Vite PASS; 4/5 workflows, historical clinical PG17 pin fails. Final delta one browser fixture file +11/-1. PM accepts frontend CI correction within scope; independent corrected UI and receipt integration pending.
