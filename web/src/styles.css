@@ -224,6 +224,7 @@ input:user-invalid, textarea:user-invalid, select:user-invalid { border-color: v
 .public-main { display: grid; place-items: center; flex: 1; padding: 1.5rem 1.15rem 4rem; }
 .auth-panel { width: min(100%, 500px); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: clamp(1.25rem, 4vw, 2rem); }
 .auth-panel h1 { margin: 0 0 .6rem; }
+.auth-panel :is(input, textarea, select) { font-size: 1rem; }
 .auth-panel .subtitle { margin-bottom: var(--space-6); }
 .auth-panel > a.button { margin-top: 1rem; }
 .auth-assurance { display: flex; gap: .6rem; align-items: center; margin: 1.5rem 0 0; padding-top: 1.1rem; border-top: 1px solid var(--border); font-size: .82rem; color: var(--muted); }
@@ -388,7 +389,7 @@ input:user-invalid, textarea:user-invalid, select:user-invalid { border-color: v
    Never stretched: height drives size, width follows the 1:1 aspect ratio. Sizes keep "ANIMAL CLINIC" legible. */
 .brand-link { display: inline-flex; border-radius: var(--radius-sm); }
 .brand-link:hover { text-decoration: none; }
- .brand-plate { display: inline-flex; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 2px; line-height: 0; }
+.brand-plate { display: inline-flex; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 2px; line-height: 0; }
 .brand-plate picture { display: block; line-height: 0; }
 .brand-logo { display: block; height: 88px; width: auto; aspect-ratio: 1 / 1; object-fit: contain; }
 .public-header .brand-logo { height: 52px; }
@@ -599,7 +600,7 @@ select:disabled, input:disabled { background: var(--surface-2); color: var(--mut
 .home-services { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-4); gap: 0 var(--space-4); }
 .home-services li { min-width: 0; padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
 .home-services h3 { font-size: 1rem; font-weight: 600; overflow-wrap: anywhere; }
-.home-services + .alert { margin-top: var(--space-3); }
+.home-services + .alert, .home-services + .field-help { margin-top: var(--space-3); }
 .booking-item time, .date-block, .slot { font-variant-numeric: tabular-nums; }
 .booking-item p, .patient-top > div, .next-visit > div:last-child { min-width: 0; overflow-wrap: anywhere; }
 .card .empty { border: 0; background: transparent; padding: var(--space-2) 0; }

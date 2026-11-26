@@ -17,7 +17,7 @@ export function ServicesPage() {
   return <div className="page">
     <PageHeading id="services-heading" eyebrow="Dawney Animal Clinic — Naga Branch" title="Services" actions={<MessageButton />}>The kinds of care offered at our Naga Branch. Please message our Facebook page about your animal. We do not list prices or appointment lengths here.</PageHeading>
     <section className="section" aria-labelledby="cat-heading"><h2 id="cat-heading">Service categories</h2>
-      <ul className="service-grid">{NAGA_SERVICE_CATEGORIES.map(c => <li key={c} className="card service-card"><h3>{c}</h3></li>)}</ul>
+      <ul className="service-grid home-services">{NAGA_SERVICE_CATEGORIES.map(c => <li key={c}><h3>{c}</h3></li>)}</ul>
       <p className="field-help">These categories are for information only. They are not bookable online, and availability is confirmed by the clinic.</p></section>
     <section className="section" aria-labelledby="online-heading"><h2 id="online-heading">Online booking</h2>
     {options.kind !== 'ready'
