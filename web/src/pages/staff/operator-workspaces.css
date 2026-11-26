@@ -9,7 +9,7 @@
 .operator-state-grid .card{min-width:0}
 .operator-section{margin:1rem 0}
 .operator-section label{display:grid;gap:.4rem;font-weight:650;min-width:0}
-.operator-section :is(input,select,textarea){width:100%;min-width:0;max-width:100%;padding:.72rem .8rem;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font:inherit}
+.operator-section :is(input,select,textarea){width:100%;min-width:0;max-width:100%;padding:.72rem .8rem;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background-color:var(--surface);color:var(--text);font:inherit}
 .operator-section :is(input,select,textarea):focus-visible,.operator a:focus-visible,.operator button:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
 .operator-section input[aria-invalid=true]{border-color:var(--danger)}
 .operator-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin:1rem 0}
@@ -50,3 +50,15 @@
 .operator input[disabled],.operator select[disabled]{opacity:.7}
 @media(max-width:1020px){.operator-two-column{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:680px){.operator-branches{display:grid;gap:.6rem}.operator-scroll{max-width:100%}}
+/* Staff approvals and receiving share the same field and data-row rhythm. */
+.operator-section select{padding-right:2.4rem}
+.operator-state-grid{gap:var(--space-3);margin:var(--space-4) 0}
+.operator-form-grid{gap:var(--space-3)}
+.operator-section{margin:var(--space-4) 0}
+.operator-pills li{border-radius:var(--radius-sm);padding:var(--space-2) var(--space-3)}
+.operator-summary{padding:var(--space-3);overflow-wrap:anywhere}
+.operator-scroll td{vertical-align:top;font-variant-numeric:tabular-nums}
+.operator-scroll th{font-weight:650;vertical-align:bottom}
+.operator-scroll tbody tr:last-child td{border-bottom:0}
+.operator-section :is(input,select,textarea):focus-visible,.operator a:focus-visible,.operator button:focus-visible{outline-color:var(--focus)}
+
