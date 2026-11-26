@@ -18,6 +18,10 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 27 November 2026, limited database export
+
+- Owner declines formatting D: and narrows immediate task to portable database-only export into existing D:\DAWNEY_BACKUPS folders. [ASTRA practical export directive](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7203658376). No repeated storage diagnostics, repair, cleanup, full local server or spending. D volume warning remains; encrypted export is provisional, not sole qualified recovery medium. Native logical archive scope and managed restore limitations must be explicit. Existing full recovery utility and frozen RC2 unchanged. No actual export performed by PM, no provider writes or restore; independent full recovery/hosted acceptance remain outstanding, clinic-live NO-GO.
+
 ### PM checkpoint — 27 November 2026, 00:18 Asia/Riyadh
 
 - Owner elevated Get-Volume D still reports Warning/Full Repair Needed after clean scoped read-only CHKDSK. D unqualified; no repeated scans or repairs solely to clear warning. [SOL portable design review](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7203107255) accepted; no source changes. [PM continuation](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7203602680). ASTRA blocked pending owner confirmation of independently recoverable important personal files. No repair/format/encryption/install, actual backup/restore, hosted changes or spending authorized. Frozen RC2 unchanged; clinic-live NO-GO.
