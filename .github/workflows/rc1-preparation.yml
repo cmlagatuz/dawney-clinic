@@ -33,6 +33,8 @@ jobs:
         run: |
           EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
           bash scripts/ci/rc2_backend_source_guard_test.sh
+          bash scripts/ci/rc2_frozen_checks.sh rc2-ci-integrity
+          bash scripts/ci/rc2_frozen_checks.sh rc2-ci-integrity-negative
           bash scripts/ci/rc2_frozen_checks.sh rc2-combined
           bash scripts/ci/rc2_frozen_checks.sh rc2-combined-negative
           bash scripts/ci/rc2_frozen_checks.sh rc2-preparation

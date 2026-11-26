@@ -33,6 +33,11 @@ export function runMandatory({ cwd, command, args, expected, label }) {
   console.log('PASS: ' + label + ' exact ' + expected + '/' + expected + ', no failed/skipped/cancelled/todo tests')
 }
 
+export function runGateRegression(root, expected) {
+  runMandatory({ cwd: root, command: process.execPath, args: ['--test', '--test-reporter=tap', join(root, 'scripts/release/mandatory-test-gate.test.mjs')],
+    expected, label: 'gate self-regression' })
+}
+
 export function runFrontend(root, expected) {
   runMandatory({ cwd: join(root, 'web'), command: 'npm', args: ['test'],
     expected, label: 'frontend' })
@@ -60,6 +65,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     if (extra.length || !/^[1-9][0-9]*$/.test(frontend || '')) throw Error('invalid mandatory count')
     if (mode === 'all' && /^[1-9][0-9]*$/.test(release || ''))
       runReleaseGate(root, Number(frontend), Number(release))
+    else if (mode === 'regression' && release === undefined)
+      runGateRegression(root, Number(frontend))
     else if (mode === 'frontend' && release === undefined)
       runFrontend(root, Number(frontend))
     else throw Error('invalid mandatory gate mode')

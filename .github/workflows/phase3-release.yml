@@ -68,10 +68,10 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Disposable fail-closed release-gate regression
         working-directory: .
-        run: node --test scripts/release/mandatory-test-gate.test.mjs
+        run: node scripts/release/mandatory-test-gate.mjs regression 13
       - name: Require complete frontend and release suites before build
         working-directory: .
-        run: node scripts/release/mandatory-test-gate.mjs all 313 9
+        run: node scripts/release/mandatory-test-gate.mjs all 314 9
       - name: Build static React application
         working-directory: web
         run: npm run build

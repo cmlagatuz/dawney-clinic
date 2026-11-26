@@ -157,7 +157,7 @@ jobs:
         working-directory: web
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
-          node ../scripts/release/mandatory-test-gate.mjs frontend 313
+          node ../scripts/release/mandatory-test-gate.mjs frontend 314
           npm run build
           node --check tests/integration/smoke.mjs
       - name: Run Grok-accepted hosted security contract OFFLINE only
