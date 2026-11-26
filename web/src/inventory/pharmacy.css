@@ -15,10 +15,11 @@
   border-radius:var(--radius);margin:1rem 0}
 .pharmacy-branch label,.pharmacy-controls label,.pharmacy-detail-actions label{font-weight:650}
 .pharmacy-branch>p{flex-basis:100%;margin:0}
-.pharmacy :is(select,input[type=search]){font:inherit;color:var(--text);background:var(--surface);
+.pharmacy :is(select,input[type=search]){font:inherit;color:var(--text);background-color:var(--surface);
   border:1px solid var(--border-strong);border-radius:var(--radius-sm);
   padding:.62rem .75rem;max-width:100%;min-width:0}
-.pharmacy-branch select{min-width:235px}
+.pharmacy-branch select{width:min(100%,24rem);padding-right:2.4rem}
+.pharmacy-controls select{padding-right:2.4rem}
 .pharmacy-toolbar{justify-content:space-between;margin:1rem 0}
 .pharmacy-toolbar p{margin:0}
 .pharmacy-controls{display:grid;grid-template-columns:minmax(180px,1.6fr) repeat(2,minmax(150px,1fr));
@@ -41,9 +42,9 @@
 .pharmacy-medicine{display:grid;gap:.5rem;width:100%;min-width:0;text-align:left;
   background:var(--surface);color:var(--text);font:inherit;padding:1rem;
   border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;
-  overflow-wrap:anywhere;box-shadow:var(--shadow-sm)}
+  overflow-wrap:anywhere}
 .pharmacy-medicine:hover{border-color:var(--primary)}
-.pharmacy-medicine.is-selected{border:2px solid var(--primary);background:var(--primary-soft)}
+.pharmacy-medicine.is-selected{border-color:var(--primary);box-shadow:inset 3px 0 0 var(--primary);background:var(--primary-soft)}
 .pharmacy-medicine-title{display:flex;align-items:start;justify-content:space-between;flex-wrap:wrap;gap:.4rem}
 .pharmacy-medicine-title strong{font-size:.97rem}
 .pharmacy-code{font-size:.77rem;font-weight:700;color:var(--muted);letter-spacing:.035em}
@@ -56,7 +57,7 @@
 .pharmacy-tag.is-ok,.pharmacy-tag.is-eligible{color:var(--success);border-color:var(--success)}
 .pharmacy-detail-area,.pharmacy-detail{min-width:0}
 .pharmacy-detail,.pharmacy-prompt{border:1px solid var(--border);background:var(--surface);
-  border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+  border-radius:var(--radius)}
 .pharmacy-prompt{padding:1.5rem}
 .pharmacy-detail-head{padding:1.1rem;display:flex;flex-wrap:wrap;
   align-items:start;justify-content:space-between;gap:.75rem;border-bottom:1px solid var(--border)}
@@ -126,3 +127,17 @@
   .pharmacy-actions button{min-width:0;max-width:100%;width:100%;white-space:normal;overflow-wrap:anywhere}
 }
 @media(prefers-reduced-motion:reduce){.pharmacy *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+/* Catalog and lot data: neutral surfaces, semantic expiry tags, aligned figures. */
+.pharmacy-branch,.pharmacy-controls{padding:var(--space-3)}
+.pharmacy-kpis{gap:var(--space-2)}
+.pharmacy-kpi strong{font-weight:650;font-size:1.5rem}
+.pharmacy-medicine{padding:var(--space-3)}
+.pharmacy-medicine-meta span{border:0;background:transparent;padding:0}
+.pharmacy-medicine-meta{gap:var(--space-2) var(--space-4);padding-bottom:var(--space-3);border-bottom:1px solid var(--border)}
+.pharmacy-tabs button{min-height:44px;flex:none}
+.pharmacy-batch,.pharmacy-ledger li,.pharmacy-fefo li{background:var(--surface);padding:var(--space-3);font-variant-numeric:tabular-nums}
+.pharmacy-batch dd{font-weight:600}
+.pharmacy-batch-top strong,.pharmacy-detail-head h2{overflow-wrap:anywhere}
+.pharmacy-ledger li{border-inline-start:3px solid var(--border-strong)}
+@media(max-width:480px){.pharmacy-kpi strong{font-size:1.35rem}}
+

@@ -12,3 +12,10 @@
 .appointment-lifecycle button:focus-visible,.ops-visit button:focus-visible,.ops-block button:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
 .appointment-lifecycle button:disabled{opacity:.64;cursor:not-allowed}
 @media(max-width:680px){.lifecycle-buttons{display:grid;grid-template-columns:minmax(0,1fr)}.lifecycle-buttons button{width:100%}.lifecycle-title{display:block}}
+/* Compact, readable lifecycle panel without changing transition eligibility. */
+.appointment-lifecycle{padding:var(--space-4)}
+.lifecycle-title{border-bottom:1px solid var(--border);padding-bottom:var(--space-2)}
+.lifecycle-status{font-variant-numeric:tabular-nums}
+.lifecycle-buttons button{min-height:44px}
+.lifecycle-confirm,.lifecycle-unavailable{overflow-wrap:anywhere}
+

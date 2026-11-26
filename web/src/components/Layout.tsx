@@ -98,6 +98,8 @@ export function AppLayout() {
   const sidebarRef = useRef<HTMLElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   const first = useRef(true)
+  const restoreToggle = useRef(false)
+  const focusAfterRoute = useRef(false)
   const pageTitle = titles[location.pathname] ?? 'Clinic workspace'
 
   async function signOut() {
@@ -116,25 +118,78 @@ export function AppLayout() {
     setNavOpen(false)
     document.title = `${pageTitle} · Dawney Animal Clinic`
     if (first.current) { first.current = false; return }
+    restoreToggle.current = false
+    focusAfterRoute.current = true
     setAnnounce(`${pageTitle} page loaded`)
-    mainRef.current?.focus({ preventScroll: false })
   }, [location.pathname, pageTitle])
 
-  // Drawer: Escape closes and returns focus to the toggle; opening moves focus into the drawer.
+  // Do not race a scheduled React commit with requestAnimationFrame. On a
+  // drawer route change, wait for the committed non-inert main region.
   useEffect(() => {
-    if (!navOpen) return
-    sidebarRef.current?.querySelector<HTMLElement>('a')?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setNavOpen(false); toggleRef.current?.focus() }
+    if (!navOpen && focusAfterRoute.current) {
+      focusAfterRoute.current = false
+      mainRef.current?.focus({ preventScroll: false })
+    }
+  }, [navOpen, location.pathname, pageTitle])
+
+  function closeNavigation() {
+    restoreToggle.current = true
+    setNavOpen(false)
+  }
+
+  // On a narrow screen the drawer is modal. Its scrollable contents remain
+  // reachable, including Sign out, while background controls are inert.
+  useEffect(() => {
+    if (!navOpen) {
+      if (restoreToggle.current) {
+        restoreToggle.current = false
+        toggleRef.current?.focus()
+      }
+      return
+    }
+    const sidebar = sidebarRef.current
+    if (!sidebar) return
+    sidebar.querySelector<HTMLElement>('nav a')?.focus()
+    const focusable = () => Array.from(sidebar.querySelectorAll<HTMLElement>('a[href],button:not(:disabled)'))
+      .filter(element => element.getClientRects().length > 0)
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        restoreToggle.current = true
+        setNavOpen(false)
+      } else if (event.key === 'Tab') {
+        const items = focusable()
+        const firstItem = items[0], lastItem = items[items.length - 1]
+        if (!firstItem || !lastItem) return
+        if (!sidebar.contains(document.activeElement) || (event.shiftKey && document.activeElement === firstItem) ||
+            (!event.shiftKey && document.activeElement === lastItem)) {
+          event.preventDefault()
+          ;(event.shiftKey ? lastItem : firstItem).focus()
+        }
+      }
+    }
+    const media = window.matchMedia('(max-width: 820px)')
+    const resize = () => {
+      if (!media.matches) {
+        restoreToggle.current = false
+        setNavOpen(false)
+      }
     }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    media.addEventListener('change', resize)
+    resize()
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      media.removeEventListener('change', resize)
+    }
   }, [navOpen])
 
   const email = user?.email ?? ''
   const name = [user?.user_metadata?.first_name, user?.user_metadata?.last_name].filter(Boolean).join(' ')
   return <div className="app-layout">
-    <aside ref={sidebarRef} id="app-sidebar" className={navOpen ? 'sidebar is-open' : 'sidebar'} aria-label="Main navigation">
+    <aside ref={sidebarRef} id="app-sidebar" className={navOpen ? 'sidebar is-open' : 'sidebar'} aria-label="Main navigation"
+      role={navOpen ? 'dialog' : undefined} aria-modal={navOpen || undefined}>
+      <button type="button" className="icon-button sidebar-close" aria-label="Close navigation drawer" onClick={closeNavigation}><Icon name="close" /></button>
       <Brand />
       <nav className="main-nav" aria-label="Pet owner portal">
         <p className="nav-label">Pet owner portal</p>
@@ -146,8 +201,8 @@ export function AppLayout() {
         {error && <p role="alert" className="error-text">{error}</p>}
       </div>
     </aside>
-    <div className={navOpen ? 'nav-backdrop is-open' : 'nav-backdrop'} onClick={() => { setNavOpen(false); toggleRef.current?.focus() }} aria-hidden="true" />
-    <div className="app-content">
+    <div className={navOpen ? 'nav-backdrop is-open' : 'nav-backdrop'} onClick={closeNavigation} aria-hidden="true" />
+    <div className="app-content" inert={navOpen}>
       <header className="topbar">
         <div className="topbar-title">
           <button ref={toggleRef} className="icon-button mobile-toggle" type="button" aria-label={navOpen ? 'Close navigation' : 'Open navigation'}
