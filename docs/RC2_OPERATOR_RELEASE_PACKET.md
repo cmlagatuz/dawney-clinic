@@ -1,0 +1,80 @@
+# RC2 operator release packet — 26 November 2026
+**NO-GO for clinic-live; offline preparation only.** [PM authority](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7185208617), [SOL intermediate scoped PASS](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7184969994), [PM CHART-01 scoped closure](https://github.com/cmlagatuz/dawney-clinic/pull/137#issuecomment-7185031093). Accepted backend checkpoint ce427658860d9f3421d9dde06dc0fdb0c84a87da, 15/15 triggered workflows at that SHA only. Frozen RC1 fallback 2e029697fc2c446171a951167b30bcf7679c286e. Frontend receipt baseline 052b7223ad3208e5644e39bc2e72ae11f2cc74bf accepted separately, 313/313 synthetic tests, **not imported yet**; final design and PM acceptance required. PM README 304d18eaaf12c09a88608f2c42ac542f3303fa06 pending final import; recheck. Source pin and CI for final RC2 remain future gates. No provider access was performed for this packet.
+
+## 1. Ordered migration inventory
+Authoritative immutable [23-entry path/blob/mode ledger](RC2_MIGRATION_BLOBS.tsv), blob 2ddb4814f6bfd383f4acccac38a510f8ba71baea, anchored to accepted intermediate above. Original 21 RC1 SQL blobs and historical RC1 preflight remain untouched. #22 exact PR139 2a79d535ec7b473581381a0122a20afbcefc3256; #23 exact Phase A be49e7b25ff7ab3a5eee3ef42b6e62cc50c84267. All mode 100644.
+PM directly verified provider histories: synthetic staging #1–11, production #1–6. This is history evidence, not current schema or release acceptance. Re-observe immediately before owner-approved collection and migration; any difference stops this packet.
+
+| # | Filename (under supabase/migrations/) | Git blob | PM-reported applied |
+|---|---|---|---|
+| 01 | `20261113070302_phase2_core_data_security.sql` | `cf329269e3f38a5ac320d0b60fe82b6165e218d6` | Both |
+| 02 | `20261113070834_phase2_index_and_policy_tuning.sql` | `d7f8922de9251bb777430ce4163d2ca501b290f5` | Both |
+| 03 | `20261113074938_phase2_verified_auth_and_staff_bootstrap.sql` | `218b612c15944c811708f4908825d0a969064692` | Both |
+| 04 | `20261113095318_phase3_appointment_lifecycle.sql` | `f12c39c4b75462aa9597d38065c70216e872c478` | Both |
+| 05 | `20261113100958_phase3_clinical_storage_policies.sql` | `b47363bfdc3af3081a2af2f422be44a40c967e54` | Both |
+| 06 | `20261113101626_phase3_staff_membership_audit.sql` | `0fc85dd437eac7d8d89fe69025df917ab79d3e0e` | Both |
+| 07 | `20261113211600_phase4_taxonomy_attachments.sql` | `4296a5dcf84324cd83eea226e6054b0cd4f56658` | Staging only |
+| 08 | `20261113211700_phase4_animal_catalog_seed.sql` | `cc03606d3d47b0d573f431a1a1161ba243a314d3` | Staging only |
+| 09 | `20261114072200_phase4_taxonomy_trigger_chow_chow_guard.sql` | `028cbdcfb96e15d297a9458322e1108c46a8b035` | Staging only |
+| 10 | `20261114090000_phase4_public_booking_contract.sql` | `929f327141d9e5bb2be220d5685c6ce3f28c253c` | Staging only |
+| 11 | `20261116002500_phase3_storage_outer_object_path_rls_fix.sql` | `4d78cb2aef1104379d6fd29797705a6188c4c6dc` | Staging only |
+| 12 | `20261117233500_issue77_four_branch_foundation.sql` | `4732b815cff45850d2f01cdeb93c527dac0e22a0` | Neither |
+| 13 | `20261118203500_issue51_branch_booking_security.sql` | `f58ca0e0bcb36d3a320060db7bf9bbeffe7f35f3` | Neither |
+| 14 | `20261118215500_issue58_staff_branch_read_contract.sql` | `c889477348d9505d54f54b1d08532c2f648992a9` | Neither |
+| 15 | `20261118225000_issue78_inventory_read_only_foundation.sql` | `908f881bfc541ab4265912e0a9e55525ea8275a5` | Neither |
+| 16 | `20261120160000_clinical_chart_encounter_drafts.sql` | `a017d6f11819fcd7dba743cf37e4533342d8a5a5` | Neither |
+| 17 | `20261120221000_clinical_provenance_pagination_security.sql` | `c1018e711cc01055e4ef3269caf261c05036fd58` | Neither |
+| 18 | `20261121201000_staff_self_service_approval_accountant.sql` | `2267dc84aa9aadf0dda102bfc16c696ce254f685` | Neither |
+| 19 | `20261121202000_inventory_transactional_branch_ops.sql` | `ec9f63a3c8b459f3562375b3b6428460f240468e` | Neither |
+| 20 | `20261122120000_operational_live_session_read_guard.sql` | `c96ab853629a6abb05518697b5c4f1a7b1e4fd5e` | Neither |
+| 21 | `20261123210000_staff_appointment_lifecycle.sql` | `969db983facf7082e243d9ebae6e3fe7cdf65a39` | Neither |
+| 22 | `20261126010000_clinical_draft_receipt_reconciliation.sql` | `27dd5ae7e97ab683b56f4064a1e57ffa4ea93ce2` | Neither |
+| 23 | `20261126020000_clinical_live_session_alignment.sql` | `021a7c1a4e9c64d9384bcdbc1442dc26239185d5` | Neither |
+
+Staging needs #12–23 (12); production needs #7–23 (17). Never skip #7–11 in production because staging has them. Do not edit, reorder, squash, repeat or repair history to force agreement.
+
+## 2. Offline preflight
+Use a trusted WSL/Linux checkout of the independently PM-approved **final** exact SHA, full local Git history and objects; no lazy fetch. Obtain target class and actual project ref independently from the owner, and collect scrubbed ordered version history (one exact timestamp per entry). Pin production lgimhirgvresvbsdugac and synthetic staging gxklkkoffpkdcxbqjlav; these are project identifiers, not keys. Do not copy production data to staging.
+From that checkout, use Python 3.12+ and Git:
+```bash
+python3 scripts/release/rc2_operator_preflight.py --expected-source "$APPROVED_SHA" --target synthetic-staging --evidence "$PRIVATE_EVIDENCE/packet.json"
+```
+For production explicitly use --target production with its own packet and approval. No automatic classification, no provider/SQL/CLI invocation, no deployment or authorization. Expected SHA must come independently from PM, not simply HEAD. Script checks exact local HEAD, ancestry, original preflight and migration ledger blob, complete ordered tree, bytes/modes of all tracked source and untracked changes; rejects unknown, duplicate, misordered, missing and extra versions. This checks local consistency, **not authenticity of human attestations**. A forged packet or wrongly supplied approved SHA is not independent evidence. Owner and independent reviewer must authenticate source approval, observed target and evidence privately; never infer from a synthetic fixture. Synthetic tests use --purpose synthetic-regression, cannot satisfy operator-reviewed mode. Keep packets outside the repository on encrypted storage; no credentials or real clinical content in any evidence.
+
+Packet schema: JSON object with exactly purpose ("operator-reviewed"), target ("synthetic-staging" or "production"), project_ref (exact observed identifier), source_sha (exact approved 40-hex), history (ordered array of actual 14-digit version strings), attestations (object). Each required attestation has status "verified", reviewer (nonsecret ID using letters, digits, underscores, dots or hyphens), sha256 (lowercase 64-hex of separately reviewed local scrubbed text artifact named <attestation>.txt beside packet.json). Each artifact must exist, be nonempty and hash-match. Record observed UTC, source/target/cutoff, evidence reference, scope, finding and reviewer approval in each artifact; no raw exports. The script refuses missing/unverified, altered or mismatched evidence. Required names and contents:
+
+| Artifact | Independent evidence to review |
+|---|---|
+| target_identity | dashboard and CLI target independently matched to owner classification; no ambiguous linked default |
+| history_snapshot | exact observed migration history, same target/cutoff, version ordering |
+| physical_schema | actual schema fingerprint vs reviewed prefix, drift report and dependencies |
+| provider_compatibility | PG major/minor/extensions/managed Auth/Storage/API and versions, capacity, supported collection/restore path |
+| auth_storage_api | configuration, identity/session/JWT and private bucket/API acceptance plan, applicable existing-prefix validation |
+| source_acceptance | PM exact final SHA + actual final CI/SOL/TERRA source acceptance |
+| owner_scope_approval | explicit target-specific authorization, operation and window; not a generic project approval |
+| quiescent_cutoff | coordinated source writes/object cutoff and change control |
+| backup_completeness | five-component coverage and independent inventory, hash/cutoff record |
+| independent_backup_verification | trusted signer, both encrypted copies independently verified |
+| independent_destination_capacity | separate approved destination, version, disk/RAM/CPU/network isolation and zero cost |
+| independent_restore_acceptance | actual independent restore evidence, parity, fresh login/RLS/private bytes and measured RPO/RTO |
+| staging_acceptance | production only: accepted final-SHA staging migration and real authorized synthetic UAT with review |
+| rollback_stop_plan | decision owner, stop thresholds, maintenance/restore/fallback plan and measured feasibility |
+
+If any item is unavailable leave it unverified: preflight must refuse. No live prerequisites have been executed by ASTRA in this assignment. A successful consistency check is not a migration runner.
+
+## 3. Physical compatibility and preservation gates
+Owner-authorized read-only evidence must compare actual prefix with a disposable database built from those exact files: PG version, extension availability/versions (including scheduling exclusion support), schemas, types, columns/defaults, PK/FK/unique/check/exclusion constraints, indexes, triggers, RLS enabled/forced, policy predicates/roles/ACLs, security-definer routine definitions/search_path/EXECUTE grants, Auth/Storage managed changes and grants. Compare private schema exposure and Data API schema/routine availability, PostgREST schema refresh and signed JWT claims (role, subject, nonanonymous, expiry, session_id), actual session row existence, bans, deletion, global/branch membership. Check Auth confirmation/redirect/email/rate limits, public publishable key only, private clinical-attachments bucket and MIME/size limits, independent object listing/bytes and signed URL behavior. No service role in browser. Check available database/object capacity, compatibility of CLI and provider export/restore versions. Versions alone cannot establish physical compatibility. Document differences and stop on unknown/incompatible ones.
+Before authorized migration, privately compare row counts/UUIDs, relationships, taxonomy, historical appointment status/resource/owner/pet linkage, prior notes, event/audit/receipts, identity and object metadata/hashes. In synthetic acceptance retain original Dog / Chow Chow species/breed and normalized IDs, legacy requested appointment with unknown branch NULL (no invented branch), unchanged historical records; preserve the corresponding actual clinic history without exposing patient information. Review data constraints and duplicates before changes; no destructive cleanup.
+
+## 4. Sequencing and checkpoints (instructions for future owner authorization, NOT execution)
+1. Freeze accepted SHA; obtain separate owner recovery destination/capacity approval and signed five-component backup/restore acceptance; recheck exact target, prefix and physical schema. Block if no compatible independent restore is possible on $0 resources.
+2. Obtain specific synthetic staging migration approval (scope, target, UTC window, operator, stop authority). Use supported CLI version/help and explicitly confirmed target; review dry-run pending list vs offline output. No implicit linked target or automatic deploy. Do not approve a dry-run with unexpected operations.
+3. For production only after staging approval and a fresh production backup/restore, additionally validate #7–9 taxonomy/catalog/trigger and historic Chow Chow, then #10–11 public booking and corrected private Storage. For both targets #12–15 branch foundation/public booking/staff queue/inventory reads; #16–17 clinical draft/provenance; #18–20 staff approval, inventory transactions and live-session reads; #21 lifecycle/nonce/ban lock; #22 receipt lookup and #23 clinical live-session alignment. Use exact ordered migration files with the approved migration tool, verify recorded versions and resulting schema after each approved checkpoint. Do not treat partial batch as success; if partial, stop and reconcile actual committed prefix before any newly approved plan.
+4. Verify #1–23 exact history, schema and routine/policy/ACL fingerprint, identity/patient/appointment preservation and branch scope. With separately approved synthetic actors only, verify owner A/B privacy and fresh signed JWT, logout/revoke/ban, private objects, no duplicate requested appointment, staff queue 250/251, admin approval/branch role, inventory receiving and stock/ledger conservation, clinical draft CAS/receipt reload and lifecycle exact state/audit. See [feature register](RC2_OPERATIONAL_REGISTER.md) and TERRA issue #63 UAT. No automatic staff bootstrap, flags or real clinical writes. Verify source default flags and target-specific config before any separately approved activation.
+5. Independent SOL/TERRA/PM evidence review, then separate owner production approval. Rehearse production at its actual prefix on an isolated compatible synthetic environment; staging starting at #11 is not proof of production #6 upgrade. Fresh backup/cutoff/restore acceptance, explicit production approval and repeat checks. Keep RC1 source fallback available but never assume it reverses schema; verify backward compatibility before an application rollback. No merge/deploy authorized here.
+
+## 5. Failure and recovery decision
+STOP on wrong target/ref/history, missing approval, schema drift, unsupported extension/provider version, capacity/backup/copy/signature/restore failure, unexpected data changes, failed transaction/constraint, auth/RLS/ACL/object mismatch, wrong clinical revision/receipt, lost stock/appointment history, leaked credential or unresolved CI failure. Keep flags OFF, suspend affected writes under owner direction, preserve error metadata and actual committed migration prefix privately; no retry with changed nonce, no migration-history repair, no destructive down migration or blind replay. A reviewed additive forward correction is preferred if data/authority integrity is intact, but requires routed PM approval; otherwise invoke separately authorized recovery from a verified independent snapshot, with reconciliation for post-cutoff data and owner-approved downtime/data-loss decision. Never restore over either existing hosted project during rehearsal. No recovery over live target without specific independent authorization. Restore/release acceptance requires actual measured parity and owner signoff, not just source/synthetic CI.
+
+## 6. Owner decisions and release limits
+Independent destination and zero-cost capacity, encrypted media/key custody, backup/restore scope and cutoffs, RPO/RTO, explicit staging/production windows, approved hours/services/resources/branch role grants, first administrator bootstrap (separate), synthetic UAT, final clinical/financial/communication availability, deployment/flag approval. Users register and verify their own accounts; staff request access, authorized admin approves actual branch/role; stock is entered by staff via approved UI with recorded receipts. No seed of real staff or inventory. All real provider collection/restore/migration, activation and release NOT EXECUTED. Final accepted frontend import, standalone clinical PG17 reconciliation and final CI remain pending. [Recovery quick guide](RC2_RECOVERY_OPERATOR_GUIDE.md).
