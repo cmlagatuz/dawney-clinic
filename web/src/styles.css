@@ -616,3 +616,11 @@ select:disabled, input:disabled { background: var(--surface-2); color: var(--mut
 }
 @media(max-height: 640px) { .sidebar { gap: var(--space-3); } .sidebar .brand-logo { height: 88px; } }
 
+
+/* Mobile modal drawer: background is inert; skip link outside AppLayout must
+   also stay out of the tab order. Keep desktop navigation nonmodal. */
+.sidebar-close.icon-button { display: none; }
+@media (max-width: 820px) {
+  .sidebar.is-open .sidebar-close { display: inline-flex; align-self: flex-end; width: 44px; color: var(--side-text); background: var(--side-hover); border-color: var(--side-ring); }
+  #root:has(.sidebar.is-open) > .skip-link { visibility: hidden; }
+}
