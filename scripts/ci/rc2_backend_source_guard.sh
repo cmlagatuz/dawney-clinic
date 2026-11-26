@@ -5,7 +5,7 @@ fail(){ echo "RC2_BACKEND_BLOCKED: $*" >&2; exit 1; }
 phase=be49e7b25ff7ab3a5eee3ef42b6e62cc50c84267
 base=2e029697fc2c446171a951167b30bcf7679c286e
 import=faba29cdfa0f0f67b4a6baba2fae84b25a2a411a
-checkpoint=4e56357eb1f0da3e02297d18574eb1d34e820777
+checkpoint=56224eea6929c65e9fb9edd5a92407747615fda8
 recovery=e8537d5535ac7b5277cd790968ac26d7494c8bad
 readme=eeaa425509380499b4b228fd4fe9f73d969b1aac
 [[ "${GITHUB_ACTIONS:-}" == true && "${GITHUB_EVENT_NAME:-}" == pull_request && "${GITHUB_REPOSITORY:-}" == cmlagatuz/dawney-clinic && "${EXPECTED_HEAD_SHA:-}" == "$(git rev-parse HEAD)" ]] || fail 'requires official exact head'

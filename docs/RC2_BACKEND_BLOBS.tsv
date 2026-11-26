@@ -1,5 +1,5 @@
 mode	blob	path
-100644	6b9e2de0b9aeb6d9901dee10259216517404cec8	.github/workflows/clinical-draft-receipt-pg17.yml
+100644	e7e5b61c5a34fe91a6db06db529dc229b950c2e0	.github/workflows/clinical-draft-receipt-pg17.yml
 100644	77d34542925eb948ac92e8eb73ed99ecb54a6a86	.github/workflows/clinical23-live-session-pg17.yml
 100644	9d3dfd6380edee097d300f7199613fe9cf8aca6b	.github/workflows/full-tree-pg17-security.yml
 100644	45316c29a95ca45aae8a8adad212d1eeb3062ac2	.github/workflows/manual-supabase-recovery.yml
@@ -13,7 +13,7 @@ mode	blob	path
 100644	2ddb4814f6bfd383f4acccac38a510f8ba71baea	docs/RC2_MIGRATION_BLOBS.tsv
 100644	9ad043abfd812394a7b4ef37ba4901862783d346	readme.md
 100644	9adc01d030eef1813f2a385e8f42a40ed392e793	scripts/ci/clinical23_session_order_pg17.sh
-100644	3b658db5c64f91a2e4ade01e4b7243096da918a4	scripts/ci/rc2_backend_source_guard.sh
+100644	fcbf14d64d3b9c98cf2c2bb05c6069fe364e6c3e	scripts/ci/rc2_backend_source_guard.sh
 100644	150756f18c1b93f70fc0e69b8892720c2f17e0e2	scripts/ci/rc2_backend_source_guard_test.sh
 100644	bc69a62d511f99adbcb817f0387e536a0d6e0d6d	scripts/ci/rc2_frozen_checks.sh
 100644	22a7466aa144b3f9ed2f9e530d83f00b6b857403	scripts/recovery/manual-supabase-recovery.py
