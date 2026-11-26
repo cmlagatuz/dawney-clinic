@@ -18,6 +18,10 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 27 November 2026, 02:58 Asia/Riyadh
+
+- Staging original password unknown; owner rejects rotation. Temporary Access enabled per owner screenshot, access-rule form prepared but creation not verified/authorized. [ASTRA authentication correction](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7205905859) remains assigned, corrected file not yet delivered in GitHub evidence; SOL exact-file review follows. No repeat storage diagnostics. Owner must launch existing ASTRA chat; GitHub directive is not execution. Frozen RC2 unchanged, all20 triggered success reverified. No successful export, hosted change or spending by PM; clinic-live NO-GO.
+
 ### PM checkpoint — 27 November 2026, 01:04 Asia/Riyadh
 
 - [ASTRA Windows-native limited database export delivery](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7203936695) scope accepted; standalone chat script not accessible for PM source inspection, actual Windows/provider execution NOT RUN. [PM setup decision](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7204348788), [SOL exact-file review](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7204349454). Free PG17 clients and Gpg4win, no full stack. Synthetic-only staging first after actual script review; D warning retained. No sensitive production export on current unprotected host, no repairs, hosted writes, restore or spending. Frozen RC2 unchanged; all20 triggered reverified. Clinic-live NO-GO.
