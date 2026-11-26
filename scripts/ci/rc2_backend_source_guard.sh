@@ -5,7 +5,7 @@ fail(){ echo "RC2_BACKEND_BLOCKED: $*" >&2; exit 1; }
 phase=be49e7b25ff7ab3a5eee3ef42b6e62cc50c84267
 base=2e029697fc2c446171a951167b30bcf7679c286e
 import=faba29cdfa0f0f67b4a6baba2fae84b25a2a411a
-checkpoint=d511d983d673fb3eb4e9ca5b272358973b112b84
+checkpoint=4e56357eb1f0da3e02297d18574eb1d34e820777
 recovery=e8537d5535ac7b5277cd790968ac26d7494c8bad
 readme=eeaa425509380499b4b228fd4fe9f73d969b1aac
 [[ "${GITHUB_ACTIONS:-}" == true && "${GITHUB_EVENT_NAME:-}" == pull_request && "${GITHUB_REPOSITORY:-}" == cmlagatuz/dawney-clinic && "${EXPECTED_HEAD_SHA:-}" == "$(git rev-parse HEAD)" ]] || fail 'requires official exact head'
@@ -26,7 +26,7 @@ for p in .github/workflows/manual-supabase-recovery.yml docs/MANUAL_SUPABASE_REC
   test "$(git ls-tree HEAD -- "$p")" = "$(git ls-tree "$source" -- "$p")" || fail "accepted blob/mode $p"
  fi
 done
-diff -u <(printf '%s\n' docs/RC2_BACKEND_BLOBS.tsv scripts/ci/rc2_backend_source_guard.sh scripts/ci/rc2_backend_source_guard_test.sh) <(git diff --name-only "$checkpoint" HEAD) || fail 'unexpected post-checkpoint delta'
+diff -u <(printf '%s\n' docs/RC2_BACKEND_BLOBS.tsv scripts/ci/rc2_backend_source_guard.sh) <(git diff --name-only "$checkpoint" HEAD) || fail 'unexpected post-checkpoint delta'
 diff -u <(printf '%s\n' .github/workflows/clinical-draft-receipt-pg17.yml .github/workflows/clinical23-live-session-pg17.yml .github/workflows/full-tree-pg17-security.yml .github/workflows/manual-supabase-recovery.yml .github/workflows/operational-p2-recovery-pg17.yml .github/workflows/operational-staff-inventory-pg17.yml .github/workflows/rc1-preparation.yml .github/workflows/staff-appointment-lifecycle-pg17.yml docs/AI_HANDOFF.md docs/MANUAL_SUPABASE_RECOVERY.md docs/RC2_BACKEND_BLOBS.tsv docs/RC2_BACKEND_INTEGRATION.md docs/RC2_MIGRATION_BLOBS.tsv readme.md scripts/ci/clinical23_session_order_pg17.sh scripts/ci/rc2_backend_source_guard.sh scripts/ci/rc2_backend_source_guard_test.sh scripts/ci/rc2_frozen_checks.sh scripts/recovery/manual-supabase-recovery.py scripts/recovery/tests/manual-supabase-recovery-test.py supabase/tests/clinical23_attachment_scope_pg17.sql) <(git diff --name-only "$phase" HEAD) || fail 'unexpected delta'
 diff -u <(printf '%s\n' .github/workflows/clinical-draft-receipt-pg17.yml .github/workflows/clinical23-live-session-pg17.yml .github/workflows/full-tree-pg17-security.yml .github/workflows/manual-supabase-recovery.yml .github/workflows/operational-p2-recovery-pg17.yml .github/workflows/operational-staff-inventory-pg17.yml .github/workflows/rc1-preparation.yml .github/workflows/staff-appointment-lifecycle-pg17.yml docs/AI_HANDOFF.md docs/MANUAL_SUPABASE_RECOVERY.md docs/RC2_BACKEND_INTEGRATION.md docs/RC2_MIGRATION_BLOBS.tsv readme.md scripts/ci/clinical23_session_order_pg17.sh scripts/ci/rc2_backend_source_guard.sh scripts/ci/rc2_backend_source_guard_test.sh scripts/ci/rc2_frozen_checks.sh scripts/recovery/manual-supabase-recovery.py scripts/recovery/tests/manual-supabase-recovery-test.py supabase/tests/clinical23_attachment_scope_pg17.sql) <(cut -f3 docs/RC2_BACKEND_BLOBS.tsv | tail -n +2) || fail 'delta ledger paths'
 while IFS=$'\t' read -r mode blob path; do
