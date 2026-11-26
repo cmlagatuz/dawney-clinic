@@ -121,7 +121,9 @@ jobs:
           command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
           bash -n scripts/ci/full_tree_pg17.sh
       - name: Run actual full-tree six + four + Storage correction, RLS and mandatory policy rejection
-        run: bash scripts/ci/full_tree_pg17.sh
+        run: |
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+          bash scripts/ci/rc2_frozen_checks.sh full-tree
 
   full-tree-node-typescript-vite:
     runs-on: ubuntu-latest
@@ -146,15 +148,16 @@ jobs:
         run: |
           test "$VITE_PHASE4_PATIENT_FORM" = 'false'
           test "$VITE_PHASE5A_OPS_UI" = 'false'
-      - name: Require PR88 frozen manifest plus exact four CLOUD PR91 slot/browser blobs before Node/Vite
+      - name: Require final exact web tree plus frozen PR88/PR91/PR94 assertions before Node/Vite
         run: |
-          bash scripts/ci/pr88_frontend_pins.sh
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+          bash scripts/ci/rc2_frozen_checks.sh pr88-frontend
           test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
       - name: Run integrated React/booking/queue contract Node tests and TypeScript/Vite build
         working-directory: web
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
-          npm test
+          node ../scripts/release/mandatory-test-gate.mjs frontend 314
           npm run build
           node --check tests/integration/smoke.mjs
       - name: Run Grok-accepted hosted security contract OFFLINE only
@@ -211,9 +214,10 @@ jobs:
         run: |
           test "$VITE_PHASE4_PATIENT_FORM" = 'false'
           test "$VITE_PHASE5A_OPS_UI" = 'false'
-      - name: Require PR88 frozen manifest plus exact four CLOUD PR91 slot/browser blobs before Chromium
+      - name: Require final exact web tree plus frozen PR88/PR91/PR94 assertions before Chromium
         run: |
-          bash scripts/ci/pr88_frontend_pins.sh
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+          bash scripts/ci/rc2_frozen_checks.sh pr88-frontend
           test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
       - name: Locked Vite build from full frontend/backend integration tree
         working-directory: web
@@ -249,7 +253,12 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         run: |
           set -euo pipefail
-          (cd .. && bash scripts/ci/pr88_frontend_pins.sh)
+          (
+            cd ..
+            EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+            bash scripts/ci/rc2_frozen_checks.sh pr88-frontend
+            test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
+          )
           node --check tests/branch-booking.browser.mjs
           # Rebuild ONLY the local preview against inert synthetic fixture origin.
           npm run build
@@ -270,7 +279,12 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_issue51_offline
         run: |
           set -euo pipefail
-          (cd .. && bash scripts/ci/pr88_frontend_pins.sh)
+          (
+            cd ..
+            EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+            bash scripts/ci/rc2_frozen_checks.sh pr88-frontend
+            test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
+          )
           node --check tests/slot-routes.chromium.test.mjs
           # Browser uses localhost Vite, intercepts every external HTTP request;
           # any unexpected third-party route is denied by CLOUD's unchanged test.

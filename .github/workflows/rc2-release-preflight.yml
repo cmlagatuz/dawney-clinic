@@ -1,0 +1,28 @@
+name: RC2 offline operator preflight
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/rc2-release-preflight.yml'
+      - 'scripts/release/rc2_operator_preflight*.py'
+      - 'docs/RC2_*'
+      - 'docs/AI_HANDOFF.md'
+      - 'supabase/migrations/**'
+permissions:
+  contents: read
+jobs:
+  offline-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact head and synthetic local-only regression
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          python3 scripts/release/rc2_operator_preflight_test.py

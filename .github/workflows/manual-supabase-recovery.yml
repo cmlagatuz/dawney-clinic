@@ -1,0 +1,52 @@
+name: Manual recovery package synthetic verification
+on:
+  pull_request:
+    paths:
+      - 'scripts/recovery/manual-supabase-recovery.py'
+      - 'scripts/recovery/tests/manual-supabase-recovery-test.py'
+      - '.github/workflows/manual-supabase-recovery.yml'
+      - 'docs/MANUAL_SUPABASE_RECOVERY.md'
+permissions:
+  contents: read
+jobs:
+  manual-synthetic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.7
+        env:
+          POSTGRES_PASSWORD: synthetic-only
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Freeze application and migration trees, exact four-path recovery delta
+        run: |
+          set -euo pipefail
+          base=2e029697fc2c446171a951167b30bcf7679c286e
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          git merge-base --is-ancestor "$base" HEAD
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+          accepted=e8537d5535ac7b5277cd790968ac26d7494c8bad
+          test "$(git rev-parse "$base:web")" = "$(git rev-parse "$accepted:web")"
+          test "$(git rev-parse "$base:supabase")" = "$(git rev-parse "$accepted:supabase")"
+          diff -u <(printf '%s\n' .github/workflows/manual-supabase-recovery.yml docs/MANUAL_SUPABASE_RECOVERY.md scripts/recovery/manual-supabase-recovery.py scripts/recovery/tests/manual-supabase-recovery-test.py) <(git diff --name-only "$base" "$accepted")
+          test "$(git rev-parse faba29cdfa0f0f67b4a6baba2fae84b25a2a411a:.github/workflows/manual-supabase-recovery.yml)" = "$(git rev-parse "$accepted:.github/workflows/manual-supabase-recovery.yml")"
+      - name: Actual synthetic package and independent PG17 restore
+        env:
+          DAWNEY_SYNTHETIC_PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: python3 scripts/recovery/tests/manual-supabase-recovery-test.py

@@ -51,8 +51,9 @@ jobs:
             test "$(git rev-parse "HEAD:$path")" = "$sha"
             test "$(git hash-object "$path")" = "$sha"
           done < docs/RC1_MIGRATION_BLOBS.tsv
-          test "$(find supabase/migrations -maxdepth 1 -name '*.sql' | wc -l)" = 22
-          test "$(git diff --name-only 2e029697fc2c446171a951167b30bcf7679c286e HEAD -- supabase/migrations)" = 'supabase/migrations/20261126010000_clinical_draft_receipt_reconciliation.sql'
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+          test "$(git ls-tree -r --name-only 2a79d535ec7b473581381a0122a20afbcefc3256 -- supabase/migrations | wc -l)" = 22
+          test "$(git diff --name-only 2e029697fc2c446171a951167b30bcf7679c286e 2a79d535ec7b473581381a0122a20afbcefc3256 -- supabase/migrations)" = 'supabase/migrations/20261126010000_clinical_draft_receipt_reconciliation.sql'
           command -v psql
           test "$(psql -XAt -v ON_ERROR_STOP=1 -c 'show server_version_num')" -ge 170000
       - name: Apply original frozen #1–17 and synthetic historical patient

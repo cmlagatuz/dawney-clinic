@@ -37,12 +37,24 @@ test('CLOUD RELEASE: full clinic owner-to-operator route acceptance with source-
       // Use the existing real owner form to issue one request (not a staff-created appointment).
       await browser.send('Emulation.setDeviceMetricsOverride',
         {width:768,height:900,deviceScaleFactor:1,mobile:false})
-      await browser.goto(url+'/app/appointments?actor=owner&theme=light&reset=1')
-      await browser.until('!!document.querySelector("form[aria-label=\'Appointment request\']")',9000)
+      await browser.goto(url+'/app/appointments?actor=owner&theme=light&reset=1&hold-owner-pets=1')
+      // Require the real loading view while the catalog pet read is held.
+      await browser.until('window.__cloudIntegrated.ownerPetsHeld&&[...document.querySelectorAll("[role=status]")].some(e=>e.textContent.includes("Checking which patients can be booked online"))',9000)
+      const pending=await browser.value('({reads:window.__cloudIntegrated.ownerEligibilityReads,rpcs:window.__cloudIntegrated.rpcs,form:!!document.querySelector("form[aria-label=\'Appointment request\']")})')
+      assert.ok(pending.reads.length>0)
+      assert.ok(pending.reads.every(r=>r.actor==='owner'&&r.ownerId==='40000000-0000-4000-8000-000000000008'),'eligibility is scoped to the verified owner')
+      assert.deepEqual(pending.rpcs,[])
+      assert.equal(pending.form,false,'no request form during eligibility loading')
+      await browser.value('window.__cloudIntegrated.releaseOwnerPets();true')
+      // The form is mounted after eligibility resolves, but petId is populated
+      // by a subsequent React effect. A visible form alone is not readiness.
+      await browser.until('(()=>{const p=document.querySelector(".patient-select select");return p?.value==="40000000-0000-4000-8000-000000000009"&&p.selectedOptions.length===1&&!p.selectedOptions[0].disabled&&p.selectedOptions[0].textContent.includes("Synthetic Patient")})()',9000)
       assert.equal(await browser.value('document.querySelector("form select").value'),
         '40000000-0000-4000-8000-000000000009','owner verified pet selected')
+      assert.deepEqual(await browser.value('[...document.querySelectorAll(".patient-select option")].filter(e=>e.value).map(e=>({id:e.value,disabled:e.disabled}))'),[{id:'40000000-0000-4000-8000-000000000009',disabled:false}],'only the authorized eligible patient is offered')
+      assert.equal(await browser.value('document.querySelector("form[aria-label=\'Appointment request\'] button.button-primary").disabled'),true,'no submission before service, date and reason')
       await browser.value('(()=>{const e=document.querySelectorAll("form[aria-label=\'Appointment request\'] select")[1];e.value="40000000-0000-4000-8000-000000000003";e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
-      await browser.until('document.querySelectorAll("form[aria-label=\'Appointment request\'] select").length>=3')
+      await browser.until('(()=>{const f=document.querySelector("form[aria-label=\'Appointment request\']"),p=f?.querySelector(".patient-select select");return f?.querySelectorAll("select").length>=3&&p?.value==="40000000-0000-4000-8000-000000000009"&&!p.selectedOptions[0].disabled&&![...f.querySelectorAll("[role=status]")].some(e=>e.textContent.includes("Checking which animals"))})()')
       const date=await browser.value('(()=>[...document.querySelectorAll("form[aria-label=\'Appointment request\'] select")[2].options].map(e=>e.value).find(Boolean))()')
       assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(date))
       await browser.value('localStorage.setItem("cloud.integrated.day",'+JSON.stringify(date)+');true')
@@ -60,6 +72,9 @@ test('CLOUD RELEASE: full clinic owner-to-operator route acceptance with source-
       assert.equal(owner.rpc.length,2)
       assert.deepEqual(owner.rpc[0],owner.rpc[1],'retry is same nonce, status remains requested')
       assert.equal(owner.booking.status,'requested')
+      assert.equal(owner.rpc[0].p_pet_id,'40000000-0000-4000-8000-000000000009')
+      assert.equal(owner.booking.pet_id,owner.rpc[0].p_pet_id)
+      assert.equal(owner.booking.owner_id,'40000000-0000-4000-8000-000000000008')
       assert.deepEqual(owner.writes,[])
       for(const width of [360,768,1440]){
         await browser.send('Emulation.setDeviceMetricsOverride',
@@ -92,7 +107,7 @@ test('CLOUD RELEASE: full clinic owner-to-operator route acceptance with source-
           assert.ok(toolbar.audit.some(x=>x.actor==='staff'&&x.path==='/rest/v1/appointments'&&x.branch==='40000000-0000-4000-8000-000000000001'))
           assert.ok(!toolbar.audit.some(x=>x.actor==='staff'&&x.path==='/rest/v1/appointments'&&!x.branch),'zero unscoped fallback')
           await browser.value('(()=>{const e=document.querySelector("select[aria-label=\'Appointment status\']");e.focus();e.value="confirmed";e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
-          await browser.until('!!document.querySelector("#main-content h2")')
+          await browser.until('document.querySelector("#main-content")?.textContent.includes("No matching appointments in the loaded rows")',9000)
           assert.equal(await browser.value('!!document.querySelector(".ops-visit")'),false,'only real confirmed rows allowed')
           await browser.value('(()=>{const e=document.querySelector("select[aria-label=\'Appointment status\']");e.value="requested";e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
           await browser.until('!!document.querySelector(".ops-visit")')
@@ -151,7 +166,8 @@ test('CLOUD RELEASE: full clinic owner-to-operator route acceptance with source-
       assert.equal(await browser.value('document.body.textContent.includes("Synthetic Patient")'),false,
         'owner B cannot see owner A pet')
       await browser.goto(url+'/app/appointments?actor=other')
-      await browser.until('!!document.querySelector("#main-content")',9000)
+      await browser.until('document.querySelector("#main-content")?.textContent.includes("No appointments yet.")&&document.querySelector(".patient-select select")?.value==="40000000-0000-4000-8000-000000000015"',9000)
+      assert.equal(await browser.value('!!document.querySelector(".patient-select option[value=\'40000000-0000-4000-8000-000000000009\']")'),false,'owner B cannot select owner A patient')
       assert.equal(await browser.value('document.body.textContent.includes("Synthetic cross-module appointment")'),false,
         'owner B cannot see owner A requested appointment')
       await browser.goto(url+'/app/ops?actor=other')

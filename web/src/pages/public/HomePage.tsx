@@ -23,7 +23,7 @@ export function HomePage() {
 
     <section className="section" aria-labelledby="svc-heading">
       <div className="section-heading"><h2 id="svc-heading">Services at our Naga Branch</h2><Link to="/services">All services</Link></div>
-      <ul className="service-grid">{NAGA_SERVICE_CATEGORIES.map(c => <li key={c} className="card"><h3>{c}</h3></li>)}</ul>
+      <ul className="service-grid home-services">{NAGA_SERVICE_CATEGORIES.map(c => <li key={c}><h3>{c}</h3></li>)}</ul>
       <p className="alert alert-info"><Icon name="shield" width={18} height={18} /><span>This is a list of the kinds of care offered. For details about your animal, please message our Facebook page. Check current online request status on our <Link to="/book">booking page</Link>. A request is not a confirmed appointment.</span></p>
     </section>
 

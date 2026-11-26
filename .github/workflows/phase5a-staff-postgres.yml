@@ -7,6 +7,7 @@ on:
       - 'supabase/tests/phase5a_staff_*.sql'
       - 'supabase/migrations/**'
       - 'scripts/ci/tests/phase5a-staff-workflow.test.mjs'
+      - 'scripts/ci/tests/phase5a-target-guard.test.mjs'
       - 'web/src/staff-read-contract.mjs'
       - 'web/tests/staff-read-contract.test.mjs'
       - 'docs/PHASE5A_STAFF_READ_CONTRACT.md'
@@ -17,6 +18,7 @@ on:
       - 'supabase/tests/phase5a_staff_*.sql'
       - 'supabase/migrations/**'
       - 'scripts/ci/tests/phase5a-staff-workflow.test.mjs'
+      - 'scripts/ci/tests/phase5a-target-guard.test.mjs'
       - 'web/src/staff-read-contract.mjs'
       - 'web/tests/staff-read-contract.test.mjs'
 
@@ -56,7 +58,8 @@ jobs:
       - name: Apply actual six Phase2/3 migrations and prove RLS plus queue boundaries
         run: |
           set -euo pipefail
-          test "$PGHOST" = '127.0.0.1' && test "$PGDATABASE" = 'phase5a_staff_ci'
+          test "$PGHOST" = '127.0.0.1'
+          test "$PGDATABASE" = 'phase5a_staff_ci'
           psql -X -v ON_ERROR_STOP=1 -f supabase/tests/phase5a_staff_pg17_bootstrap.sql
           for migration in \
             supabase/migrations/20261113070302_phase2_core_data_security.sql \
@@ -98,6 +101,8 @@ jobs:
           persist-credentials: false
       - name: Verify Phase5A migration triggers and fail-closed dependency-head drift
         run: node --test scripts/ci/tests/phase5a-staff-workflow.test.mjs
+      - name: Prove both disposable target guards fail closed
+        run: node --test scripts/ci/tests/phase5a-target-guard.test.mjs
       - name: Check exact Phase5A staff queue reader and fetch pinned booking/taxonomy commits
         shell: bash
         run: |
@@ -128,7 +133,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$PGHOST" = '127.0.0.1' && test "$PGDATABASE" = 'phase5a_booking_ci'
+          test "$PGHOST" = '127.0.0.1'
+          test "$PGDATABASE" = 'phase5a_booking_ci'
           psql -X -v ON_ERROR_STOP=1 -f supabase/tests/phase5a_staff_pg17_bootstrap.sql
           for migration in \
             supabase/migrations/20261113070302_phase2_core_data_security.sql \
