@@ -18,6 +18,13 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 26 November 2026, 13:11 Asia/Riyadh
+
+- [ASTRA combined RC2](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7187535368) `55e86d4f431878d9e4c142b657d7640c81272c6a`: exact accepted clinical frontend imported, 23 migrations preserved per report; 19/20 triggered workflows, actual unified 313/313 +69/69 +5/5 and current #1–23 signed synthetic restore PASS. Standalone clinical PG17 restored to green. Offline preflight 21/21 reported, actual new frontend drift refusal PASS. Mandatory ASTRA workflow fails browser #88 (312/313), same failure on CLOUD. Not final source acceptance.
+- [CLOUD](https://github.com/cmlagatuz/dawney-clinic/pull/137#issuecomment-7187500695) `4ed79ff9bec80ce55c7fe965a5f1adcb6d09fa58`: two test-only paths; actual #222/#265/#266 PASS in both React/static; static 314/314, React 313/314 due #88 (line136 password form after path change). Shared test synchronization hypothesis not proven product defect; CLOUD sole correction owner; design import still gated. 3/6 workflows; historical guards red on isolated branch.
+- [SOL preflight source PASS](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7187494179) at 939bc5f1237d90df431d06408e8812682fd58421 accepted within scope. [TERRA frozen design review](https://github.com/cmlagatuz/dawney-clinic/pull/137#issuecomment-7187514825) accepted as completed review, not final UI acceptance. SOL/TERRA continue exact combined and corrective delta reviews; no duplicate implementation. No screenshot-based design verdict.
+- Provider metadata verified healthy; production exact 6/staging exact 11 versions. Actual provider recovery, physical schema, real Auth/Storage and 34 UAT checks NOT VERIFIED. Cloudflare reports previews deployed for both exact heads. Master unchanged. No hosted actions, flags, merge, deployment, automation or spend. Clinic-live NO-GO.
+
 ### PM checkpoint — 26 November 2026, 11:52 Asia/Riyadh
 
 - [ASTRA PR140](https://github.com/cmlagatuz/dawney-clinic/pull/140) `939bc5f1237d90df431d06408e8812682fd58421`: nine-path release-preparation delta, 17/17 triggered workflows successful; [offline preflight](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45776804506/job/139762303937) 2 positive +18 refusal cases PASS. Historical 23 migrations and recovery/web source unchanged per delivery. Independent SOL delta acceptance pending; no final frontend import. Hosted job skipped.
