@@ -253,7 +253,12 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         run: |
           set -euo pipefail
-          (cd .. && bash scripts/ci/pr88_frontend_pins.sh)
+          (
+            cd ..
+            EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+            bash scripts/ci/rc2_frozen_checks.sh pr88-frontend
+            test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
+          )
           node --check tests/branch-booking.browser.mjs
           # Rebuild ONLY the local preview against inert synthetic fixture origin.
           npm run build
@@ -274,7 +279,12 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_issue51_offline
         run: |
           set -euo pipefail
-          (cd .. && bash scripts/ci/pr88_frontend_pins.sh)
+          (
+            cd ..
+            EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
+            bash scripts/ci/rc2_frozen_checks.sh pr88-frontend
+            test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
+          )
           node --check tests/slot-routes.chromium.test.mjs
           # Browser uses localhost Vite, intercepts every external HTTP request;
           # any unexpected third-party route is denied by CLOUD's unchanged test.

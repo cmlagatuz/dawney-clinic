@@ -22,9 +22,10 @@ CLINICAL_WEB_TREE = "8152e80d44df78c0486aa46f066a8204300b9d66"
 CI_CHECKPOINT = "8a3b35f94b63ac318b9f977d33d4f7153fbd2cc5"
 FINAL_IMPORT = "a811b6e4a3f692839ff574678f885a4622e44b75"
 FINAL_WEB_TREE = "f5dc0a98bf82fc75db7a5bf144f23236523505b8"
-FINAL_README_BLOB = "c4e6929a5d64b31124d999c6cf5970e1fafccf47"
+INITIAL_README_BLOB = "c4e6929a5d64b31124d999c6cf5970e1fafccf47"
+FINAL_README_BLOB = "ea890c3f9e8243f62410f1591cbe39f26c86f0d5"
 FINAL_LEDGER = "docs/RC2_FINAL_SOURCE_BLOBS.tsv"
-FINAL_PATHS = [".github/workflows/full-tree-pg17-security.yml",".github/workflows/phase3-release.yml",".github/workflows/rc1-preparation.yml",".github/workflows/staff-appointment-lifecycle-pg17.yml","docs/AI_HANDOFF.md","docs/RC2_CI_INTEGRITY.md","docs/RC2_FINAL_IMPORT_BLOBS.tsv","docs/RC2_OPERATIONAL_REGISTER.md","docs/RC2_OPERATOR_RELEASE_PACKET.md","docs/RC2_RECOVERY_OPERATOR_GUIDE.md","scripts/ci/rc2_backend_source_guard.sh","scripts/ci/rc2_backend_source_guard_test.sh","scripts/ci/rc2_frozen_checks.sh","scripts/release/mandatory-test-gate.mjs","scripts/release/rc2_operator_preflight.py","scripts/release/rc2_operator_preflight_test.py"]
+FINAL_PATHS = [".github/workflows/full-tree-pg17-security.yml",".github/workflows/phase3-release.yml",".github/workflows/rc1-preparation.yml",".github/workflows/staff-appointment-lifecycle-pg17.yml","docs/AI_HANDOFF.md","docs/RC2_CI_INTEGRITY.md","docs/RC2_FINAL_IMPORT_BLOBS.tsv","docs/RC2_OPERATIONAL_REGISTER.md","docs/RC2_OPERATOR_RELEASE_PACKET.md","docs/RC2_RECOVERY_OPERATOR_GUIDE.md","readme.md","scripts/ci/rc2_backend_source_guard.sh","scripts/ci/rc2_backend_source_guard_test.sh","scripts/ci/rc2_frozen_checks.sh","scripts/release/mandatory-test-gate.mjs","scripts/release/rc2_operator_preflight.py","scripts/release/rc2_operator_preflight_test.py"]
 LEDGER = "docs/RC2_MIGRATION_BLOBS.tsv"
 LEDGER_BLOB = "2ddb4814f6bfd383f4acccac38a510f8ba71baea"
 RC1_PREFLIGHT = "scripts/release/rc1_staging_preflight.sh"
@@ -115,6 +116,8 @@ def verify_source(expected):
          "INCORRECT_FINAL_IMPORT_TREE")
     need(git("rev-parse", expected + ":web").decode().strip() == FINAL_WEB_TREE,
          "UNAPPROVED_FRONTEND_TREE")
+    need(git("rev-parse", FINAL_IMPORT + ":readme.md").decode().strip() == INITIAL_README_BLOB,
+         "INCORRECT_INITIAL_README_IMPORT")
     need(git("rev-parse", expected + ":readme.md").decode().strip() == FINAL_README_BLOB,
          "UNAPPROVED_README")
     actual = tree(expected)

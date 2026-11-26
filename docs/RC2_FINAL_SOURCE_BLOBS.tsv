@@ -1,5 +1,5 @@
 # mode	blob	path
-100644	c2b1b7ddc8bef8319c418bf9406316ad984320b3	.github/workflows/full-tree-pg17-security.yml
+100644	825f55c3d9cbbcc30221a3be257544ed376c8254	.github/workflows/full-tree-pg17-security.yml
 100644	00c4f18043239fb8a5ddd422f4fff61653a18a72	.github/workflows/phase3-release.yml
 100644	16f91878f6893a3889a8eda371c7c9f550fc048d	.github/workflows/rc1-preparation.yml
 100644	ecd9eaf227be19f40942810bdf58f59d9e8c835d	.github/workflows/staff-appointment-lifecycle-pg17.yml
@@ -9,9 +9,10 @@
 100644	e8981a6ae5c606e758ffb6c36cba4af076acbda0	docs/RC2_OPERATIONAL_REGISTER.md
 100644	77957c8d1820ccb768112bcd14066ce5c90ccf1d	docs/RC2_OPERATOR_RELEASE_PACKET.md
 100644	b16e7222e2b4f3a52572399bcedcae700c52e4d4	docs/RC2_RECOVERY_OPERATOR_GUIDE.md
-100644	89a2c905a31fb8bf9f40a1880569d0d936c6110c	scripts/ci/rc2_backend_source_guard.sh
+100644	ea890c3f9e8243f62410f1591cbe39f26c86f0d5	readme.md
+100644	dda02b7ece8366012c36deac90e4629a70c72eb5	scripts/ci/rc2_backend_source_guard.sh
 100644	27a132d547045ed280e8f615dd82dca88880f6ec	scripts/ci/rc2_backend_source_guard_test.sh
 100644	ea0b28a03844f4174bd6e1a09cc331bfe15608b1	scripts/ci/rc2_frozen_checks.sh
 100644	c7e78077718ffee325b5d7a9964c43c99538e73a	scripts/release/mandatory-test-gate.mjs
-100644	611da108058fd9c1e7bed04e3d799adcb60ed81d	scripts/release/rc2_operator_preflight.py
+100644	5caa3d0d2a88a3930a9caa06e15b5fd0c7cd03f3	scripts/release/rc2_operator_preflight.py
 100644	d3bc264b650b92c41ef071a8b8fa9caa14b2bfe0	scripts/release/rc2_operator_preflight_test.py
