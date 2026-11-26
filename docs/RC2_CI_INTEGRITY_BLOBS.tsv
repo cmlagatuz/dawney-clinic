@@ -1,0 +1,14 @@
+mode	blob	path
+100644	07c456536495f14da089de52869af7eb3d85076f	.github/workflows/full-tree-pg17-security.yml
+100644	942ed2c8e77d4ce50e295c41b05f2943a094416e	.github/workflows/phase3-release.yml
+100644	911122d60ee39f374b8c5daa8964ec80a9f55098	.github/workflows/phase5a-staff-postgres.yml
+100644	5fe62dc08050ca1ed3842e1241e764a198b2b311	.github/workflows/rc1-preparation.yml
+100644	710de9423d3908aeb8fce6ac8a9ae651ffd17294	.github/workflows/staff-appointment-lifecycle-pg17.yml
+100644	0a807ad4d960dc4c425af5c67104f9523b9d84e7	docs/AI_HANDOFF.md
+100644	86739c7f2cf04a6bc0c0d3abf6c4d85e5aadb79f	docs/RC2_CI_INTEGRITY.md
+100644	59c64acf31714e73a21294ffe7d9f6e82566035e	scripts/ci/rc2_backend_source_guard.sh
+100644	e7ce43ad0429cb160d249331a3285d252cf8bf6c	scripts/ci/rc2_backend_source_guard_test.sh
+100644	7f5c0d61257ab1c206cf286ff1b025d986a97a6a	scripts/ci/rc2_frozen_checks.sh
+100644	5d840245ee00b1c8623927fb1d94887c13a5d646	scripts/ci/tests/phase5a-target-guard.test.mjs
+100644	75a4d1fe9faf827a9e7dbf704f813c0c318f6d20	scripts/release/mandatory-test-gate.mjs
+100644	9ff6c52234bf2e3c8ff247d85ad50de9349f8da5	scripts/release/mandatory-test-gate.test.mjs
