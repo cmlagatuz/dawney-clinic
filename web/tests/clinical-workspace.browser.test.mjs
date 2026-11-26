@@ -6,7 +6,7 @@ import {createServer} from 'vite'
 import {fileURLToPath} from 'node:url'
 import {withChromium} from '../../scripts/browser/cdp.mjs'
 
-function installClinicalFixture(){
+function installClinicalFixture(seed=null,sessionTag=null){
   const uuid=n=>'20000000-0000-4000-8000-'+String(n).padStart(12,'0')
   const ids={naga:uuid(1),cavite:uuid(2),pet:uuid(3),owner:uuid(4),
     appointment:uuid(5),resource:uuid(6),secondPet:uuid(7),secondAppointment:uuid(8),user:uuid(9),secondUser:uuid(10),caviteOwner:uuid(11),caviteAppointment:uuid(13)}
@@ -25,11 +25,13 @@ function installClinicalFixture(){
     email:'synthetic-staff@example.test',email_confirmed_at:'2025-01-01T00:00:00Z',
     created_at:'2025-01-01T00:00:00Z',app_metadata:{},user_metadata:{}}
   const expiry=Math.floor(RealDate.now()/1000)+86400*365
-  const sessionFor=account=>({user:account,access_token:['{"alg":"HS256","typ":"JWT"}',JSON.stringify({sub:account.id,exp:expiry}),'fixture']
+  const sessionFor=account=>({user:account,access_token:['{"alg":"HS256","typ":"JWT"}',JSON.stringify({sub:account.id,exp:expiry,...(sessionTag?{session_id:sessionTag}:{})}),'fixture']
     .map(x=>btoa(x).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')).join('.'),refresh_token:'synthetic-test',expires_at:expiry})
   localStorage.setItem('dawney.auth.v1',JSON.stringify(sessionFor(user)))
   window.__clinicalCalls={paths:[],mutations:[],assertions:[],unexpected:[],draftRequests:[],chartReads:[],receiptReads:[],released:0}
   const coverage=mode==='persist-coverage'
+  const receiptScope=mode==='persist-scope'
+  const durable=receiptScope||mode==='persist-reload'
   let gate=null,readerFailure=null,receiptOutcome=null,readbackFailure=false,receiptGate=null
   let signedOut=false
   window.__clinicalControl={
@@ -46,11 +48,13 @@ function installClinicalFixture(){
     holdReceipt(){let release;const promise=new Promise(resolve=>{release=resolve});receiptGate={promise,release,started:false}},
     get receiptHeld(){return receiptGate?.started===true},
     releaseReceipt(){receiptGate?.release();receiptGate=null},
+    snapshotReceiptFixture(){if(!durable)throw Error('Unexpected snapshot');return structuredClone({draft,receipt,receiptPayload,receipts})},
     forceSignOut(){signedOut=true;localStorage.removeItem('dawney.auth.v1');const channel=new BroadcastChannel('dawney.auth.v1');channel.postMessage({event:'SIGNED_OUT',session:null});channel.close()},
-    switchAccount(){if(!coverage)throw Error('Unexpected fixture account change');user={...user,id:ids.secondUser,email:'second-synthetic-staff@example.test'};const session=sessionFor(user);localStorage.setItem('dawney.auth.v1',JSON.stringify(session));const channel=new BroadcastChannel('dawney.auth.v1');channel.postMessage({event:'SIGNED_IN',session});channel.close()}
+    switchAccount(){if(!coverage&&!receiptScope)throw Error('Unexpected fixture account change');user={...user,id:ids.secondUser,email:'second-synthetic-staff@example.test'};const session=sessionFor(user);localStorage.setItem('dawney.auth.v1',JSON.stringify(session));const channel=new BroadcastChannel('dawney.auth.v1');channel.postMessage({event:'SIGNED_IN',session});channel.close()}
   }
-  let draft=null,receipt=null,receiptPayload=null
-  const receipts=[]
+  // Only the Node test runner supplies committed synthetic server state across documents.
+  let draft=durable?seed?.draft??null:null,receipt=durable?seed?.receipt??null:null,receiptPayload=durable?seed?.receiptPayload??null:null
+  const receipts=durable?structuredClone(seed?.receipts??[]):[]
   const oldFetch=window.fetch.bind(window)
   const reply=(body,status=200)=>new Response(JSON.stringify(body),{
     status,headers:{'content-type':'application/json','access-control-allow-origin':'*'}
@@ -72,7 +76,7 @@ function installClinicalFixture(){
     }
     if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/read_staff_patient_chart'){
       const p=await req.json()
-      if(coverage){
+      if(coverage||receiptScope){
         const account=user.id,branch=p.p_branch,pet=branch===ids.naga?ids.pet:ids.secondPet
         const owner=branch===ids.naga?ids.owner:ids.caviteOwner
         const label=branch===ids.naga?'Naga':account===ids.secondUser?'Second account Cavite':'Cavite'
@@ -87,8 +91,9 @@ function installClinicalFixture(){
           {...base,id:ids.appointment,startsAt,endsAt,status:'confirmed',concern:'Synthetic fixture concern'}
         ]:[{...base,id:ids.caviteAppointment,startsAt,endsAt,status:'confirmed',concern:'Synthetic Cavite concern'}]):
           p.p_section==='records'?[{...base,id:uuid(20),performedAt:startsAt,procedure:label+' synthetic history',comments:null,temperatureC:null,weightKg:null,authoredBy:ids.user}]:
-          branch===ids.naga?[{...base,id:uuid(21),appointmentId:ids.secondAppointment,authorId:ids.user,editorId:ids.user,revision:2,status:'draft',complaint:'Second visit synthetic draft',examination:'Fixture exam',assessment:'Fixture assessment',plan:'Fixture plan',createdAt:startsAt,updatedAt:startsAt}]:[]
+          branch===ids.naga?(receiptScope?(draft?[draft]:[]):[{...base,id:uuid(21),appointmentId:ids.secondAppointment,authorId:ids.user,editorId:ids.user,revision:2,status:'draft',complaint:'Second visit synthetic draft',examination:'Fixture exam',assessment:'Fixture assessment',plan:'Fixture plan',createdAt:startsAt,updatedAt:startsAt}]):[]
         const page={kind:'ok',accountId:account,branchId:branch,section:p.p_section,patient:{id:pet,ownerId:owner,name:label+' synthetic patient',species:'Dog',breed:null,sex:'unknown',birthDate:null,taxonomyReviewNeeded:false},items,hasMore:false,nextCursor:null}
+        if(receiptScope&&p.p_section==='drafts'&&readbackFailure)return reply({code:readbackFailure==='denied'?'42501':'PGRST202'},readbackFailure==='denied'?403:404)
         const failure=p.p_section==='records'?readerFailure:null
         if(gate&&gate.account===account&&gate.branch===branch&&p.p_section==='records'){
           const current=gate;current.started=true;await current.promise
@@ -105,18 +110,21 @@ function installClinicalFixture(){
     }
     if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/reconcile_staff_clinical_draft'){
       const p=await req.json();window.__clinicalCalls.receiptReads.push(p)
-      if(coverage||p.p_branch!==ids.naga||p.p_pet!==ids.pet||p.p_appointment!==ids.secondAppointment)return reply({code:'42501'},403)
+      const nagaVisit=user.id===ids.user&&p.p_branch===ids.naga&&p.p_pet===ids.pet&&p.p_appointment===ids.secondAppointment
+      const caviteVisit=receiptScope&&p.p_branch===ids.cavite&&p.p_pet===ids.secondPet&&p.p_appointment===ids.caviteAppointment
+      if(coverage||(!nagaVisit&&!caviteVisit))return reply({code:'42501'},403)
       const context={accountId:user.id,branchId:p.p_branch,petId:p.p_pet,appointmentId:p.p_appointment,requestId:p.p_request_id,beforeRevision:p.p_before_revision}
-      if(receiptGate){const g=receiptGate;g.started=true;await g.promise}
+      const visitDraft=nagaVisit?draft:null,visitReceipts=nagaVisit?receipts.slice():[]
+      if(receiptGate){const g=receiptGate;g.started=true;await g.promise;if(durable)window.__clinicalCalls.released++}
       if(receiptOutcome==='unknown'||receiptOutcome==='unverified')return reply({...context,kind:'unknown',reason:receiptOutcome==='unknown'?'visit_busy':'receipt_unverified',currentRevision:null,draftId:null,receipt:null})
       if(receiptOutcome==='unavailable')return reply({code:'PGRST202'},404)
       if(receiptOutcome==='malformed')return reply({...context,accountId:ids.secondUser,kind:'not_found',currentRevision:0,draftId:null,receipt:null})
-      const found=receiptOutcome!=='missing'&&receipts.slice().reverse().find(x=>(p.p_request_id===null||p.p_request_id===x.requestId)&&(p.p_before_revision===null||x.revision<p.p_before_revision))
-      return reply({...context,kind:found?'committed':'not_found',currentRevision:draft?.revision??0,draftId:draft?.id??null,receipt:found?(receiptOutcome==='wrong-request'?{...found,requestId:uuid(99)}:found):null})
+      const found=receiptOutcome!=='missing'&&visitReceipts.reverse().find(x=>(p.p_request_id===null||p.p_request_id===x.requestId)&&(p.p_before_revision===null||x.revision<p.p_before_revision))
+      return reply({...context,kind:found?'committed':'not_found',currentRevision:visitDraft?.revision??0,draftId:visitDraft?.id??null,receipt:found?(receiptOutcome==='wrong-request'?{...found,requestId:uuid(99)}:found):null})
     }
     if(mode.startsWith('persist')&&url.pathname==='/rest/v1/rpc/save_staff_clinical_encounter_draft'){
       const p=await req.json();window.__clinicalCalls.draftRequests.push(p)
-      if(coverage)return reply({code:'42501'},403)
+      if(coverage||receiptScope)return reply({code:'42501'},403)
       if(p.p_branch!==ids.naga||p.p_pet!==ids.pet||p.p_appointment!==ids.secondAppointment)return reply({code:'42501'},403)
       if(receiptPayload?.p_request_id===p.p_request_id){if(JSON.stringify(receiptPayload)!==JSON.stringify(p))return reply({code:'23505'},409);return reply(receipt)}
       if(p.p_expected_revision!==(draft?.revision??0))return reply({code:'40001'},409)
@@ -139,7 +147,7 @@ function installClinicalFixture(){
       return reply([{user_id:user.id,role:coverage?'administrator':mode==='reception'||mode==='role-mismatch'||mode==='persist-reception'?'receptionist':'veterinarian',is_active:true}])
     }
     if(url.pathname==='/rest/v1/staff_branch_memberships'){
-      if(coverage)return reply((user.id===ids.secondUser?[ids.cavite]:[ids.naga,ids.cavite]).map(branch_id=>({user_id:user.id,branch_id,role:'administrator',is_active:true})))
+      if(coverage||receiptScope)return reply((user.id===ids.secondUser?[ids.cavite]:[ids.naga,ids.cavite]).map(branch_id=>({user_id:user.id,branch_id,role:coverage?'administrator':'veterinarian',is_active:true})))
       const rows=[{user_id:ids.user,branch_id:ids.naga,role:mode==='reception'||mode==='persist-reception'?'receptionist':'veterinarian',is_active:true}]
       if(mode==='two')rows.push({user_id:ids.user,branch_id:ids.cavite,role:'veterinarian',is_active:true})
       return reply(rows)
@@ -149,8 +157,8 @@ function installClinicalFixture(){
         {id:ids.cavite,slug:'cavite',display_name:'Fixture Cavite'}])
     if(url.pathname==='/rest/v1/appointments'){
       if(mode==='network')throw Error('Failed to fetch clinic appointments')
-      if(coverage&&filter('branch_id')===ids.cavite)return reply([{id:ids.caviteAppointment,pet_id:ids.secondPet,owner_id:ids.caviteOwner,resource_id:ids.resource,branch_id:ids.cavite,starts_at:'2026-11-20T02:00:00Z',ends_at:'2026-11-20T02:30:00Z',status:'confirmed',concern:'Synthetic Cavite concern'}])
-      if(filter('branch_id')!==ids.naga||coverage&&user.id===ids.secondUser)return reply([])
+      if((coverage||receiptScope)&&filter('branch_id')===ids.cavite)return reply([{id:ids.caviteAppointment,pet_id:ids.secondPet,owner_id:ids.caviteOwner,resource_id:ids.resource,branch_id:ids.cavite,starts_at:'2026-11-20T02:00:00Z',ends_at:'2026-11-20T02:30:00Z',status:'confirmed',concern:'Synthetic Cavite concern'}])
+      if(filter('branch_id')!==ids.naga||(coverage||receiptScope)&&user.id===ids.secondUser)return reply([])
       const rows=[{
         id:ids.appointment,pet_id:ids.pet,owner_id:ids.owner,
         resource_id:ids.resource,branch_id:ids.naga,
@@ -601,4 +609,189 @@ test('CLOUD durable receipt route: unknown, missing, malformed, readback failure
    assert.equal(await browser.value('!!document.querySelector(".clinical-chart")||document.body.textContent.includes("Newer synthetic chart revision")'),false)
   })
  }finally{await vite.close();delete process.env.VITE_CLINICAL_DRAFT_PERSISTENCE_UI;delete process.env.VITE_CLINICAL_WORKSPACE_UI}
+})
+
+
+// Node-owned synthetic server continuity. Never persist a note, receipt or
+// visit identifier in application storage. Each new Chromium launch has a
+// temporary profile, and only a committed fixture snapshot is transferred.
+const durableId=n=>'20000000-0000-4000-8000-'+String(n).padStart(12,'0')
+const receiptButton=label=>'[...document.querySelectorAll(".clinical-encounter-editor button")].find(b=>b.textContent==='+JSON.stringify(label)+')'
+const receiptHas=(b,phrase)=>b.until('document.body.textContent.includes('+JSON.stringify(phrase)+')')
+async function receiptClick(b,label){
+ const button=receiptButton(label)
+ await b.until('!!('+button+')&&!('+button+').disabled')
+ await b.value(button+'.click();true')
+}
+async function receiptOpen(b,n,name){
+ await b.until('document.querySelectorAll(".clinical-patient").length>'+n)
+ await b.value('document.querySelectorAll(".clinical-patient")['+n+'].click();true')
+ await receiptHas(b,name)
+ await b.value('document.querySelector("#clinical-tab-encounter").click();true')
+ await b.until('!!document.querySelector(".clinical-encounter-editor textarea:not(:disabled)")')
+}
+async function receiptStorageClean(b,values){
+ const storage=await b.value('JSON.stringify(localStorage)+JSON.stringify(sessionStorage)')
+ for(const value of values.filter(Boolean))assert.equal(storage.includes(value),false,'clinical state must not be stored in application browser storage')
+}
+async function durableBrowser(action){
+ process.env.VITE_SUPABASE_URL='https://issue51-fixtures.supabase.co'
+ process.env.VITE_SUPABASE_PUBLISHABLE_KEY='sb_publishable_issue51_offline'
+ process.env.VITE_CLINICAL_WORKSPACE_UI='true'
+ process.env.VITE_CLINICAL_DRAFT_PERSISTENCE_UI='true'
+ const vite=await createServer({root:fileURLToPath(new URL('../',import.meta.url)),server:{host:'127.0.0.1',port:0,strictPort:false}})
+ try{await vite.listen();await action('http://127.0.0.1:'+vite.httpServer.address().port)}
+ finally{await vite.close();delete process.env.VITE_CLINICAL_DRAFT_PERSISTENCE_UI;delete process.env.VITE_CLINICAL_WORKSPACE_UI}
+}
+const injectReceiptFixture=(b,seed,tag)=>b.send('Page.addScriptToEvaluateOnNewDocument',{source:'('+installClinicalFixture.toString()+')('+JSON.stringify(seed)+','+JSON.stringify(tag)+')'})
+
+test('CLOUD receipt continuity: document reload, fresh session, lost unsaved text and no mutation replay',{timeout:120000},async()=>{
+ await durableBrowser(async origin=>{
+  const id=durableId,committed='Synthetic committed receipt baseline',lost='Synthetic unsaved text must not return'
+  const route=origin+'/app/clinical?case=persist-reload&theme=dark'
+  let seed=null,nonce=null
+  const clean=b=>receiptStorageClean(b,[committed,lost,nonce,id(1),id(3),id(4),id(8),id(12)])
+  const discover=async b=>{
+   await receiptOpen(b,1,'Synthetic clinical patient')
+   await receiptHas(b,'Authoritative draft revision 1')
+   assert.equal(await b.value('document.querySelector(".clinical-encounter-editor textarea").value'),committed)
+   assert.equal(await b.value('document.querySelector(".clinical-encounter-editor button[type=submit]").disabled'),true)
+   assert.equal(await b.value('document.body.textContent.includes('+JSON.stringify(lost)+')||document.body.textContent.includes("Original draft request")'),false)
+   await receiptClick(b,'Find previous own receipt')
+   await receiptHas(b,'Previous own receipt found. Saved revision 1.')
+   await receiptHas(b,'Verified current chart revision 1')
+   await receiptHas(b,'They cannot identify an unknown lost submission or recover unsaved text.')
+   assert.equal(await b.value('document.body.textContent.includes("Exact original request committed")||document.body.textContent.includes("Verified persisted DRAFT saved")'),false)
+   assert.deepEqual(await b.value('window.__clinicalCalls.receiptReads'),[{p_branch:id(1),p_pet:id(3),p_appointment:id(8),p_request_id:null,p_before_revision:null}])
+   assert.equal(await b.value('document.querySelector(".clinical-encounter-editor textarea").disabled'),true)
+   await receiptClick(b,'Review and use current chart')
+   await b.until('!!document.querySelector(".clinical-encounter-editor textarea:not(:disabled)")')
+   assert.equal(await b.value('document.querySelector(".clinical-encounter-editor textarea").value'),committed)
+   assert.equal(await b.value('window.__clinicalCalls.draftRequests.length'),0)
+   assert.deepEqual(await b.value('window.__clinicalCalls.mutations'),[])
+   assert.deepEqual(await b.value('window.__clinicalCalls.unexpected'),[])
+   await clean(b)
+  }
+  await withChromium(async b=>{
+   const init=await injectReceiptFixture(b,seed,id(80))
+   await b.send('Emulation.setDeviceMetricsOverride',{width:360,height:900,deviceScaleFactor:1,mobile:false})
+   await b.goto(route);await receiptOpen(b,1,'Synthetic clinical patient')
+   await b.value('document.querySelector(".clinical-encounter-editor textarea").focus();true')
+   await b.send('Input.insertText',{text:committed})
+   await receiptClick(b,'Save encounter DRAFT')
+   await receiptHas(b,'Verified persisted DRAFT saved.')
+   const requests=await b.value('window.__clinicalCalls.draftRequests')
+   assert.equal(requests.length,1);nonce=requests[0].p_request_id
+   seed=await b.value('window.__clinicalControl.snapshotReceiptFixture()')
+   assert.equal(seed.receipts.length,1);assert.equal(seed.receipts[0].requestId,nonce)
+   assert.equal(seed.draft.complaint,committed)
+   await b.value('document.querySelector(".clinical-encounter-editor textarea").focus();true')
+   await b.send('Input.insertText',{text:lost})
+   await receiptHas(b,'Unsaved local edits');await clean(b)
+   // Actual listener cancellation, not a claim that native browser dialogs
+   // are guaranteed. Cancel one link, then explicitly accept leaving.
+   assert.equal(await b.value('(()=>{const e=new Event("beforeunload",{cancelable:true});return !window.dispatchEvent(e)&&e.defaultPrevented})()'),true)
+   await b.value('window.__warnings=[];window.confirm=m=>{window.__warnings.push(m);return false};true')
+   await b.value('document.querySelector("a[href=\'/app/clinic\']").click();true')
+   assert.equal(await b.value('location.pathname'),'/app/clinical')
+   assert.equal(await b.value('window.__warnings.length===1&&window.__warnings[0].includes("Receipts cannot recover unsaved text")'),true)
+   assert.equal(await b.value('document.querySelector(".clinical-encounter-editor textarea").value.includes('+JSON.stringify(lost)+')'),true)
+   assert.equal(await b.value('window.__clinicalCalls.draftRequests.length'),1)
+   await b.value('window.confirm=()=>true;document.querySelector("a[href=\'/app/clinic\']").click();true')
+   await b.until('location.pathname==="/app/clinic"&&!document.querySelector(".clinical-chart")')
+   // Real document reload, with no dirty editor left to trigger a native
+   // dialog. Return to the original route via history before reloading.
+   await b.value('history.back();true');await b.until('location.pathname==="/app/clinical"')
+   await b.send('Page.removeScriptToEvaluateOnNewDocument',{identifier:init.identifier})
+   await injectReceiptFixture(b,seed,id(80))
+   await b.value('window.__oldClinicalDocument=true;true')
+   await b.send('Page.reload',{ignoreCache:true})
+   await b.until('document.readyState==="complete"&&!window.__oldClinicalDocument&&!!window.__clinicalCalls')
+   await discover(b)
+  })
+  await withChromium(async b=>{
+   await injectReceiptFixture(b,seed,id(81))
+   await b.send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false})
+   await b.goto(route)
+   assert.equal(await b.value('JSON.parse(atob(JSON.parse(localStorage.getItem("dawney.auth.v1")).access_token.split(".")[1].replace(/-/g,"+").replace(/_/g,"/"))).session_id'),id(81))
+   await discover(b)
+   assert.equal(await b.value('document.documentElement.scrollWidth<=innerWidth'),true)
+  })
+  assert.equal(seed.receipts.length,1,'only the first deliberate synthetic mutation committed')
+ })
+})
+
+test('CLOUD receipt scope: held lookup, native history, branch/account replacement and denied readback',{timeout:120000},async()=>{
+ await durableBrowser(async origin=>{
+  const id=durableId,oldText='Synthetic prior Naga receipt content',stamp='2026-11-20T01:00:00Z'
+  const seed={draft:{id:id(12),appointmentId:id(8),branchId:id(1),petId:id(3),authorId:id(9),editorId:id(9),revision:1,status:'draft',complaint:oldText,examination:'',assessment:'',plan:'',createdAt:stamp,updatedAt:stamp},receipts:[{requestId:id(88),revision:1,auditEventId:'1',savedAt:stamp}]}
+  await withChromium(async b=>{
+   await injectReceiptFixture(b,seed,id(82))
+   await b.send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false})
+   const has=phrase=>receiptHas(b,phrase),click=label=>receiptClick(b,label)
+   const select=async n=>{
+    await b.until('!!document.querySelector("#clinical-branch:not(:disabled)")&&Array.from(document.querySelectorAll("#clinical-branch option")).some(o=>o.value==='+JSON.stringify(id(n))+')')
+    await b.value('(()=>{const e=document.querySelector("#clinical-branch");e.value='+JSON.stringify(id(n))+';e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
+   }
+   const enter=async()=>{
+    await b.until('!!document.querySelector("a[href=\'/app/clinical\']")')
+    await b.value('document.querySelector("a[href=\'/app/clinical\']").click();true')
+    await has('Patient charts & encounters')
+   }
+   const hold=async()=>{
+    await b.value('window.__clinicalControl.holdReceipt();true')
+    await click('Find previous own receipt')
+    await b.until('window.__clinicalControl.receiptHeld&&document.querySelector("#clinical-branch").disabled')
+    assert.equal(await b.value('document.querySelector("#clinical-day").disabled&&document.querySelector("#clinical-tab-history").disabled&&document.querySelector(".clinical-encounter-editor textarea").disabled'),true)
+   }
+   const release=async n=>{
+    await b.value('window.__clinicalControl.releaseReceipt();true')
+    await b.until('window.__clinicalCalls.released==='+n)
+    await b.value('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true))))')
+   }
+   const noOld=async()=>{
+    assert.equal(await b.value('document.body.textContent.includes("Naga synthetic patient")||document.body.textContent.includes("Previous own receipt found")||Array.from(document.querySelectorAll("textarea")).some(t=>t.value.includes('+JSON.stringify(oldText)+'))'),false)
+    assert.deepEqual(await b.value('window.__clinicalCalls.draftRequests'),[])
+   }
+   const absent=async()=>{
+    await click('Find previous own receipt')
+    await has('End of own receipt discovery for this cursor.')
+    await has('Verified current chart revision 0')
+    await click('Review and use current chart')
+    await b.until('!!document.querySelector(".clinical-encounter-editor textarea:not(:disabled)")')
+   }
+   await b.goto(origin+'/app/clinic?case=persist-scope&theme=light')
+   await enter();await select(1);await receiptOpen(b,1,'Naga synthetic patient')
+   await has('Authoritative draft revision 1');await hold()
+   assert.equal(await b.value('document.querySelector("#clinical-branch").value'),id(1))
+   // BrowserRouter native SPA history is not covered by link confirmation.
+   await b.value('history.back();true')
+   await b.until('location.pathname==="/app/clinic"&&!document.querySelector(".clinical-chart")')
+   await enter();await select(2);await receiptOpen(b,0,'Cavite synthetic patient')
+   const beforeBranchRelease=await b.value('window.__clinicalCalls.chartReads.length')
+   await release(1);await noOld()
+   assert.equal(await b.value('window.__clinicalCalls.chartReads.length'),beforeBranchRelease,'abandoned receipt cannot start readback')
+   await absent()
+   await select(1);await receiptOpen(b,1,'Naga synthetic patient');await hold()
+   await b.value('window.__clinicalControl.switchAccount();true')
+   await b.until('document.querySelector("#clinical-branch")?.value==='+JSON.stringify(id(2))+'&&!document.querySelector(".clinical-chart")')
+   await receiptOpen(b,0,'Second account Cavite synthetic patient')
+   const beforeAccountRelease=await b.value('window.__clinicalCalls.chartReads.length')
+   await release(2);await noOld()
+   assert.equal(await b.value('window.__clinicalCalls.chartReads.length'),beforeAccountRelease,'old actor receipt cannot start readback')
+   await absent()
+   await b.value('window.__clinicalControl.setReadbackFailure("denied");true')
+   await click('Find previous own receipt')
+   await has('Staff access unavailable')
+   await b.until('!document.querySelector(".clinical-chart")');await noOld()
+   const calls=await b.value('window.__clinicalCalls')
+   assert.deepEqual(calls.receiptReads.map(p=>[p.p_branch,p.p_pet,p.p_appointment,p.p_request_id,p.p_before_revision]),[
+    [id(1),id(3),id(8),null,null],[id(2),id(7),id(13),null,null],
+    [id(1),id(3),id(8),null,null],[id(2),id(7),id(13),null,null],[id(2),id(7),id(13),null,null]])
+   assert.ok(calls.chartReads.some(x=>x.account===id(10)&&x.p_branch===id(2)&&x.p_pet===id(7)))
+   assert.ok(calls.chartReads.filter(x=>x.account===id(10)).every(x=>x.p_branch===id(2)&&x.p_pet===id(7)))
+   assert.deepEqual(calls.mutations,[]);assert.deepEqual(calls.unexpected,[])
+   await receiptStorageClean(b,[oldText,id(88),id(12),id(1),id(2),id(3),id(7),id(8),id(13)])
+  })
+ })
 })
