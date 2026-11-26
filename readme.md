@@ -18,6 +18,10 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 26 November 2026, portable backup storage decision
+
+- Owner clarifies D: is external and nominates dedicated D:\DAWNEY_BACKUPS storage for portable complete encrypted signed packages. Reuse accepted manual utility; separate protected processing workspace and independent restore destination, no plaintext/key storage in ordinary output folder. External/removable status, volume health/capacity, encryption and independent second copy still require qualification. K excluded. [ASTRA continuation](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7199445424). Empty folders may be created by owner; no deletion on owner's behalf, formatting/encryption/install, actual backup/restore, hosted changes or spending authorized. Frozen RC2 unchanged; clinic-live NO-GO.
+
 ### PM checkpoint — 26 November 2026, 20:35 Asia/Riyadh
 
 - Owner Get-Volume evidence for K: FAT32, 28.80 GiB total/22.44 free, Warning/Full Repair Needed, previously confirmed BitLocker OFF. Excluded from qualified backup media pending safe assessment; not proof of hardware failure. Zero qualified copies. [ASTRA continuation](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7199281044). No repair, conversion, formatting, deletion, encryption, backup/restore, hosted changes or spending authorized. Frozen RC2 unchanged; clinic-live NO-GO.
