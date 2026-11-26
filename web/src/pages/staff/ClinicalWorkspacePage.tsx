@@ -3,6 +3,7 @@ import type {User} from '@supabase/supabase-js'
 import {Link} from 'react-router'
 import {useAuth} from '../../hooks/AuthProvider'
 import {EmptyState,LoadingCard,PageHeading,StatusBadge} from '../../components/ui'
+import {CLINICAL_PERSISTENCE_ENABLED,createPersistentChartPort,type ClinicalChartPort} from '../../clinical/chart-port'
 import {PatientChart} from '../../clinical/PatientChart'
 import {createClinicalReadPort,type ClinicalReadPort} from '../../clinical/port'
 import {classifyOpsError,formatDayLabel,formatClinicTime,shortRef,todayInZone,validateWindow} from '../../ops/ops-model.mjs'
@@ -28,6 +29,7 @@ export function ClinicalWorkspacePage(){
 }
 function StaffClinicalWorkspace({user}:{user:User}){
   const port=useMemo(()=>createClinicalReadPort(user),[user.id])
+  const [pending,setPending]=useState(false)
   const [scope,setScope]=useState<Scope>({status:'loading'})
   const [selected,setSelected]=useState<string|null>(null)
   const [attempt,setAttempt]=useState(0)
@@ -49,18 +51,19 @@ function StaffClinicalWorkspace({user}:{user:User}){
   // Selection is never read from a URL or a mutable JWT role hint.
   const branch=scope.status==='ready'&&selected
     ?scope.branches.find(item=>item.id===selected)??null:null
-  const denied=()=>{setScope({status:'failed',kind:'denied'});setSelected(null)}
+  const chartPort=useMemo(()=>CLINICAL_PERSISTENCE_ENABLED&&branch?createPersistentChartPort(user,branch.id,branch.role):undefined,[user.id,branch])
+  const denied=()=>{setPending(false);setScope({status:'failed',kind:'denied'});setSelected(null)}
   return <div className="page clinical-workspace" aria-labelledby="clinical-title">
     <PageHeading id="clinical-title" eyebrow="Clinic staff · controlled preview" title="Patient charts & encounters"
-      actions={<span className="clinical-state">Clinical write services not enabled</span>}>
-      Branch-scoped appointment context. Draft workflows are local only; records and prescriptions
-      cannot be filed until the clinic has approved secure patient-specific API contracts.
+      actions={<span className="clinical-state">{CLINICAL_PERSISTENCE_ENABLED?'Encounter drafts only':'Clinical write services not enabled'}</span>}>
+      {CLINICAL_PERSISTENCE_ENABLED?'Branch-scoped verified chart history and veterinarian encounter drafts. No finalization or medical orders.':'Branch-scoped appointment context. Draft workflows are local only; records and prescriptions cannot be filed until the clinic has approved secure patient-specific API contracts.'}
     </PageHeading>
     {scope.status==='loading'&&<LoadingCard label="Checking active staff identity and permitted clinic branches…" rows={4}/>}
     {scope.status==='failed'&&<ClinicFailure kind={scope.kind} retry={retry}/>}
     {scope.status==='ready'&&<div className="clinical-branch-bar">
       <label htmlFor="clinical-branch">Authorized clinic branch</label>
-      <select id="clinical-branch" value={branch?.id??''} onChange={event=>{
+      <select id="clinical-branch" disabled={pending} value={branch?.id??''} onChange={event=>{
+        if(pending)return
         const next=scope.branches.find(b=>b.id===event.target.value)
         setSelected(next?.id??null)
       }}>
@@ -72,7 +75,7 @@ function StaffClinicalWorkspace({user}:{user:User}){
     {scope.status==='ready'&&!branch&&<EmptyState icon="shield" title="Select an authorized clinic branch">
       No patient information will load before a verified branch selection.</EmptyState>}
     {branch&&<ClinicalDay key={user.id+':'+branch.id} port={port} branch={branch} accountId={user.id}
-      onDenied={denied}/>}
+      onDenied={denied} chartPort={chartPort} pending={pending} onPendingChange={setPending}/>}
     <p className="clinical-boundary">Staff identity, branch access and appointment rows are checked against
       the backend on every read. Patient names, historical records, vaccines, prescriptions and
       treatment orders are not retrieved using unscoped legacy endpoints.</p>
@@ -87,7 +90,7 @@ function ClinicFailure({kind,retry}:{kind:OpsErrorKind;retry:()=>void}){
       <Link to="/app/overview" className="button button-quiet">Return to overview</Link></div>
   </section>
 }
-function ClinicalDay({port,branch,accountId,onDenied}:{port:ClinicalReadPort;branch:OpsBranch;accountId:string;onDenied:()=>void}){
+function ClinicalDay({port,branch,accountId,onDenied,chartPort,pending,onPendingChange}:{port:ClinicalReadPort;branch:OpsBranch;accountId:string;onDenied:()=>void;chartPort?:ClinicalChartPort;pending:boolean;onPendingChange:(value:boolean)=>void}){
   const [day,setDay]=useState(()=>todayInZone(Date.now()))
   const [attempt,setAttempt]=useState(0)
   const readKey=branch.id+':'+day+':'+attempt
@@ -95,7 +98,7 @@ function ClinicalDay({port,branch,accountId,onDenied}:{port:ClinicalReadPort;bra
   const [chosen,setChosen]=useState<{key:string;id:string|null}>({key:readKey,id:null})
   const read:DayLoad=raw.key===readKey?raw:{key:readKey,status:'loading'}
   const selectedId=chosen.key===readKey?chosen.id:null
-  const reload=()=>{setAttempt(n=>n+1)}
+  const reload=()=>{if(!pending)setAttempt(n=>n+1)}
   useEffect(()=>{
     let live=true
     setRaw({key:readKey,status:'loading'})
@@ -112,16 +115,16 @@ function ClinicalDay({port,branch,accountId,onDenied}:{port:ClinicalReadPort;bra
     return ()=>{live=false}
   },[readKey,branch.id,day,port])
   const rows=read.status==='ready'?read.rows.items:[]
-  const patients=Array.from(new Map(rows.map(row=>[row.pet_id,row])).values())
-  const chosenPresent=patients.some(p=>p.pet_id===selectedId)
-  const selected=chosenPresent?selectedId:null
+  const patients=chartPort?rows:Array.from(new Map(rows.map(row=>[row.pet_id,row])).values())
+  const keyFor=(p:OpsRow)=>chartPort?p.id:p.pet_id
+  const selected=(chartPort?patients.find(p=>keyFor(p)===selectedId):rows.find(p=>p.pet_id===selectedId))??null
   return <section aria-label={branch.name+' clinical appointments'}>
     <div className="clinical-daybar">
       <label htmlFor="clinical-day">Clinic date</label>
-      <input id="clinical-day" type="date" value={day} onChange={event=>{
-        if(/^\d{4}-\d{2}-\d{2}$/.test(event.target.value))setDay(event.target.value)
+      <input id="clinical-day" type="date" disabled={pending} value={day} onChange={event=>{
+        if(!pending&&/^\d{4}-\d{2}-\d{2}$/.test(event.target.value))setDay(event.target.value)
       }}/>
-      <button type="button" className="button button-secondary button-small" onClick={reload}>
+      <button type="button" className="button button-secondary button-small" disabled={pending} onClick={reload}>
         Refresh appointments</button>
       <span className="clinical-muted">Showing {formatDayLabel(day)} · read-only</span>
     </div>
@@ -140,25 +143,25 @@ function ClinicalDay({port,branch,accountId,onDenied}:{port:ClinicalReadPort;bra
         <aside className="clinical-roster" aria-label="Patients from authorized appointments">
           <h2>Patients in today’s queue</h2>
           <p className="clinical-muted">Select a verified appointment to inspect clinical workflow.
-            Names are unavailable without a scoped patient reader.</p>
-          <ul>{patients.map(p=><li key={p.pet_id}>
-            <button type="button" className={selected===p.pet_id?'clinical-patient is-selected':'clinical-patient'}
-              aria-pressed={selected===p.pet_id} onClick={()=>setChosen({key:readKey,id:p.pet_id})}>
-              <strong>Patient {shortRef(p.pet_id)}</strong>
+            {chartPort?'Each visit has its own draft context.':'Names are unavailable without a scoped patient reader.'}</p>
+          <ul>{patients.map(p=><li key={keyFor(p)}>
+            <button type="button" className={selectedId===keyFor(p)?'clinical-patient is-selected':'clinical-patient'}
+              disabled={pending} aria-pressed={selectedId===keyFor(p)} onClick={()=>{if(!pending)setChosen({key:readKey,id:keyFor(p)})}}>
+              <strong>Patient {shortRef(p.pet_id)}{chartPort?' · Visit '+shortRef(p.id):''}</strong>
               <span>{formatClinicTime(p.starts_at)} · <StatusBadge status={p.status}/></span>
               <small>{rows.filter(row=>row.pet_id===p.pet_id).length} visit(s) in selected day</small>
             </button></li>)}</ul>
         </aside>
         <div className="clinical-detail">
           {selected
-            ?<PatientChart key={branch.id+':'+readKey+':'+selected} petId={selected}
+            ?<PatientChart key={branch.id+':'+readKey+':'+selected.id} petId={selected.pet_id}
               rows={rows} branchName={branch.name} role={branch.role}
-              accountId={accountId} ownerId={rows.find(r=>r.pet_id===selected)?.owner_id??''}
-              branchId={branch.id} appointmentId={rows.find(r=>r.pet_id===selected)?.id??''}
+              accountId={accountId} ownerId={selected.owner_id}
+              branchId={branch.id} appointmentId={selected.id} chartPort={chartPort} persistentSave={!!chartPort} pending={pending} onPendingChange={onPendingChange}
               onDenied={onDenied}/>
             :<div className="card clinical-selection"><h2>Choose a patient appointment</h2>
               <p>No patient chart is loaded yet. Select a record from the authorized
-                branch queue. Historical records and clinical writes remain blocked.</p></div>}
+                branch queue. {chartPort?'Chart access is checked for this visit.':'Historical records and clinical writes remain blocked.'}</p></div>}
         </div>
       </div>}
     </>}

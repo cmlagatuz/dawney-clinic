@@ -6,8 +6,8 @@
 .billing-lock{display:inline-block;border:1px solid var(--danger-border);background:var(--danger-soft);color:var(--danger);
  border-radius:var(--radius-pill);padding:.5rem .85rem;font-size:.82rem;font-weight:700;max-width:100%;overflow-wrap:anywhere}
 .billing-intro{display:flex;align-items:flex-start;flex-wrap:wrap;gap:.5rem 1.2rem;margin:1rem 0;
- border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-2);
- padding:1rem 1.25rem;color:var(--text)}
+ border:1px solid var(--border);border-inline-start:3px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-2);
+ padding:var(--space-3) var(--space-4);color:var(--text)}
 .billing-muted{color:var(--muted);font-size:.9rem;line-height:1.5}
 .billing-boundary{margin:1.2rem 0}
 .billing-boundary a{color:var(--primary-text);text-decoration:underline}
@@ -17,7 +17,8 @@
 .billing-branch label{font-weight:700}
 .billing-branch select,.billing-filters input,.billing-filters select{
  display:block;min-width:0;max-width:100%;border:1px solid var(--border-strong);
- color:var(--text);background:var(--surface);border-radius:var(--radius-sm);padding:.68rem .75rem}
+ color:var(--text);background-color:var(--surface);border-radius:var(--radius-sm);padding:.68rem .75rem}
+.billing-branch select,.billing-filters select{padding-right:2.4rem}
 .billing-branch select{width:min(100%,390px)}
 .billing-branch-body{min-width:0;margin-top:1.25rem}
 .billing-toolbar{justify-content:space-between;align-items:flex-start;margin-bottom:1rem}
@@ -86,3 +87,14 @@
  .billing-intro{padding:.85rem}
  .billing-invoice-detail,.billing-list{padding:.8rem}
 }
+/* Retain unavailable-state copy and disabled financial controls. */
+.billing-stats strong,.billing-total,.billing-totals dd,.billing-history time{font-variant-numeric:tabular-nums;font-weight:650}
+.billing-stats>div{padding:var(--space-3)}
+.billing-invoice-head,.billing-detail-heading{flex-wrap:wrap}
+.billing-invoice-detail h4{font-weight:650}
+.billing-table thead th{background:var(--surface-2);color:var(--muted)}
+.billing-table :is(th,td):not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.billing-totals{background:var(--surface);border:1px solid var(--border)}
+.billing-totals div:last-child{border-bottom:0}
+.billing-invoice-detail section{margin:var(--space-4) 0}
+

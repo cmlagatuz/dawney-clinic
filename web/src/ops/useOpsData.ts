@@ -80,7 +80,19 @@ export function useOpsData(port: OpsReadPort | null, date: string, range: string
     return () => { live = false }
   }, [ok, port, weekMode, weekKey, nonce])
 
-  const reload = useCallback(() => setNonce(n => n + 1), [])
+  const reload = useCallback(() => {
+    // Invalidate the current window immediately and commit the refresh
+    // generation together with its verifying/loading states. Advancing only
+    // the nonce allowed the window/count/week effects to start against the
+    // previous session's "ok" render before the verification effect reset it.
+    // Keep selected lifecycle actions unavailable until fresh branch data.
+    token.current++
+    setSession({status: 'verifying'})
+    setDay({status: 'loading'})
+    setCounts({status: 'loading'})
+    setWeek({})
+    setNonce(n => n + 1)
+  }, [])
   // Revocation: every read re-verifies server-side, so a denial on ANY later read means the staff
   // session is no longer valid. Fail closed for the whole page and hide previously loaded data.
   const revoked = ok && (day.status === 'failed' && day.kind === 'denied' || counts.status === 'failed' && counts.kind === 'denied' ||

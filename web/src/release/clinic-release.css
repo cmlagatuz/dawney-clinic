@@ -15,3 +15,9 @@
 .clinic-release-module .button{margin-top:.5rem;max-width:100%;white-space:normal;text-align:center}
 .clinic-communications-blocked p{overflow-wrap:anywhere}
 @media(max-width:420px){.clinic-release-branches li{display:block}.clinic-release-branches span{display:block;margin-top:.3rem}.clinic-release-locked-actions .button{width:100%}}
+/* Workflow bridge uses a quiet link-first directory instead of elevated cards. */
+.clinic-release-steps,.clinic-release-modules{gap:var(--space-3)}
+.clinic-release-steps li,.clinic-release-modules article{padding:var(--space-4)}
+.clinic-release-steps a{font-weight:650}
+.clinic-release-section{margin-top:var(--space-6)}
+

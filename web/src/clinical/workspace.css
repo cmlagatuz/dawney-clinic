@@ -9,10 +9,12 @@
 .clinical-muted{color:var(--muted);font-size:.91rem}
 .clinical-boundary{font-size:.87rem;color:var(--muted);max-width:90ch;margin-top:1.4rem}
 .clinical-branch-bar,.clinical-daybar{display:flex;align-items:center;flex-wrap:wrap;gap:.7rem 1rem;
-  margin:1rem 0;padding:.9rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+  margin:var(--space-3) 0;padding:var(--space-3);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
 .clinical-branch-bar label,.clinical-daybar label{font-weight:700}
 .clinical-branch-bar select,.clinical-daybar input{min-width:0;max-width:100%;padding:.55rem .75rem;border-radius:var(--radius-sm);
-  border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font:inherit}
+  border:1px solid var(--border-strong);background-color:var(--surface);color:var(--text);font:inherit}
+.clinical-branch-bar select{width:min(100%,24rem);padding-right:2.4rem}
+.clinical-daybar input{width:auto}
 .clinical-branch-bar p{color:var(--muted);font-size:.86rem;margin:.15rem 0}
 .clinical-failure{border-left:4px solid var(--danger)}
 .clinical-inline-warning{background:var(--surface-2);color:var(--text);border:1px solid var(--warning);
@@ -20,14 +22,14 @@
 .clinical-shell{display:grid;grid-template-columns:minmax(220px,280px) minmax(0,1fr);gap:1rem;align-items:start}
 .clinical-roster,.clinical-detail,.clinical-chart{min-width:0}
 .clinical-roster,.clinical-selection,.clinical-chart{background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+  border-radius:var(--radius)}
 .clinical-roster{padding:1rem}
 .clinical-roster h2{font-size:1.1rem}
 .clinical-roster ul{list-style:none;margin:1rem 0 0;padding:0;display:grid;gap:.55rem}
 .clinical-roster li{margin:0;min-width:0}
 .clinical-patient{width:100%;text-align:left;display:grid;gap:.45rem;border:1px solid var(--border);
   border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text);font:inherit;padding:.75rem;cursor:pointer}
-.clinical-patient.is-selected{border:2px solid var(--primary);background:var(--primary-soft);color:var(--text)}
+.clinical-patient.is-selected{border-color:var(--primary);box-shadow:inset 3px 0 0 var(--primary);background:var(--primary-soft);color:var(--text)}
 .clinical-patient span{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
 .clinical-patient small{color:var(--muted)}
 .clinical-selection{padding:1.5rem}
@@ -84,7 +86,7 @@
 
 /* Verified chart RPC preview: no global CSS or unbounded sideways scroll. */
 .clinical-chart-gateway{min-width:0;max-width:100%;display:grid;gap:.85rem;margin:1rem 0}
-.clinical-verified-demographics,.clinical-encounter-editor,.clinical-chart-context{background:var(--surface-2);
+ .clinical-verified-demographics,.clinical-encounter-editor,.clinical-chart-context{background:var(--surface);
   border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;min-width:0}
 .clinical-verified-demographics dl,.clinical-attribution{display:grid;grid-template-columns:minmax(110px,1fr) minmax(0,2fr);
   gap:.5rem .8rem;margin:0 0 .8rem}
@@ -94,7 +96,7 @@
 .clinical-chart-pagination p{margin:0 0 .7rem}
 .clinical-chart-context .clinical-actions{align-items:stretch}
 .clinical-chart-context a{min-width:0;white-space:normal}
-.clinical-encounter-editor textarea{resize:vertical;min-height:6.5rem}
+ .clinical-encounter-editor textarea{resize:vertical;min-height:7rem}
 .clinical-encounter-editor .clinical-feedback{overflow-wrap:anywhere}
 .clinical-encounter-editor button:disabled{cursor:not-allowed;opacity:.67}
 .clinical-chart-gateway .clinical-visit{overflow-wrap:anywhere}
@@ -104,3 +106,29 @@
   .clinical-chart-context a{width:100%}
   .clinical-encounter-editor,.clinical-verified-demographics,.clinical-chart-context{padding:.7rem}
 }
+/* A prior receipt is evidence of a past save, never the current revision. */
+.clinical-chart-head,.clinical-panel{padding:var(--space-4)}
+.clinical-roster{padding:var(--space-3)}
+.clinical-roster ul{gap:var(--space-2)}
+.clinical-patient{background:var(--surface);padding:var(--space-3);min-height:44px}
+.clinical-patient strong{overflow-wrap:anywhere}
+.clinical-visit{background:var(--surface);border-inline-start:3px solid var(--border-strong)}
+.clinical-tabs{scroll-padding-inline:var(--space-3)}
+.clinical-tabs button{min-height:44px}
+.clinical-attribution,.clinical-visit time{font-variant-numeric:tabular-nums}
+.clinical-encounter-editor{border:0;padding:0}
+.clinical-encounter-editor > h4{font-size:1.15rem}
+.clinical-encounter-editor [role=alert],.clinical-encounter-editor p{overflow-wrap:anywhere}
+.clinical-encounter-editor section[aria-label="Clinical save receipts"]{margin:var(--space-6) 0;padding:var(--space-4);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius)}
+.clinical-encounter-editor section[aria-label="Clinical save receipts"] > h5{margin-bottom:var(--space-2);font-size:1rem}
+.clinical-encounter-editor [aria-label="Current chart review"]{padding:var(--space-3);background:var(--surface);border:1px solid var(--border-strong);border-inline-start:3px solid var(--primary);border-radius:var(--radius-sm);margin:var(--space-3) 0}
+.clinical-encounter-editor [aria-label="Current chart review"] h5{margin-bottom:var(--space-3)}
+.clinical-encounter-editor [aria-label="Current chart review"] p{white-space:pre-wrap;overflow-wrap:anywhere}
+.clinical-field textarea{font-size:1rem}
+@media(max-width: 600px) {
+ .clinical-chart-head,.clinical-panel{padding:var(--space-3)}
+ .clinical-encounter-editor section[aria-label="Clinical save receipts"]{padding:var(--space-3)}
+ .clinical-branch-bar select,.clinical-daybar input{width:100%}
+ .clinical-fields{grid-template-columns:minmax(0,1fr)}
+}
+
