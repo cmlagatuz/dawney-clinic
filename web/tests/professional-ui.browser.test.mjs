@@ -59,7 +59,14 @@ test('CLOUD professional UI: public hierarchy, short viewports, readable control
      assert.ok(await b.value('document.querySelector(".auth-panel input").getBoundingClientRect().height')>=44)
      assert.ok(await contrast('.auth-panel label','.auth-panel')>=4.5)
      await overflow('sign in '+width+'/'+theme);await clean()
-     await open('/app/overview','staff',theme,'.sidebar a[href="/app/staff-management"]')
+     await open('/app/overview','owner',theme,'.stat-value')
+     assert.equal(await b.value('document.querySelectorAll(".stat-value").length'),3)
+     assert.equal(await b.value('getComputedStyle(document.querySelector(".stat-value")).fontVariantNumeric'),'tabular-nums')
+     assert.ok(await contrast('.stat-value','.stat')>=4.5)
+     await overflow('owner overview '+width+'/'+theme);await clean()
+     // Staff fixture intentionally denies owner-wide patient reads; use the
+     // actual authorized clinic route rather than the owner overview.
+     await open('/app/clinic','staff',theme,'.sidebar a[href="/app/staff-management"]')
      assert.equal(await b.value('document.querySelector(".app-content").inert'),false)
      await overflow('staff shell '+width+'/'+theme)
      if(width===1440){
@@ -91,8 +98,8 @@ test('CLOUD professional UI: public hierarchy, short viewports, readable control
       await b.until('document.activeElement===document.querySelector(".mobile-toggle")&&!document.querySelector(".app-content").inert')
       await b.value('document.querySelector(".mobile-toggle").click();true')
       await b.until('document.querySelector(".sidebar").getAttribute("aria-modal")==="true"')
-      await b.value('document.querySelector(".sidebar a[href=\'/app/clinic\']").click();true')
-      await b.until('location.pathname==="/app/clinic"&&!document.querySelector(".app-content").inert&&document.activeElement===document.querySelector("#main-content")')
+      await b.value('document.querySelector(".sidebar a[href=\'/app/communications\']").click();true')
+      await b.until('location.pathname==="/app/communications"&&!document.querySelector(".app-content").inert&&document.activeElement===document.querySelector("#main-content")')
       assert.equal(await b.value('document.querySelector(".mobile-toggle").getAttribute("aria-expanded")'),'false')
       await overflow('drawer destination '+width+'/'+theme)
      }
@@ -101,7 +108,7 @@ test('CLOUD professional UI: public hierarchy, short viewports, readable control
    }
    // Opening at mobile width and rotating/resizing to desktop must not leave
    // the desktop page inert or hide the normal navigation from assistive tech.
-   await viewport(360,640);await open('/app/overview','staff','dark','.sidebar a[href="/app/staff-management"]')
+   await viewport(360,640);await open('/app/clinic','staff','dark','.sidebar a[href="/app/staff-management"]')
    await b.value('document.querySelector(".mobile-toggle").click();true')
    await b.until('document.querySelector(".app-content").inert')
    await viewport(1440,600)
