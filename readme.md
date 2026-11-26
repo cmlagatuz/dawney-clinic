@@ -18,6 +18,10 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 27 November 2026, 00:18 Asia/Riyadh
+
+- Owner elevated Get-Volume D still reports Warning/Full Repair Needed after clean scoped read-only CHKDSK. D unqualified; no repeated scans or repairs solely to clear warning. [SOL portable design review](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7203107255) accepted; no source changes. [PM continuation](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7203602680). ASTRA blocked pending owner confirmation of independently recoverable important personal files. No repair/format/encryption/install, actual backup/restore, hosted changes or spending authorized. Frozen RC2 unchanged; clinic-live NO-GO.
+
 ### PM checkpoint — 26 November 2026, 23:48 Asia/Riyadh
 
 - Owner read-only chkdsk D: completed file/folder verification, reports no filesystem problems and 0 KB bad sectors; Access is denied message present. Positive scoped evidence, not physical surface test or reconciliation of prior Warning/Full Repair Needed. Next elevated Get-Volume status and personal-file backup confirmation. [ASTRA/SOL continuation](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7203105407). D remains preferred archive candidate; no repairs, encryption, installation, backup/restore or hosted changes authorized. Frozen RC2 unchanged; clinic-live NO-GO.
