@@ -8,6 +8,7 @@ case "$1" in
  rc1-provenance) script=scripts/ci/rc1_integrated_source_guard_test.sh ;;
  rc1-preflight) script=scripts/release/rc1_staging_preflight_test.sh ;;
  appointment) script=scripts/ci/staff_appointment_source_guard.sh ;;
+ appointment-restore) script=scripts/recovery/tests/appointment21-signed-restore.sh ;;
  full-tree) script=scripts/ci/full_tree_pg17.sh ;;
  rc0) sha=078053120774e856c9ddaa8c8027b3c891e9e8f6; script=scripts/ci/rc0_source_guard.sh ;;
  *) exit 1 ;;

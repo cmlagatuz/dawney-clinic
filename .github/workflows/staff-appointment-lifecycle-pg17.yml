@@ -191,7 +191,7 @@ jobs:
            then raise exception 'LIFECYCLE_FAIL: rolled back transition became durable';end if;
           end $proof$;
           ROLLBACK
-          bash scripts/recovery/tests/appointment21-signed-restore.sh
+          bash scripts/ci/rc2_frozen_checks.sh appointment-restore
           echo 'PASS: full transactional rollback, signed restore and nonce/actor parity'
       - uses: actions/setup-node@v4
         with:
