@@ -99,6 +99,7 @@ export function AppLayout() {
   const mainRef = useRef<HTMLElement>(null)
   const first = useRef(true)
   const restoreToggle = useRef(false)
+  const focusAfterRoute = useRef(false)
   const pageTitle = titles[location.pathname] ?? 'Clinic workspace'
 
   async function signOut() {
@@ -118,11 +119,18 @@ export function AppLayout() {
     document.title = `${pageTitle} · Dawney Animal Clinic`
     if (first.current) { first.current = false; return }
     restoreToggle.current = false
+    focusAfterRoute.current = true
     setAnnounce(`${pageTitle} page loaded`)
-    // After the drawer closes, the main region is no longer inert.
-    const frame = requestAnimationFrame(() => mainRef.current?.focus({ preventScroll: false }))
-    return () => cancelAnimationFrame(frame)
   }, [location.pathname, pageTitle])
+
+  // Do not race a scheduled React commit with requestAnimationFrame. On a
+  // drawer route change, wait for the committed non-inert main region.
+  useEffect(() => {
+    if (!navOpen && focusAfterRoute.current) {
+      focusAfterRoute.current = false
+      mainRef.current?.focus({ preventScroll: false })
+    }
+  }, [navOpen, location.pathname, pageTitle])
 
   function closeNavigation() {
     restoreToggle.current = true
