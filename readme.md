@@ -18,6 +18,11 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 26 November 2026, 19:06 Asia/Riyadh
+
+- Owner read-only Windows inventory: 6C/12T, 7.34 GiB usable RAM/1.24 available, C free 5.80 GiB/D free 35.21 GiB, WSL2 default/no installed distro. C disk0/D disk1, same computer; firmware virtualization enabled/hypervisor present, other CPU flags inconclusive; BitLocker query returned no rows, encryption NOT VERIFIED. Approved Linux toolchain, physical media/custody, source dataset sizes remain unverified.
+- PM accepts [ASTRA scoped feasibility](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7197169707): manual-only and PG-only conditional, full local stack blocked. D encrypted backing workspace is proposed only; no installation or cleanup approval. [Additional owner diagnostics](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7197209368), [SOL independent review](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7197210129). No assumed managed recovery equivalence or independent off-device copies. No spending, local modifications, provider access, backup/restore or hosted operations. Frozen RC2 remains unchanged; clinic-live NO-GO.
+
 ### PM checkpoint — 26 November 2026, 18:42 Asia/Riyadh
 
 - Owner selects existing Windows computer as recovery feasibility candidate and authorizes prerequisite assessment only. [ASTRA assessment directive](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7196634582); [owner decision record](https://github.com/cmlagatuz/dawney-clinic/issues/63#issuecomment-7196635380). Destination nominated, not qualified; actual local OS/runtime/capacity/compatibility/encryption/isolation and custody evidence pending. No assumed local access. SOL independent review after ASTRA's observed evidence; CLOUD/TERRA remain gated. Frozen RC2 `8bb23dd31a516c16bc3e6544a25ef0cf9bb7403b` unchanged. No backup/export/restore, installations, hosted changes, source changes, activation, merge/deploy or spending authorized. Actual hosted UAT NOT RUN; clinic-live NO-GO.
