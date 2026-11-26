@@ -17,10 +17,13 @@ export function assertCompleteTap(output, expected, label) {
 }
 
 export function runMandatory({ cwd, command, args, expected, label }) {
+  // A fresh test process must not inherit Node's internal nested-test context.
+  const env = { ...process.env, FORCE_COLOR: '0' }
+  delete env.NODE_TEST_CONTEXT
   const result = spawnSync(command, args, {
     cwd, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
     timeout: 8 * 60 * 1000, shell: false,
-    env: { ...process.env, FORCE_COLOR: '0' },
+    env,
   })
   process.stdout.write(result.stdout || '')
   process.stderr.write(result.stderr || '')

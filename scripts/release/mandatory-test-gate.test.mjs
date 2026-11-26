@@ -7,6 +7,8 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { assertCompleteTap, runReleaseGate } from './mandatory-test-gate.mjs'
 
+const childEnv = { ...process.env }
+delete childEnv.NODE_TEST_CONTEXT
 const passing = "import test from 'node:test'; test('one',()=>{}); test('two',()=>{});\n"
 const failing = "import test from 'node:test'; test('one',()=>{throw Error('synthetic failure')}); test('two',()=>{});\n"
 const releaseMarker = "import {writeFileSync} from 'node:fs'; writeFileSync('release-ran','yes');\n"
@@ -22,7 +24,7 @@ function fixture(t, frontend=passing, release=passing) {
 }
 test('RED: original AND-list masks failure and remains in web', t => {
   const root = fixture(t, failing)
-  const result = spawnSync('bash',['-c','set -euo pipefail; cd web && npm test && cd ..; node --test scripts/release/tests/*.test.mjs; pwd'],{cwd:root,encoding:'utf8'})
+  const result = spawnSync('bash',['-c','set -euo pipefail; cd web && npm test && cd ..; node --test scripts/release/tests/*.test.mjs; pwd'],{cwd:root,encoding:'utf8',env:childEnv})
   assert.equal(result.status,0)
   assert.match(result.stdout, /^# fail 1$/m)
   assert.match(result.stdout, /^# tests 0$/m)
@@ -81,7 +83,7 @@ test('actual CLI exit blocks build/artifact sentinel on either suite failure', t
   for (const [front, release, ok] of [[failing,passing,false],[passing,failing,false],[passing,passing,true]]) {
     const root=fixture(t,front,release)
     copyFileSync(new URL('./mandatory-test-gate.mjs',import.meta.url),join(root,'scripts/release/mandatory-test-gate.mjs'))
-    const result=spawnSync('bash',['-c','set -euo pipefail; node scripts/release/mandatory-test-gate.mjs all 2 2; printf built > artifact-sentinel'],{cwd:root,encoding:'utf8'})
+    const result=spawnSync('bash',['-c','set -euo pipefail; node scripts/release/mandatory-test-gate.mjs all 2 2; printf built > artifact-sentinel'],{cwd:root,encoding:'utf8',env:childEnv})
     assert.equal(result.status,ok?0:1,result.stderr)
     assert.equal(existsSync(join(root,'artifact-sentinel')),ok)
   }
