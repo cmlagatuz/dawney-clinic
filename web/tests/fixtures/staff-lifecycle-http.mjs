@@ -25,8 +25,10 @@ export function staffLifecycleHttpFixture(){
  const base=window.fetch.bind(window)
  // Explicitly controlled post-confirmation queue delay for the regression.
  // This is an intercepted synthetic GET, not a delay in production source.
- let heldQueue=false
- window.__staffLifecycle={get,calls:[],readonly:[],queueHeld:false,releaseQueue:null,forceStatus:(status)=>{const s=get();s.booking.status=status;s.booking.lifecycle_revision++;set(s)}}
+ let queueReleased=false
+ let releaseQueue
+ const queueGate=new Promise(resolve=>{releaseQueue=()=>{queueReleased=true;resolve()}})
+ window.__staffLifecycle={get,calls:[],readonly:[],queueHeld:false,confirmedQueueReads:[],releaseQueue,forceStatus:(status)=>{const s=get();s.booking.status=status;s.booking.lifecycle_revision++;set(s)}}
  window.fetch=async(input,init)=>{
   const req=new Request(input,init),url=new URL(req.url)
   if(url.origin!==remote)return base(input,init)
@@ -48,11 +50,15 @@ export function staffLifecycleHttpFixture(){
   }
   if(path==='/rest/v1/appointments'&&req.method==='GET'&&branch===ids.naga&&
      url.searchParams.has('starts_at')&&qs.get('hold-confirmed-queue')==='1'&&
-     get().booking.status==='confirmed'&&!heldQueue){
-   heldQueue=true
-   window.__staffLifecycle.queueHeld=true
-   await new Promise(resolve=>{window.__staffLifecycle.releaseQueue=resolve})
-   window.__staffLifecycle.queueHeld=false
+     get().booking.status==='confirmed'){
+   // Hold every matching request until explicit release, including any
+   // superseded duplicate. Never let a second read bypass the barrier.
+   window.__staffLifecycle.confirmedQueueReads.push({branch,bounds:url.searchParams.getAll('starts_at')})
+   if(!queueReleased){
+    window.__staffLifecycle.queueHeld=true
+    await queueGate
+    window.__staffLifecycle.queueHeld=false
+   }
   }
   if(path==='/rest/v1/branch_encounters'&&req.method==='GET'){
    const s=get(),id=(url.searchParams.get('appointment_id')||'').replace(/^eq\./,'')

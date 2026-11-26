@@ -121,17 +121,27 @@ test('decline and no-show use persisted cancelled/no_show; receptionist cannot c
  await select(b,url,'case=receptionist&reset=1&hold-confirmed-queue=1')
  await status(b,'Requested')
  await tap(b,'Confirm request')
- await wait(b,'window.__staffLifecycle.queueHeld===true')
+ await wait(b,'window.__staffLifecycle.queueHeld===true&&document.querySelector(".appointment-lifecycle [role=status]")?.textContent.includes("Refreshing selected appointment from this branch")&&!document.querySelector(".ops-visit")')
+ // The fixture's network barrier and React's committed loading state must
+ // both be observed. The held queue cannot be bypassed by a second GET.
  // The mutation and its revision are persisted, but the branch queue is
  // deliberately incomplete. Cancellation must not be available in this gap.
  const held=await db(b)
  assert.equal(held.booking.status,'confirmed')
  assert.equal(held.booking.lifecycle_revision,2)
  assert.deepEqual(held.calls.map(c=>c.body.p_action),['confirm'])
+ assert.equal(held.receipts[held.calls[0].body.p_request_id].result.revision,2)
+ const heldReads=await b.value('window.__staffLifecycle.confirmedQueueReads')
+ assert.equal(heldReads.length,1,'exactly one fresh confirmed queue read while held')
+ assert.equal(heldReads[0].branch,'40000000-0000-4000-8000-000000000001')
+ assert.equal(heldReads[0].bounds.length,2)
+ assert.ok(heldReads[0].bounds.some(x=>x.startsWith('gte.'))&&heldReads[0].bounds.some(x=>x.startsWith('lt.')))
  assert.equal(await b.value('[...document.querySelectorAll(".appointment-lifecycle button")].some(x=>x.textContent?.trim()==="Cancel appointment"&&!x.disabled)'),false,'no cancel during held queue refresh')
  await b.value('window.__staffLifecycle.releaseQueue();true')
  await status(b,'Confirmed')
  await reconciled(b,'confirmed',2)
+ assert.equal(await b.value('window.__staffLifecycle.confirmedQueueReads.length'),1,'no superseded refresh request')
+ assert.equal((await db(b)).calls.length,1,'refresh cannot replay a mutation')
  await tap(b,'Cancel appointment');await tap(b,'Apply Cancel appointment')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Server confirmed cancelled")')
  assert.equal((await db(b)).booking.status,'cancelled')

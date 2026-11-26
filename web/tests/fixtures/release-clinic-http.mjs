@@ -43,6 +43,14 @@ export function releaseClinicFixture(){
   }))
   window.__cloudIntegrated={rpcs:[],unexpected:[],directWrites:[],denied:false,recovered:false,
     clinicalReads:[],clinicalWrites:[],authSubmits:0}
+  // Opt-in hold of the typed, owner-scoped eligibility read. History's
+  // ordinary pet read is not held. No timers or production hooks involved.
+  let ownerPetsReleased=false
+  const ownerPetsGate=new Promise(resolve=>{
+    window.__cloudIntegrated.releaseOwnerPets=()=>{ownerPetsReleased=true;resolve()}
+  })
+  window.__cloudIntegrated.ownerEligibilityReads=[]
+  window.__cloudIntegrated.ownerPetsHeld=false
   const weekly=Object.fromEntries(['sun','mon','tue','wed','thu','fri','sat']
     .map(x=>[x,[{open:'12:30',close:'14:00'}]]))
   const owner={id:ids.owner,user_id:ids.ownerUser,first_name:'Fixture',last_name:'Owner',
@@ -254,6 +262,14 @@ export function releaseClinicFixture(){
       }
       const ownPet=currentActor==='owner'?pet:petB
       const selected=filter(url,'id')
+      if(!selected&&(url.searchParams.get('select')||'').includes('taxonomy_review_needed')){
+        window.__cloudIntegrated.ownerEligibilityReads.push({actor:currentActor,ownerId:filter(url,'owner_id')})
+        if(currentActor==='owner'&&qs.get('hold-owner-pets')==='1'&&!ownerPetsReleased){
+          window.__cloudIntegrated.ownerPetsHeld=true
+          await ownerPetsGate
+          window.__cloudIntegrated.ownerPetsHeld=false
+        }
+      }
       if(selected)return response(singular?(selected===ownPet.id?ownPet:null):selected===ownPet.id?[ownPet]:[])
       return response([ownPet])
     }
