@@ -5,6 +5,8 @@ set -Eeuo pipefail
 [[ $# == 1 ]] || exit 1
 sha=2e029697fc2c446171a951167b30bcf7679c286e
 case "$1" in
+ rc2-combined) sha=55e86d4f431878d9e4c142b657d7640c81272c6a; script=scripts/ci/rc2_backend_source_guard.sh ;;
+ rc2-combined-negative) sha=55e86d4f431878d9e4c142b657d7640c81272c6a; script=scripts/ci/rc2_backend_source_guard_test.sh ;;
  rc2-preparation) sha=939bc5f1237d90df431d06408e8812682fd58421; script=scripts/ci/rc2_backend_source_guard.sh ;;
  rc2-preparation-negative) sha=939bc5f1237d90df431d06408e8812682fd58421; script=scripts/ci/rc2_backend_source_guard_test.sh ;;
  rc1-provenance) script=scripts/ci/rc1_integrated_source_guard_test.sh ;;
