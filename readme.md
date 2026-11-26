@@ -18,6 +18,10 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 26 November 2026, 20:35 Asia/Riyadh
+
+- Owner Get-Volume evidence for K: FAT32, 28.80 GiB total/22.44 free, Warning/Full Repair Needed, previously confirmed BitLocker OFF. Excluded from qualified backup media pending safe assessment; not proof of hardware failure. Zero qualified copies. [ASTRA continuation](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7199281044). No repair, conversion, formatting, deletion, encryption, backup/restore, hosted changes or spending authorized. Frozen RC2 unchanged; clinic-live NO-GO.
+
 ### PM checkpoint — 26 November 2026, 20:32 Asia/Riyadh
 
 - Owner identifies first USB candidate (K:, 28.80 GiB total, BitLocker fully decrypted/protection OFF). Free space and second independent medium unknown; zero qualified encrypted copies. PM accepts [ASTRA remediation assessment](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7197483668) within read-only scope and routes [continuation](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7199219759). No encryption, formatting, cleanup, installations, data collection, backup/restore, hosted changes or spend. Frozen RC2 unchanged; clinic-live NO-GO.
