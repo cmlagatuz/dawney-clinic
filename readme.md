@@ -18,6 +18,10 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 26 November 2026, 23:48 Asia/Riyadh
+
+- Owner read-only chkdsk D: completed file/folder verification, reports no filesystem problems and 0 KB bad sectors; Access is denied message present. Positive scoped evidence, not physical surface test or reconciliation of prior Warning/Full Repair Needed. Next elevated Get-Volume status and personal-file backup confirmation. [ASTRA/SOL continuation](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7203105407). D remains preferred archive candidate; no repairs, encryption, installation, backup/restore or hosted changes authorized. Frozen RC2 unchanged; clinic-live NO-GO.
+
 ### PM checkpoint — 26 November 2026, portable media qualification gate
 
 - PM accepts [ASTRA corrected D qualification](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7201143849) within read-only scope. Owner confirms independent recoverable personal-file copies and stable drive before optional read-only chkdsk D: without repair switches. [PM decision](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7201786232); [SOL bounded changed-evidence review](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7201786908). No repair/format/encryption/install, actual backup/restore or spending. Frozen RC2 unchanged, all20 triggered successful, master unchanged, provider health and production6/staging11 histories reverified. Actual hosted UAT NOT RUN. Clinic-live NO-GO.
