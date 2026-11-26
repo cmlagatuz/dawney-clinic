@@ -45,6 +45,17 @@ async function select(b,origin,query){
 }
 const db=b=>b.value('window.__staffLifecycle.get()')
 const status=(b,s)=>wait(b,'document.querySelector(".lifecycle-status")?.textContent.includes('+q(s)+')')
+// A detail ACK can render before onRefresh has cleared the old queue. Wait
+// for the persisted queue AND the exact new detail revision, not just a badge.
+// The synthetic journey has one appointment, so scope to its actual review
+// control; do not treat an unrelated row as proof of reconciliation.
+async function reconciled(b,state,revision){
+ const label={confirmed:'Confirmed',checked_in:'Checked in'}[state]
+ await wait(b,'(()=>{const d=document.querySelector(".lifecycle-status"),cards=[...document.querySelectorAll(".ops-visit")],card=cards.length===1?cards[0]:null;return !!d&&d.textContent.includes('+q(label)+')&&d.querySelector("strong")?.textContent.trim()==='+q(String(revision))+'&&!!card?.querySelector('+q('.badge-'+state)+')&&!!document.querySelector(\'button[aria-label="Refresh authorized branch appointments and counts"]\')&&!document.querySelector(\'[aria-label="Original appointment operation"]\')})()')
+ const s=await db(b)
+ assert.equal(s.booking.status,state)
+ assert.equal(s.booking.lifecycle_revision,revision)
+}
 test('flag OFF: 360/768/1440 light+dark, keyboard, NO RPC or sensitive fallback',{timeout:220000},async()=>browserCase(false,async(b,url)=>{
  for(const width of [360,768,1440]){
   await b.send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false})
@@ -67,9 +78,11 @@ test('actual staff route: requested -> confirmed -> checked in -> encounter-link
  await tap(b,'Confirm request')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Server confirmed confirmed at revision 2")')
  await status(b,'Confirmed')
+ await reconciled(b,'confirmed',2)
  await tap(b,'Check in')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Server confirmed checked in at revision 3")')
  await status(b,'Checked in')
+ await reconciled(b,'checked_in',3)
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("persisted, branch-matched encounter")')
  await tap(b,'Complete visit')
  await tap(b,'Apply Complete visit')
@@ -101,19 +114,39 @@ test('decline and no-show use persisted cancelled/no_show; receptionist cannot c
  await select(b,url,'case=no-show&reset=1')
  await status(b,'Requested')
  await tap(b,'Confirm request');await status(b,'Confirmed')
+ await reconciled(b,'confirmed',2)
  await tap(b,'Mark no-show');await tap(b,'Apply Mark no-show')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Server confirmed no show")')
  assert.equal((await db(b)).booking.status,'no_show')
- await select(b,url,'case=receptionist&reset=1')
+ await select(b,url,'case=receptionist&reset=1&hold-confirmed-queue=1')
  await status(b,'Requested')
- await tap(b,'Confirm request');await status(b,'Confirmed')
+ await tap(b,'Confirm request')
+ await wait(b,'window.__staffLifecycle.queueHeld===true')
+ // The mutation and its revision are persisted, but the branch queue is
+ // deliberately incomplete. Cancellation must not be available in this gap.
+ const held=await db(b)
+ assert.equal(held.booking.status,'confirmed')
+ assert.equal(held.booking.lifecycle_revision,2)
+ assert.deepEqual(held.calls.map(c=>c.body.p_action),['confirm'])
+ assert.equal(await b.value('[...document.querySelectorAll(".appointment-lifecycle button")].some(x=>x.textContent?.trim()==="Cancel appointment"&&!x.disabled)'),false,'no cancel during held queue refresh')
+ await b.value('window.__staffLifecycle.releaseQueue();true')
+ await status(b,'Confirmed')
+ await reconciled(b,'confirmed',2)
  await tap(b,'Cancel appointment');await tap(b,'Apply Cancel appointment')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Server confirmed cancelled")')
  assert.equal((await db(b)).booking.status,'cancelled')
+ const cancelled=await db(b)
+ assert.equal(cancelled.booking.lifecycle_revision,3)
+ assert.deepEqual(cancelled.calls.map(c=>c.body.p_action),['confirm','cancel'])
+ assert.deepEqual(cancelled.calls.map(c=>c.body.p_expected_revision),[1,2])
+ assert.equal(Object.keys(cancelled.receipts).length,2)
+ assert.notEqual(cancelled.calls[0].body.p_request_id,cancelled.calls[1].body.p_request_id)
  await select(b,url,'case=receptionist&reset=1')
  await status(b,'Requested')
  await tap(b,'Confirm request');await status(b,'Confirmed')
+ await reconciled(b,'confirmed',2)
  await tap(b,'Check in');await status(b,'Checked in')
+ await reconciled(b,'checked_in',3)
  assert.equal(await b.value('[...document.querySelectorAll(".appointment-lifecycle button")].some(x=>x.textContent==="Complete visit"&&!x.disabled)'),false)
 }))
 test('lost ACK survives branch queue revalidation; same nonce replay no second increment; conflict and denied clear context',{timeout:180000},async()=>browserCase(true,async(b,url)=>{
@@ -122,7 +155,10 @@ test('lost ACK survives branch queue revalidation; same nonce replay no second i
  await tap(b,'Confirm request')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Outcome is uncertain")')
  assert.equal((await db(b)).booking.lifecycle_revision,2)
- await b.value('document.querySelector(\'button[aria-label="Refresh authorized branch appointments and counts"]\').click();true')
+ // The uncertain-operation handler already triggers an authorized refresh.
+ // Wait for its completed readback before deliberately requesting another.
+ await wait(b,'!!document.querySelector(\'button[aria-label="Refresh authorized branch appointments and counts"]\')&&[...document.querySelectorAll(".appointment-lifecycle button")].some(x=>x.textContent?.trim()==="Retry same request"&&!x.disabled)&&document.querySelector(".ops-visit .badge-confirmed")!==null')
+ assert.equal(await b.value('(()=>{const e=document.querySelector(\'button[aria-label="Refresh authorized branch appointments and counts"]\');if(!e||e.disabled)return false;e.click();return true})()'),true,'refresh authorized branch after uncertainty')
  await wait(b,'document.querySelector(".appointment-lifecycle")?.textContent.includes("Retry same request")')
  await wait(b,'document.querySelector(\'[aria-label="Original appointment operation"]\')?.textContent.includes("Confirm request")')
  assert.equal(await b.value('document.querySelector(\'select[aria-label="Appointment status"]\').disabled'),true)

@@ -23,7 +23,10 @@ export function staffLifecycleHttpFixture(){
  const response=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json','access-control-allow-origin':'*'}})
  const error=(code,message,status=400)=>response({code,message},status)
  const base=window.fetch.bind(window)
- window.__staffLifecycle={get,calls:[],readonly:[],forceStatus:(status)=>{const s=get();s.booking.status=status;s.booking.lifecycle_revision++;set(s)}}
+ // Explicitly controlled post-confirmation queue delay for the regression.
+ // This is an intercepted synthetic GET, not a delay in production source.
+ let heldQueue=false
+ window.__staffLifecycle={get,calls:[],readonly:[],queueHeld:false,releaseQueue:null,forceStatus:(status)=>{const s=get();s.booking.status=status;s.booking.lifecycle_revision++;set(s)}}
  window.fetch=async(input,init)=>{
   const req=new Request(input,init),url=new URL(req.url)
   if(url.origin!==remote)return base(input,init)
@@ -42,6 +45,14 @@ export function staffLifecycleHttpFixture(){
    if(mode==='missing-revision')delete row.lifecycle_revision
    if(mode==='wrong-detail-branch')row.branch_id=ids.cavite
    return response(row)
+  }
+  if(path==='/rest/v1/appointments'&&req.method==='GET'&&branch===ids.naga&&
+     url.searchParams.has('starts_at')&&qs.get('hold-confirmed-queue')==='1'&&
+     get().booking.status==='confirmed'&&!heldQueue){
+   heldQueue=true
+   window.__staffLifecycle.queueHeld=true
+   await new Promise(resolve=>{window.__staffLifecycle.releaseQueue=resolve})
+   window.__staffLifecycle.queueHeld=false
   }
   if(path==='/rest/v1/branch_encounters'&&req.method==='GET'){
    const s=get(),id=(url.searchParams.get('appointment_id')||'').replace(/^eq\./,'')
