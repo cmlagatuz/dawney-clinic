@@ -37,7 +37,7 @@ while IFS=$'\t' read -r seq mode blob path; do
 done < <(tail -n +2 docs/RC2_MIGRATION_BLOBS.tsv)
 # Independent frozen combined gate and negative tests run in the provenance workflow.
 combined=55e86d4f431878d9e4c142b657d7640c81272c6a
-ci_checkpoint=0215ce9e31971c0b765de89edef74c1459b062e7
+ci_checkpoint=0e57090b8046aeab19b0f57cfaf394e5790eb842
 git merge-base --is-ancestor "$combined" HEAD || fail 'accepted combined ancestry'
 git merge-base --is-ancestor "$ci_checkpoint" HEAD || fail 'CI correction ancestry'
 diff -u <(printf '%s\n' docs/RC2_CI_INTEGRITY_BLOBS.tsv scripts/ci/rc2_backend_source_guard.sh) <(git diff --name-only "$ci_checkpoint" HEAD) || fail 'unexpected post-checkpoint delta'
