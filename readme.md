@@ -18,6 +18,12 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 26 November 2026, 09:51 Asia/Riyadh
+
+- [PR140 intermediate RC2](https://github.com/cmlagatuz/dawney-clinic/pull/140) `ce427658860d9f3421d9dde06dc0fdb0c84a87da`: 15/15 triggered workflows PASS; 21-path delta, 23 migrations and RC1 web tree reported preserved. Manual recovery imported; strict provenance and historical guards reconciled. [Actual #23 regression/restore](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45769785625/job/139739392570), [manual recovery](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45769785504/job/139739392303), [unified release](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45769785457) passed. Independent integration-delta acceptance pending; no final CLOUD import.
+- [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `052b7223ad3208e5644e39bc2e72ae11f2cc74bf`: one test-file delta; [actual React CI](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45769047333/job/139736971521) 313/313, new #114/#115 PASS, zero fail/skip, tsc/Vite PASS. 4/5 workflows; old standalone PG17 pin remains red. Mock reload and scope tests are not provider persistence. TERRA verdict pending; design not implemented.
+- PM verifies CI checkpoints, routes SOL to review new backend integration and test evidence; TERRA continues independent receipt functional acceptance. CLOUD and ASTRA preserve checkpoints until applicable gates; no duplicate branches. Both Supabase projects healthy, production six/staging eleven migrations; Cloudflare bot reports intermediate preview. Hosted recovery and UAT NOT VERIFIED, clinic-live NO-GO; December 3 target unchanged.
+
 ### PM checkpoint — 26 November 2026, 09:28 Asia/Riyadh
 
 - SOL independently passed [PR140 #23](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7183481553) at `be49e7b25ff7ab3a5eee3ef42b6e62cc50c84267` and [PR137 receipt UI](https://github.com/cmlagatuz/dawney-clinic/pull/137#issuecomment-7183502939) at `24cc6f35f6cd0ca7a0c0578a9e59147f0b01d813`. PM accepts scoped source verdicts; prior clinical session finding closed within source scope. No hosted activation or integrated signoff.
