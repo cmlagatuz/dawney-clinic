@@ -150,13 +150,18 @@ jobs:
           test "$VITE_PHASE5A_OPS_UI" = 'false'
       - name: Require PR88 frozen manifest plus exact four CLOUD PR91 slot/browser blobs before Node/Vite
         run: |
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
           bash scripts/ci/pr88_frontend_pins.sh
           test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
       - name: Run integrated React/booking/queue contract Node tests and TypeScript/Vite build
         working-directory: web
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
-          npm test
+          set -o pipefail
+          npm test | tee "$RUNNER_TEMP/rc2-react.log"
+          grep -Ex '# tests 313' "$RUNNER_TEMP/rc2-react.log"
+          grep -Ex '# pass 313' "$RUNNER_TEMP/rc2-react.log"
+          grep -Ex '# (fail|skipped|cancelled) 0' "$RUNNER_TEMP/rc2-react.log" | { test "$(wc -l)" -eq 3; }
           npm run build
           node --check tests/integration/smoke.mjs
       - name: Run Grok-accepted hosted security contract OFFLINE only
@@ -215,6 +220,7 @@ jobs:
           test "$VITE_PHASE5A_OPS_UI" = 'false'
       - name: Require PR88 frozen manifest plus exact four CLOUD PR91 slot/browser blobs before Chromium
         run: |
+          EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
           bash scripts/ci/pr88_frontend_pins.sh
           test "$(git rev-parse HEAD:web/src/public-site/booking-mode.mjs)" = "3f67451f7ca6c70108ea04067d900078d44e48fe"
       - name: Locked Vite build from full frontend/backend integration tree

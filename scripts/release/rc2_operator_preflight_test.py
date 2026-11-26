@@ -87,6 +87,8 @@ def main():
             commit_change(path,path.read_bytes()+b"\n","MANIFEST_DISCREPANCY")
             migration=next((work/"supabase/migrations").glob("*clinical_live_session_alignment.sql"))
             commit_change(migration,migration.read_bytes()+b"\n-- synthetic drift\n","MIGRATION_TREE_DRIFT")
+            frontend=work/"web/src/lib/clinical-chart.ts"
+            commit_change(frontend,frontend.read_bytes()+b"\n// synthetic drift\n","UNAPPROVED_FRONTEND_TREE")
             print("PASS: offline RC2 preflight synthetic regression (no provider operations)")
         finally:
             git("worktree","remove","--force",str(work))

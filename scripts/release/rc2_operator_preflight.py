@@ -16,6 +16,9 @@ import sys
 
 BASE = "ce427658860d9f3421d9dde06dc0fdb0c84a87da"
 RC1 = "2e029697fc2c446171a951167b30bcf7679c286e"
+PREPARATION = "939bc5f1237d90df431d06408e8812682fd58421"
+CLINICAL_IMPORT = "32606649a3e4359df998d26d9ace50aab91cef64"
+CLINICAL_WEB_TREE = "8152e80d44df78c0486aa46f066a8204300b9d66"
 LEDGER = "docs/RC2_MIGRATION_BLOBS.tsv"
 LEDGER_BLOB = "2ddb4814f6bfd383f4acccac38a510f8ba71baea"
 RC1_PREFLIGHT = "scripts/release/rc1_staging_preflight.sh"
@@ -92,6 +95,14 @@ def verify_source(expected):
     git("cat-file", "-e", RC1 + "^{commit}")
     git("merge-base", "--is-ancestor", BASE, expected)
     git("merge-base", "--is-ancestor", RC1, BASE)
+    git("merge-base", "--is-ancestor", PREPARATION, expected)
+    git("merge-base", "--is-ancestor", CLINICAL_IMPORT, expected)
+    need(git("rev-parse", CLINICAL_IMPORT + "^").decode().strip() == PREPARATION,
+         "INCORRECT_CLINICAL_IMPORT_PARENT")
+    need(git("rev-parse", CLINICAL_IMPORT + ":web").decode().strip() == CLINICAL_WEB_TREE,
+         "INCORRECT_CLINICAL_IMPORT_TREE")
+    need(git("rev-parse", expected + ":web").decode().strip() == CLINICAL_WEB_TREE,
+         "UNAPPROVED_FRONTEND_TREE")
     actual = tree(expected)
     # Inspect actual checked-out bytes and executable bits, not just index flags.
     need(not git("status", "--porcelain=v1", "--untracked-files=all",

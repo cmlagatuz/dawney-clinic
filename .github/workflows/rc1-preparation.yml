@@ -33,6 +33,8 @@ jobs:
         run: |
           EXPECTED_HEAD_SHA="${{ github.event.pull_request.head.sha }}" bash scripts/ci/rc2_backend_source_guard.sh
           bash scripts/ci/rc2_backend_source_guard_test.sh
+          bash scripts/ci/rc2_frozen_checks.sh rc2-preparation
+          bash scripts/ci/rc2_frozen_checks.sh rc2-preparation-negative
           bash scripts/ci/rc2_frozen_checks.sh rc1-provenance
       - name: Offline synthetic history and drift rehearsal (no hosted operations)
         run: bash scripts/ci/rc2_frozen_checks.sh rc1-preflight
