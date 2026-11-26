@@ -39,33 +39,11 @@ for ledger in docs/RC2_FINAL_IMPORT_BLOBS.tsv docs/RC2_FINAL_SOURCE_BLOBS.tsv; d
  while IFS=$'\t' read -r mode blob path; do
   [[ "$mode" =~ ^100(644|755)$ && "$blob" =~ ^[0-9a-f]{40}$ && -n "$path" ]] || fail 'malformed delta row'
   if [[ "$ledger" == docs/RC2_FINAL_IMPORT_BLOBS.tsv ]]; then
-   [[ "$(git ls-tree "$import" -- "$path")" == "$mode blob $blob"
- done < <(tail -n +2 "$ledger")
-done
-diff -u <(git ls-tree -r "$base" -- supabase scripts/recovery) <(git ls-tree -r HEAD -- supabase scripts/recovery) || fail 'backend/recovery drift'
-diff -u <(git ls-tree -r "$base" -- supabase/migrations) <(awk -F '\t' 'NR>1{print $2" blob "$3"\t"$4}' docs/RC2_MIGRATION_BLOBS.tsv) || fail 'migration ledger drift'
-test "$(tail -n +2 docs/RC2_MIGRATION_BLOBS.tsv | wc -l)" = 23 || fail 'migration count'
-while IFS=$'\t' read -r seq mode blob path; do
- [[ "$mode" == 100644 && "$(git hash-object "$path")" == "$blob" ]] || fail "migration bytes $path"
-done < <(tail -n +2 docs/RC2_MIGRATION_BLOBS.tsv)
-git diff --quiet && git diff --cached --quiet || fail 'dirty tracked source'
-echo 'PASS: exact final professional import, PM README, final CI delta and 23 immutable migrations/recovery'
-\t'"$path" ]] || fail "import checkpoint ledger drift $path"
+   [[ "$(git ls-tree "$import" -- "$path")" == "$mode blob $blob"$'\t'"$path" ]] || fail "import checkpoint ledger drift $path"
    # The original import README is historical; latest README is pinned above and in final ledger.
    [[ "$path" != readme.md ]] || continue
   fi
-  [[ "$(git ls-tree HEAD -- "$path")" == "$mode blob $blob"
- done < <(tail -n +2 "$ledger")
-done
-diff -u <(git ls-tree -r "$base" -- supabase scripts/recovery) <(git ls-tree -r HEAD -- supabase scripts/recovery) || fail 'backend/recovery drift'
-diff -u <(git ls-tree -r "$base" -- supabase/migrations) <(awk -F '\t' 'NR>1{print $2" blob "$3"\t"$4}' docs/RC2_MIGRATION_BLOBS.tsv) || fail 'migration ledger drift'
-test "$(tail -n +2 docs/RC2_MIGRATION_BLOBS.tsv | wc -l)" = 23 || fail 'migration count'
-while IFS=$'\t' read -r seq mode blob path; do
- [[ "$mode" == 100644 && "$(git hash-object "$path")" == "$blob" ]] || fail "migration bytes $path"
-done < <(tail -n +2 docs/RC2_MIGRATION_BLOBS.tsv)
-git diff --quiet && git diff --cached --quiet || fail 'dirty tracked source'
-echo 'PASS: exact final professional import, PM README, final CI delta and 23 immutable migrations/recovery'
-\t'"$path" && "$(git hash-object "$path")" == "$blob" ]] || fail "ledger blob/mode $path"
+  [[ "$(git ls-tree HEAD -- "$path")" == "$mode blob $blob"$'\t'"$path" && "$(git hash-object "$path")" == "$blob" ]] || fail "ledger blob/mode $path"
  done < <(tail -n +2 "$ledger")
 done
 diff -u <(git ls-tree -r "$base" -- supabase scripts/recovery) <(git ls-tree -r HEAD -- supabase scripts/recovery) || fail 'backend/recovery drift'
