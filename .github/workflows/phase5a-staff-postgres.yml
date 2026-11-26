@@ -7,6 +7,7 @@ on:
       - 'supabase/tests/phase5a_staff_*.sql'
       - 'supabase/migrations/**'
       - 'scripts/ci/tests/phase5a-staff-workflow.test.mjs'
+      - 'scripts/ci/tests/phase5a-target-guard.test.mjs'
       - 'web/src/staff-read-contract.mjs'
       - 'web/tests/staff-read-contract.test.mjs'
       - 'docs/PHASE5A_STAFF_READ_CONTRACT.md'
@@ -17,6 +18,7 @@ on:
       - 'supabase/tests/phase5a_staff_*.sql'
       - 'supabase/migrations/**'
       - 'scripts/ci/tests/phase5a-staff-workflow.test.mjs'
+      - 'scripts/ci/tests/phase5a-target-guard.test.mjs'
       - 'web/src/staff-read-contract.mjs'
       - 'web/tests/staff-read-contract.test.mjs'
 

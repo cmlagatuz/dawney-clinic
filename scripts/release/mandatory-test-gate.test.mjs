@@ -1,7 +1,7 @@
 // Disposable, local real Node/npm subprocesses. Never use app data or hosted services.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, copyFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -75,4 +75,14 @@ test('todo, absent, duplicate or zero summaries refuse',()=>{
   for(const bad of [summary.replace('# todo 0','# todo 1'),summary.replace('# pass 2\n',''),summary+summary,summary.replaceAll(' 2',' 0')])
     assert.throws(()=>assertCompleteTap(bad,2,'fixture'))
   assert.throws(()=>assertCompleteTap(summary,0,'fixture'))
+})
+
+test('actual CLI exit blocks build/artifact sentinel on either suite failure', t => {
+  for (const [front, release, ok] of [[failing,passing,false],[passing,failing,false],[passing,passing,true]]) {
+    const root=fixture(t,front,release)
+    copyFileSync(new URL('./mandatory-test-gate.mjs',import.meta.url),join(root,'scripts/release/mandatory-test-gate.mjs'))
+    const result=spawnSync('bash',['-c','set -euo pipefail; node scripts/release/mandatory-test-gate.mjs all 2 2; printf built > artifact-sentinel'],{cwd:root,encoding:'utf8'})
+    assert.equal(result.status,ok?0:1,result.stderr)
+    assert.equal(existsSync(join(root,'artifact-sentinel')),ok)
+  }
 })

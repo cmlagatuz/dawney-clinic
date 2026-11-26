@@ -202,5 +202,5 @@ jobs:
         working-directory: web
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
-          npm test
+          node ../scripts/release/mandatory-test-gate.mjs frontend 313
           npm run typecheck
