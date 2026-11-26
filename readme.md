@@ -18,6 +18,10 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 26 November 2026, 19:16 Asia/Riyadh
+
+- Elevated owner-run BitLocker status confirms C: and D: fully decrypted, 0% encrypted, protection OFF, no BitLocker protectors. Previous unknown status resolved; approved encrypted workspace and independent encrypted media still absent/unverified. [SOL independent resource feasibility](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7197373833) accepted within assessed scope, updated with owner encryption evidence. [ASTRA continuation](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7197425237): minimal non-destructive capacity/encryption options and independent-media requirements; no repeated hardware inventory. Manual-only candidate conditional, sensitive collection and restore preparation blocked, full stack blocked. No encryption/cleanup/install approval, no provider access/export/restore, no spending. Frozen RC2 unchanged; clinic-live NO-GO.
+
 ### PM checkpoint — 26 November 2026, 19:06 Asia/Riyadh
 
 - Owner read-only Windows inventory: 6C/12T, 7.34 GiB usable RAM/1.24 available, C free 5.80 GiB/D free 35.21 GiB, WSL2 default/no installed distro. C disk0/D disk1, same computer; firmware virtualization enabled/hypervisor present, other CPU flags inconclusive; BitLocker query returned no rows, encryption NOT VERIFIED. Approved Linux toolchain, physical media/custody, source dataset sizes remain unverified.
