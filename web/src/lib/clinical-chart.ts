@@ -39,11 +39,14 @@ const cursor=(x:unknown):x is ChartCursor=>obj(x)&&timestamp(x.at)&&str(x.id)&&v
 function client(){if(!supabase)throw Error('Clinic database is not configured');return supabase}
 async function authenticate(user:User){
  const {data,error}=await client().auth.getUser()
- if(error||!data.user||data.user.id!==user.id||!data.user.email_confirmed_at||
-  data.user.is_anonymous)throw Error('Clinical session is not verified')
+ if(error){
+  if(error.status===401||error.status===403)throw Object.assign(Error('Clinical session is not verified'),{code:'42501'})
+  throw error
+ }
+ if(!data.user||data.user.id!==user.id||!data.user.email_confirmed_at||data.user.is_anonymous)throw Object.assign(Error('Clinical session is not verified'),{code:'42501'})
 }
 function status(error:{code?:string}):'denied'|'unavailable'|'conflict'|'invalid'{
- if(error.code==='42501')return 'denied'
+ if(['42501','401','403','PGRST301'].includes(String(error.code??'')))return 'denied'
  if(error.code==='40001'||error.code==='23505')return 'conflict'
  if(error.code==='22023'||error.code==='23514')return 'invalid'
  return 'unavailable'
@@ -82,20 +85,22 @@ function parsePage(raw:unknown,section:ChartSection,branchId:string,petId:string
  return raw as unknown as PatientChartPage
 }
 export async function readStaffPatientChart(user:User,branchId:string,petId:string,
- section:ChartSection='appointments',cursorValue:ChartCursor|null=null,limit=50):Promise<PatientChartResult>{
+ section:ChartSection='appointments',cursorValue:ChartCursor|null=null,limit=50,signal?:AbortSignal):Promise<PatientChartResult>{
  if(!validId(branchId)||!validId(petId)||!['appointments','records','drafts'].includes(section)||
  !Number.isInteger(limit)||limit<1||limit>50||
  (cursorValue!==null&&!cursor(cursorValue)))throw Error('Invalid clinical chart request')
  await authenticate(user)
+ if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
  const {data,error}=await client().rpc('read_staff_patient_chart',{
   p_branch:branchId,p_pet:petId,p_section:section,p_after_at:cursorValue?.at??null,
   p_after_id:cursorValue?.id??null,p_limit:limit
  })
+ if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
  if(error)return {kind:status(error)==='denied'?'denied':'unavailable'}
  if(obj(data)&&data.kind==='not_found')return {kind:'not_found'}
  return parsePage(data,section,branchId,petId,user.id,limit)
 }
-export async function saveStaffEncounterDraft(user:User,input:DraftInput):Promise<DraftResult>{
+export async function saveStaffEncounterDraft(user:User,input:DraftInput,signal?:AbortSignal):Promise<DraftResult>{
  const {branchId,petId,appointmentId,requestId,expectedRevision,complaint,examination,assessment,plan}=input
  if(![branchId,petId,appointmentId,requestId].every(validId)||
  !Number.isSafeInteger(expectedRevision)||expectedRevision<0||expectedRevision>2147483646||
@@ -103,6 +108,8 @@ export async function saveStaffEncounterDraft(user:User,input:DraftInput):Promis
  [examination,assessment,plan].some(s=>typeof s!=='string'||s.length>4000))
  return {kind:'invalid'}
  await authenticate(user)
+ // Context may have unmounted while getUser was pending; do not dispatch a stale write.
+ if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
  const {data,error}=await client().rpc('save_staff_clinical_encounter_draft',{
   p_branch:branchId,p_pet:petId,p_appointment:appointmentId,p_request_id:requestId,
   p_expected_revision:expectedRevision,p_complaint:complaint,p_examination:examination,
@@ -144,4 +151,49 @@ export async function createStaffAppointmentClinicalRecord(user:User,input:Clini
   data.authorId!==user.id||!timestamp(data.performedAt))
   throw Error('Malformed clinical record acknowledgement')
  return data as SavedClinicalRecord
+}
+
+/** #22: metadata only; never treats receipt discovery as identification of a lost save. */
+export type ReceiptQuery={accountId:string;branchId:string;petId:string;appointmentId:string;
+ requestId:string|null;beforeRevision:number|null}
+export type Receipt={requestId:string;revision:number;auditEventId:string;savedAt:string}
+export type ReceiptObservation=
+ |{kind:'committed';currentRevision:number;draftId:string;receipt:Receipt}
+ |{kind:'not_found';currentRevision:number;draftId:string|null;receipt:null}
+ |{kind:'unknown';reason:'visit_busy'|'receipt_unverified';currentRevision:null;draftId:null;receipt:null}
+const receiptRevision=(x:unknown):x is number=>typeof x==='number'&&Number.isSafeInteger(x)&&x>=0&&x<=2147483647
+export function validateClinicalReceipt(raw:unknown,q:ReceiptQuery):ReceiptObservation{
+ if(!obj(raw)||raw.accountId!==q.accountId||raw.branchId!==q.branchId||raw.petId!==q.petId||
+ raw.appointmentId!==q.appointmentId||raw.requestId!==q.requestId||raw.beforeRevision!==q.beforeRevision)
+ throw Error('Unverified receipt scope')
+ if(raw.kind==='unknown'&&(raw.reason==='visit_busy'||raw.reason==='receipt_unverified')&&
+ raw.currentRevision===null&&raw.draftId===null&&raw.receipt===null)
+ return {kind:'unknown',reason:raw.reason,currentRevision:null,draftId:null,receipt:null}
+ if(!receiptRevision(raw.currentRevision))throw Error('Unverified receipt revision')
+ const currentRevision=raw.currentRevision
+ if(raw.kind==='not_found'&&raw.receipt===null&&
+ (currentRevision===0?raw.draftId===null:str(raw.draftId)&&validId(raw.draftId)))
+ return {kind:'not_found',currentRevision,draftId:raw.draftId as string|null,receipt:null}
+ const x=raw.receipt
+ if(raw.kind!=='committed'||!str(raw.draftId)||!validId(raw.draftId)||!obj(x)||
+ !str(x.requestId)||!validId(x.requestId)||(q.requestId!==null&&x.requestId!==q.requestId)||
+ !receiptRevision(x.revision)||x.revision<1||x.revision>currentRevision||
+ (q.beforeRevision!==null&&x.revision>=q.beforeRevision)||
+ !str(x.auditEventId)||!/^[1-9][0-9]{0,18}$/.test(x.auditEventId)||!timestamp(x.savedAt))
+ throw Error('Unverified receipt')
+ return {kind:'committed',currentRevision,draftId:raw.draftId,
+ receipt:{requestId:x.requestId,revision:x.revision,auditEventId:x.auditEventId,savedAt:x.savedAt}}
+}
+export async function reconcileStaffClinicalDraft(user:User,q:ReceiptQuery,signal?:AbortSignal):Promise<ReceiptObservation>{
+ if(q.accountId!==user.id||![q.accountId,q.branchId,q.petId,q.appointmentId].every(validId)||
+ (q.requestId!==null&&!validId(q.requestId))||
+ (q.beforeRevision!==null&&(!receiptRevision(q.beforeRevision)||q.beforeRevision<1||q.requestId!==null)))
+ throw Error('Invalid receipt query')
+ await authenticate(user)
+ if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
+ const {data,error}=await client().rpc('reconcile_staff_clinical_draft',{
+ p_branch:q.branchId,p_pet:q.petId,p_appointment:q.appointmentId,p_request_id:q.requestId,p_before_revision:q.beforeRevision})
+ if(signal?.aborted)throw new DOMException('Cancelled','AbortError')
+ if(error)throw error
+ return validateClinicalReceipt(data,q)
 }

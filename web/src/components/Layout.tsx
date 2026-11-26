@@ -101,6 +101,7 @@ export function AppLayout() {
   const pageTitle = titles[location.pathname] ?? 'Clinic workspace'
 
   async function signOut() {
+    if(!window.dispatchEvent(new Event('dawney:before-sign-out',{cancelable:true})))return
     if (!supabase) return
     setLeaving(true)
     setError(null)
