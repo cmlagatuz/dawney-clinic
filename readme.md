@@ -18,6 +18,14 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 26 November 2026, 09:28 Asia/Riyadh
+
+- SOL independently passed [PR140 #23](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7183481553) at `be49e7b25ff7ab3a5eee3ef42b6e62cc50c84267` and [PR137 receipt UI](https://github.com/cmlagatuz/dawney-clinic/pull/137#issuecomment-7183502939) at `24cc6f35f6cd0ca7a0c0578a9e59147f0b01d813`. PM accepts scoped source verdicts; prior clinical session finding closed within source scope. No hosted activation or integrated signoff.
+- ASTRA completed [exact manifests](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7183488397) and [integration preparation](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7183501881). RC2 remains 7/10 workflows; frontend 311/311 and 4/5 workflows; RC1 15/15.
+- CLOUD completed [source design baseline](https://github.com/cmlagatuz/dawney-clinic/pull/137#issuecomment-7183509212); local rendering blocked by administrator policy and GitHub DNS, no screenshots. TERRA new receipt functional verdict not located. CHART-01 remains open.
+- PM permits bounded backend integration preparation implementation in existing PR140 while final frontend remains pending; CLOUD may execute targeted synthetic receipt coverage in PR137 while TERRA reviews frozen SHA, then design after PM functional acceptance. No new release branches or clinical flags.
+- Fresh Supabase metadata: production six migrations, staging eleven, both healthy. Actual independent hosted recovery and operator acceptance NOT VERIFIED. Clinic-live NO-GO; Dec3 target unchanged.
+
 ### PM checkpoint — 26 November 2026, 08:18 Asia/Riyadh
 
 - [RC2 PR140](https://github.com/cmlagatuz/dawney-clinic/pull/140) `be49e7b25ff7ab3a5eee3ef42b6e62cc50c84267`: six backend paths, additive #23; [dedicated PG17 and signed restore PASS](https://github.com/cmlagatuz/dawney-clinic/actions/runs/45717570833/job/139567459688), 7/10 workflows; three historical guard failures before SQL. Independent SOL review pending; no integrated acceptance.
