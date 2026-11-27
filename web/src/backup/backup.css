@@ -1,0 +1,27 @@
+/* Scoped backup rehearsal styling; inherits the accepted design system. */
+.backup-center { display:grid; gap:var(--space-4); min-width:0; }
+.backup-center h2 { margin:0 0 .5rem; font-size:1.1rem; }
+.backup-center p { margin:.35rem 0; overflow-wrap:anywhere; }
+.backup-notice { display:flex; align-items:flex-start; gap:.75rem; padding:1rem; border:1px solid var(--border-strong); border-radius:var(--radius-sm); background:var(--surface-2); }
+.backup-notice svg { flex:none; color:var(--primary-text); }
+.backup-notice p,.backup-muted { color:var(--muted); }
+.backup-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:var(--space-4); }
+.backup-stats article { min-width:0; }
+.backup-stats h2 { font-size:.9rem; color:var(--muted); }
+.backup-stats strong { font-size:1.2rem; display:block; }
+.backup-actions,.backup-wizard,.backup-history { display:grid; gap:.8rem; min-width:0; }
+.backup-actions>.button,.backup-history>.button,.backup-wizard>.button { justify-self:start; }
+.backup-step-bar,.backup-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem; }
+.backup-controls { justify-content:flex-start; }
+.backup-step-bar .eyebrow { margin:0; }
+.backup-guide-steps { list-style:none; display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr)); gap:.5rem; padding:0; margin:.75rem 0 1rem; }
+.backup-guide-steps li { border:1px solid var(--border); border-radius:var(--radius-sm); padding:.65rem; color:var(--muted); font-size:.87rem; }
+.backup-guide-steps li[aria-current=step] { background:var(--primary-soft); color:var(--primary-text); border-color:var(--primary); font-weight:650; }
+.backup-wizard select { font-size:16px; }
+.backup-destination,.backup-example-receipt { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:1rem; }
+.backup-center dl { margin:.25rem 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr)); gap:.75rem; }
+.backup-center dt { color:var(--muted); font-size:.85rem; }
+.backup-center dd { margin:0; font-weight:650; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.backup-center progress { width:100%; height:1rem; accent-color:var(--primary); }
+.backup-center [tabindex="-1"]:focus { outline:3px solid var(--focus); outline-offset:3px; }
+@media(max-width:480px){.backup-controls .button,.backup-actions>.button,.backup-history>.button { width:100%; justify-self:stretch; }}

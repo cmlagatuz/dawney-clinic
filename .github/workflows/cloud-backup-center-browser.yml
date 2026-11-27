@@ -1,0 +1,54 @@
+name: CLOUD backup center synthetic browser evidence
+
+on:
+  pull_request:
+    paths:
+      - 'web/src/backup/**'
+      - 'web/tests/backup-center.browser.test.mjs'
+      - 'web/tests/fixtures/backup-center-http.mjs'
+      - '.github/workflows/cloud-backup-center-browser.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  backup-center-browser:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'ai/cloud/backup-recovery-center'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    env:
+      VITE_SUPABASE_URL: https://backup-preview-fixture.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_backup_preview_fixture
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install locked frontend dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify default OFF production build and strict TypeScript
+        run: |
+          test -z "${VITE_ADMIN_BACKUP_PREVIEW_UI:-}"
+          npm run build
+      - name: Run actual Chromium synthetic backup center
+        run: DAWNEY_BACKUP_SCREENSHOT_DIR="$RUNNER_TEMP/dawney-backup-screenshots" node --test tests/backup-center.browser.test.mjs
+      - name: Verify screenshot evidence exists (synthetic only)
+        run: |
+          test -s "$RUNNER_TEMP/dawney-backup-screenshots/dashboard-360-light.png"
+          test -s "$RUNNER_TEMP/dawney-backup-screenshots/dashboard-1440-dark.png"
+          test -s "$RUNNER_TEMP/dawney-backup-screenshots/destination-768-dark.png"
+          test -s "$RUNNER_TEMP/dawney-backup-screenshots/simulated-result-1440-dark.png"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dawney-backup-center-synthetic-screenshots
+          path: ${{ runner.temp }}/dawney-backup-screenshots/*.png
+          if-no-files-found: error
+          retention-days: 7

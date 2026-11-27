@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs'
 import {CLINIC_ROUTE_CONTRACTS,RELEASE_MISSING_OPERATIONS,STAFF_RELEASE_MODULES,routeContract,clinicModuleView} from '../src/release/clinic-contracts.mjs'
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 
-test('27 actual routes have unique source-backed contracts, roles, migrations and negative gates',()=>{
- assert.equal(CLINIC_ROUTE_CONTRACTS.length,28)
- assert.equal(new Set(CLINIC_ROUTE_CONTRACTS.map(r=>r.path)).size,27)
+test('28 actual routes have unique source-backed contracts, roles, migrations and negative gates',()=>{
+ assert.equal(CLINIC_ROUTE_CONTRACTS.length,29)
+ assert.equal(new Set(CLINIC_ROUTE_CONTRACTS.map(r=>r.path)).size,28)
  assert.ok(CLINIC_ROUTE_CONTRACTS.some(r=>r.id==='attachments'&&r.path==='/app/pets'),'private documents share the patient route but require a separate API contract')
  for(const row of CLINIC_ROUTE_CONTRACTS){
   for(const field of ['id','title','role','scope','flag','request','response','failure','persistence','missing'])
@@ -40,6 +40,12 @@ test('machine contract registry matches EVERY actual React Router path, includin
  assert.deepEqual(clinic.writes,[])
  assert.ok(clinic.reads.some(name=>name.includes('assert_staff_branch')))
  assert.match(clinic.failure,/partially revoked/)
+ const backup=routeContract('/app/admin/backup')
+ assert.equal(backup.persistence,'missing-server-adapter')
+ assert.deepEqual(backup.writes,[])
+ assert.match(backup.flag,/OFF; rehearsal only/)
+ assert.match(backup.role,/no system-wide backup authorization/)
+ assert.match(backup.missing,/MISSING/)
 })
 
 test('communications and finance have no imagined SQL/RPC contract or active client transport',()=>{
