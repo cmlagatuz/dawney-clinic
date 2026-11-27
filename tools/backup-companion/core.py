@@ -39,14 +39,14 @@ class FixtureAuthority:
         pending, self.pending = self.pending, None
         if pending is None or self.clock() >= pending[1]:
             raise Refused("AUTH_EXPIRED")
-        if not isinstance(response, str) or not secrets.compare_digest(response, pending[0]):
+        if not isinstance(response, str) or not response.isascii() or not secrets.compare_digest(response, pending[0]):
             raise Refused("AUTH_DENIED")
         self.grant = (secrets.token_hex(16), self.clock() + 300)
         return self.grant[0]
 
     def consume(self, token):
         grant, self.grant = self.grant, None
-        if grant is None or not isinstance(token, str) or not secrets.compare_digest(token, grant[0]):
+        if grant is None or not isinstance(token, str) or not token.isascii() or not secrets.compare_digest(token, grant[0]):
             raise Refused("AUTH_DENIED")
         if self.clock() >= grant[1]:
             raise Refused("AUTH_EXPIRED")
@@ -180,18 +180,27 @@ def backup(root, authority, token, crypto, cancel=lambda: False,
     live()
     try:
         initial = identity(root)
+        tracked = []
         def ready():
             live()
             if identity(root) != initial:
                 raise Refused("DRIVE_CHANGED")
+            for path, key in tracked:
+                item = no_reparse(path)
+                if (item.st_dev, item.st_ino) != key or not path.is_dir():
+                    raise Refused("DESTINATION_UNSAFE")
         def space():
             ready()
             if free(root) < MIN_FREE:
                 raise Refused("INSUFFICIENT_SPACE")
         space()
         progress("checking_destination")
-        parent = ensure_folder(ensure_folder(ensure_folder(root, "DAWNEY_BACKUPS"),
-                                              "STAGING"), "SYNTHETIC_FIXTURES")
+        parent = root
+        for name in ("DAWNEY_BACKUPS", "STAGING", "SYNTHETIC_FIXTURES"):
+            ready()
+            parent = ensure_folder(parent, name)
+            item = no_reparse(parent)
+            tracked.append((parent, (item.st_dev, item.st_ino)))
         space()
         stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         job = "fixture-" + stamp + "-" + uuid.uuid4().hex
@@ -200,6 +209,8 @@ def backup(root, authority, token, crypto, cancel=lambda: False,
         if final.exists():
             raise Refused("OUTPUT_EXISTS")
         partial.mkdir()  # exclusive reservation
+        item = no_reparse(partial)
+        tracked.append((partial, (item.st_dev, item.st_ino)))
         # Actual write probe: exclusively reserve the ciphertext file.
         archive = partial / "synthetic-fixture.json.gpg"
         with archive.open("xb") as handle:
@@ -214,7 +225,11 @@ def backup(root, authority, token, crypto, cancel=lambda: False,
             os.fsync(handle.fileno())
         ready()
         progress("verifying")
-        ciphertext = archive.read_bytes()
+        no_reparse(archive)
+        with archive.open("rb") as reader:
+            ciphertext = reader.read(MAX_CIPHER + 1)
+        if len(ciphertext) > MAX_CIPHER:
+            raise Refused("CIPHERTEXT_MISMATCH")
         if digest(ciphertext) != digest(cipher):
             raise Refused("CIPHERTEXT_MISMATCH")
         plain = crypto.decrypt(ciphertext, ready)
@@ -230,19 +245,24 @@ def backup(root, authority, token, crypto, cancel=lambda: False,
         ready()
         if final.exists():
             raise Refused("OUTPUT_EXISTS")
-        # Windows os.rename refuses an existing destination. No replacement API.
-        partial.rename(final)
-        ready()
-        if digest((final / archive.name).read_bytes()) != checksum:
-            raise Refused("CIPHERTEXT_MISMATCH")
+        # Verify before commit; a same-directory rename publishes the whole set.
+        with archive.open("rb") as reader:
+            if digest(reader.read(MAX_CIPHER + 1)) != checksum:
+                raise Refused("CIPHERTEXT_MISMATCH")
         receipt = {"version": 1, "scope": SCOPE, "job_id": job,
                    "completed_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
                    "status": "verified_synthetic_fixture", "bytes": len(ciphertext),
                    "sha256": checksum, "authorization": "simulated",
                    "database_export": False, "restoration_verified": False}
         ready()
-        exclusive_write(final / "receipt.json",
+        exclusive_write(partial / "receipt.json",
                         (json.dumps(receipt, sort_keys=True) + "\n").encode("utf-8"))
+        ready()
+        if final.exists():
+            raise Refused("OUTPUT_EXISTS")
+        # Commit boundary: only a non-partial directory with a valid receipt is accepted.
+        # Windows rename fails if final exists. Cancel after commit cannot undo publication.
+        partial.rename(final)
         return receipt
     except Refused:
         raise

@@ -42,6 +42,10 @@ class Tests(unittest.TestCase):
         self.auth.challenge("fixture-system-administrator")
         self.refuse("AUTH_DENIED", lambda: self.auth.confirm("bad"))
 
+    def test_non_ascii_challenge(self):
+        self.auth.challenge("fixture-system-administrator")
+        self.refuse("AUTH_DENIED", lambda: self.auth.confirm("☃"))
+
     def test_expired_challenge(self):
         code = self.auth.challenge("fixture-system-administrator")
         self.now += 61
@@ -102,6 +106,21 @@ class Tests(unittest.TestCase):
         with patch.object(Path, "open", side_effect=PermissionError):
             self.refuse("DESTINATION_OR_IO_FAILED", self.run_backup)
 
+    def test_symlink_folder(self):
+        other = self.root / "other"
+        other.mkdir()
+        (self.root / "DAWNEY_BACKUPS").symlink_to(other, target_is_directory=True)
+        self.refuse("DESTINATION_UNSAFE", self.run_backup)
+        self.assertEqual(list(other.iterdir()), [])
+
+    def test_publish_failure(self):
+        with patch.object(Path, "rename", side_effect=OSError):
+            with self.assertRaisesRegex(core.Refused, "DESTINATION_OR_IO_FAILED"):
+                self.run_backup()
+        receipts = list(self.root.rglob("receipt.json"))
+        self.assertEqual(len(receipts), 1)
+        self.assertTrue(receipts[0].parent.name.endswith(".partial"))
+
     def test_preserve_and_receipt(self):
         old = self.root / "existing.gpg"
         old.write_bytes(b"keep")
@@ -111,9 +130,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(receipt["sha256"],core.digest(b"FIXTURE-CIPHERTEXT"))
         self.assertEqual(len(list(self.root.rglob("receipt.json"))),1)
 
-    @unittest.skipUnless(shutil.which("gpg"),"GPG unavailable")
     def test_real_gpg_and_corruption(self):
         exe = shutil.which("gpg")
+        self.assertIsNotNone(exe, "Real GPG test is mandatory")
         home = self.root / "gpg-home"
         home.mkdir(mode=0o700)
         with patch.dict(os.environ, {"GNUPGHOME":str(home)}):
