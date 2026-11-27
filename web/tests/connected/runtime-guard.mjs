@@ -32,6 +32,13 @@ export function validatePacket(p,approval){
  requireThat(typeof p.speciesLabel==='string'&&p.speciesLabel.length>0&&p.speciesLabel.length<=80&&typeof p.branchLabel==='string'&&p.branchLabel.length>0&&p.branchLabel.length<=100&&typeof p.otherBranchLabel==='string'&&p.otherBranchLabel.length>0&&p.otherBranchLabel.length<=100,'BLOCKED: fixture labels required')
  requireThat(day.test(p.checkedInDay??'')&&day.test(p.expiryDay??'')&&p.expiryDay>p.checkedInDay,'BLOCKED: valid isolated calendar dates required')
  requireThat(typeof p.otherOwnerPet==='string'&&p.otherOwnerPet.startsWith('Synthetic ')&&p.otherOwnerPet.includes(p.runId),'BLOCKED: owner B seed marker required')
+ if(p.lifecycleVisits!==undefined){
+  const actions=['checkIn','noShow','decline','cancel','complete']
+  requireThat(p.lifecycleVisits&&Object.keys(p.lifecycleVisits).length===actions.length,'BLOCKED: complete optional lifecycle fixture set required')
+  const ids=[p.checkedInVisitId]
+  for(const action of actions){const v=p.lifecycleVisits[action];requireThat(v&&uuid.test(v.id??'')&&day.test(v.day??''),'BLOCKED: invalid lifecycle fixture');ids.push(v.id)}
+  requireThat(new Set(ids).size===ids.length&&new Set(ids.map(id=>id.replace(/-/g,'').slice(0,6).toUpperCase())).size===ids.length,'BLOCKED: distinct abbreviated visit references required')
+ }
  return p
 }
 export async function verifyLocalBackend(p){

@@ -13,3 +13,5 @@ test('require publishable-key shape, no privileged key or legacy JWT',()=>{for(c
 test('exact nine approved flags only, backup is separate',()=>{assert.equal(new Set(flags).size,9);assert.ok(!flags.some(f=>f.includes('BACKUP')))})
 
 test('reject unsanitized runtime evidence',()=>assert.throws(()=>validatePacket({...packet(),runtimeEvidence:'unsafe raw evidence text'},runId)))
+
+test('optional lifecycle set must have exact distinct fixture IDs and visible prefixes',()=>{const p=packet();p.lifecycleVisits=Object.fromEntries(['checkIn','noShow','decline','cancel','complete'].map((k,i)=>[k,{id:(i+1).toString().padStart(6,'0')+'aa-0000-4000-8000-000000000001',day:p.checkedInDay}]));assert.equal(validatePacket(p,runId).lifecycleVisits.checkIn.day,p.checkedInDay);p.lifecycleVisits.noShow.id=p.lifecycleVisits.checkIn.id;assert.throws(()=>validatePacket(p,runId))})

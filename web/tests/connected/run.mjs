@@ -136,8 +136,10 @@ try{
    await u.go('/');await u.viewport(w,h);await u.theme(theme)
    await u.has('Dawney Animal Clinic');await u.has('Monday to Saturday')
    await u.shot('public-'+w+'-'+theme)
-   if(w<768){await u.clickSel('.site-menu');await u.wait('document.querySelector(".site-menu").getAttribute("aria-expanded")==="true"');await u.key('Escape');await u.wait('document.activeElement===document.querySelector(".site-menu")')}
-   await u.go('/services');await u.has('Service categories')
+   const mobile=await u.b.value('document.querySelector(".site-menu")?.getClientRects().length>0')
+   if(mobile){await u.clickSel('.site-menu');await u.wait('document.querySelector(".site-menu").getAttribute("aria-expanded")==="true"');await u.key('Escape');await u.wait('document.activeElement===document.querySelector(".site-menu")');await u.clickSel('.site-menu')}
+   await u.b.value('document.querySelector(\'.site-nav a[href="/services"]\').focus();true');await u.key('Enter');await u.wait('location.pathname==="/services"');await u.has('Service categories')
+   await u.wait('document.activeElement===document.querySelector("#main-content")')
    for(const text of ['Veterinary consultations','Vaccinations','Deworming','Diagnostic services','Surgical procedures','Dental care','Grooming','Hospitalization'])await u.has(text)
    await u.go('/location');await u.has('80 Perpetual Help Street');await u.has('Brookside Lane');await u.has('Sunday hours have not been confirmed')
    assert.equal(await u.b.value('document.querySelectorAll(".branch-directory .branch-card").length'),2)
@@ -265,7 +267,7 @@ try{
   assert.equal(await u.b.value('Array.from(document.querySelectorAll(".clinical-encounter-editor textarea")).every(e=>e.disabled)&&document.querySelector(".clinical-encounter-editor button[type=submit]").disabled'),true)
   await u.wait('document.querySelector(".clinical-encounter-editor textarea")?.value==='+q(draft))
   await u.select('#clinical-branch',p.otherBranchId);await u.has(p.otherBranchLabel)
-  assert.equal(await u.b.value('!document.querySelector(".clinical-chart")'),true)
+  await u.wait('document.querySelector("#clinical-branch").value==='+q(p.otherBranchId)+'&&!document.querySelector(".clinical-chart")')
  }))
  await run('clinical-role-denial',()=>browser(async u=>{
   await signIn(u,'receptionist');await u.go('/app/clinical');await branch(u,'#clinical-branch')
@@ -303,7 +305,7 @@ try{
   for(const n of ['30','60','90']){await u.fill('Expiry preview horizon',n,'.pharmacy-panel');await u.has(lot,'.pharmacy-panel')}
   await u.b.value('document.querySelector("#pharmacy-tab-batches").focus();true');await u.key('ArrowRight');await u.wait('document.activeElement?.id==="pharmacy-tab-fefo"&&document.activeElement.getAttribute("aria-selected")==="true"');await u.has(lot,'.pharmacy-panel')
   await u.clickExpr(u.one('[role=tab]','Movement history'));await u.has('Change: +10','.pharmacy-panel')
-  assert.equal(await u.b.value('(()=>{const a=Array.from(document.querySelectorAll("button")).filter(e=>["Receive stock","Adjust quantity","Dispense medicine","Transfer between branches"].includes(e.textContent.trim()));return a.length===4&&a.every(e=>e.disabled)})()'),true)
+  assert.equal(await u.b.value('(()=>{const a=Array.from(document.querySelectorAll("button")).filter(e=>["Receive stock","Adjust quantity","Dispense medicine","Transfer between branches"].some(t=>e.textContent.trim()===t+" — unavailable"));return a.length===4&&a.every(e=>e.disabled)})()'),true)
   await u.shot('pharmacy-ledger')
  }))
  await run('inventory-edit',()=>browser(async u=>{
@@ -379,12 +381,44 @@ try{
   assert.equal(await u.b.value('Array.from(document.querySelectorAll("button")).filter(e=>/Send message|Schedule reminder/.test(e.textContent)).every(e=>e.disabled)'),true)
   await u.shot('communications-unavailable')
  }))
+ await run('additional-lifecycle',async()=>{
+  if(!p.lifecycleVisits)throw Object.assign(Error('time-qualified visits required'),{blocked:true})
+  // Time-dependent rows must be independently seeded by ASTRA. Never change
+  // the application clock or pretend a future appointment can be checked in.
+  for(const [fixture,role,before,action,after] of [
+   ['checkIn','receptionist','Confirmed','Check in','Checked in'],
+   ['noShow','receptionist','Confirmed','Mark no-show','No show'],
+   ['decline','receptionist','Requested','Decline request','Cancelled'],
+   ['cancel','receptionist','Confirmed','Cancel appointment','Cancelled'],
+   ['complete','veterinarian','Checked in','Complete visit','Completed']
+  ]){
+   const v=p.lifecycleVisits[fixture],selector='button[aria-label="Review appointment '+shortRef(v.id)+'"]'
+   await browser(async u=>{
+    await signIn(u,role);await ops(u,v.day)
+    await u.wait('document.querySelectorAll('+q(selector)+').length===1')
+    const status=await u.b.value('document.querySelector('+q(selector)+').closest(".ops-visit").querySelector(".badge").textContent')
+    assert.equal(status,before)
+    await u.clickSel(selector);await u.click(action,'.appointment-lifecycle')
+    await u.click('Apply '+action,'.appointment-lifecycle')
+    // The verified selected detail must show the new status, not only a toast.
+    await u.wait('document.querySelector(".lifecycle-status .badge")?.textContent==='+q(after))
+   })
+   await browser(async u=>{
+    await signIn(u,role);await ops(u,v.day)
+    if(after==='Cancelled'||after==='No show'){
+     await u.wait('!!document.querySelector(".ops-closed summary")')
+     if(!await u.b.value('document.querySelector(".ops-closed").open'))await u.clickSel('.ops-closed summary')
+    }
+    await u.wait('document.querySelectorAll('+q(selector)+').length===1')
+    assert.equal(await u.b.value('document.querySelector('+q(selector)+').closest(".ops-visit").querySelector(".badge").textContent'),after)
+   })
+  }
+ })
  // True committed-but-lost acknowledgement and delayed/denied reader require
  // ASTRA's independently controlled real server/proxy fault interface. Never
  // substitute an intercepted response or mark a theoretical scenario passed.
  results.push({id:'clinical-uncertain',status:'BLOCKED',reason:'real committed-response loss control not yet contracted'})
  results.push({id:'controlled-late-response',status:'BLOCKED',reason:'real held/denied response and account-switch control not yet contracted'})
- results.push({id:'additional-lifecycle',status:'BLOCKED',reason:'time-qualified synthetic check-in/no-show/decline/cancel/complete visit fixtures not yet contracted'})
 } catch {failed=true;console.error('FAIL: connected runner build/runtime error; no raw data logged')}
 finally{
  await report()
