@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { Icon, ThemeToggle, initials } from './ui'
 import { OPS_UI_ENABLED } from '../ops/flag'
 import { verifiedStaffNavigationBranches } from '../release/verified-staff-branches'
+import { BACKUP_PREVIEW_ENABLED } from '../backup/flag'
 
 /**
  * Owner-supplied Dawney Animal Clinic logo (original artwork, unmodified, 1:1 with built-in margin).
@@ -54,6 +55,7 @@ if(billingPreview)titles['/app/billing']='Clinic billing'
 titles['/app/communications']='Communications & consent'
 titles['/app/staff-management']='Staff management'
 titles['/app/inventory']='Inventory management'
+if(BACKUP_PREVIEW_ENABLED)titles['/app/admin/backup']='Backup & recovery'
 
 /** Never offer a staff-only shortcut merely because a build flag is enabled.
  * A confirmed account must also have active RLS-backed branch membership. */
@@ -82,6 +84,7 @@ function ClinicalStaffNavigation(){
     {billingPreview&&<NavLink to="/app/billing"><Icon name="calendar"/>Billing & invoices</NavLink>}
     {access.inventory&&<NavLink to="/app/inventory"><Icon name="pulse"/>Inventory management · preview</NavLink>}
     {access.admin&&<NavLink to="/app/staff-management"><Icon name="shield"/>Staff management · preview</NavLink>}
+    {BACKUP_PREVIEW_ENABLED&&access.admin&&<NavLink to="/app/admin/backup"><Icon name="shield"/>Backup & recovery · preview</NavLink>}
     <NavLink to="/app/communications"><Icon name="shield"/>Communications · unavailable</NavLink>
   </nav>
 }
