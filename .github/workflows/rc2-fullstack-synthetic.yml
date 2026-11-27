@@ -1,0 +1,28 @@
+name: RC2 isolated full-stack synthetic recovery
+on:
+  pull_request:
+    paths:
+      - 'scripts/fullstack-synthetic/**'
+      - '.github/workflows/rc2-fullstack-synthetic.yml'
+      - 'docs/RC2_FULLSTACK_SYNTHETIC_HANDOFF.md'
+permissions:
+  contents: read
+jobs:
+  fullstack:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Isolated runtime qualification and real recovery attempt
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          python3 -m py_compile scripts/fullstack-synthetic/rehearse.py
+          python3 -u scripts/fullstack-synthetic/rehearse.py
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
