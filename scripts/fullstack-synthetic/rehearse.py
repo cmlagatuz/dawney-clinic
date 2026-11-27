@@ -124,6 +124,10 @@ enabled = false
         require(re.fullmatch(r"[a-f0-9]{64}",self.cid),"local container identity missing")
         require(self.sql("show server_version_num;").startswith("17"),"PG17 required")
         print("PG major: 17; isolated container:",self.label,flush=True)
+        images=run(["docker","ps","--format","{{.Names}} {{.Image}}"]).decode().splitlines()
+        self.images=sorted(line.split(" ",1)[1] for line in images if line.split(" ",1)[0].endswith("_"+self.label))
+        require(any("gotrue" in x or "auth" in x for x in self.images) and any("storage" in x for x in self.images) and any("postgrest" in x for x in self.images),"real service images missing")
+        print("LOCAL_SERVICE_IMAGES:",",".join(self.images),flush=True)
         # Service health verified by actual HTTP operations below, not ignored.
     def stop(self):
         if self.started:
@@ -149,7 +153,19 @@ enabled = false
                 status,b=response.status,response.read()
         except urllib.error.HTTPError as exc:
             status,b=exc.code,exc.read()
-        require(status in expected,"unexpected HTTP status "+str(status)+" for "+path.split("?")[0].split("/")[2])
+        if status not in expected:
+            # Endpoint and normalized database code only, no error payload or token.
+            code = ""
+            try:
+                parsed = json.loads(b)
+                candidate = parsed.get("code","")
+                if isinstance(candidate,str) and re.fullmatch(r"[A-Z0-9_]{2,24}",candidate):
+                    code = " code="+candidate
+            except (ValueError, AttributeError):
+                pass
+            route = path.split("?")[0].split("/")
+            name = route[4] if len(route)>4 and route[3]=="rpc" else route[1]+"/"+route[3]
+            raise RuntimeError("unexpected HTTP status "+str(status)+" for "+name+code)
         if raw: return b
         return json.loads(b) if b else None
     def rpc(self,name,args,token,expected=(200,)):
@@ -213,9 +229,10 @@ insert into public.clinic_service_resources(service_id,resource_id,capacity) val
     appt=s.rpc("request_service_appointment",args,ta)
     require(isinstance(appt,str) and s.rpc("request_service_appointment",args,ta)==appt,"booking replay mismatch")
     mark("actual owner appointment request and idempotent retry")
-    # Clinical draft contract requires a checked-in visit. Use existing lifecycle RPC.
+    # The frozen draft contract accepts a matching appointment. Keep the future
+    # visit confirmed; never try to check in two days early.
     rev=int(s.sql(f"select lifecycle_revision from public.appointments where id='{appt}';"))
-    for action in ("confirm","check_in"):
+    for action in ("confirm",):
         s.rpc("transition_staff_appointment",{"p_appointment":appt,"p_branch":NAGA,"p_action":action,"p_expected_revision":rev,"p_request_id":uid()},tvet)
         rev=int(s.sql(f"select lifecycle_revision from public.appointments where id='{appt}';"))
     draftargs={"p_branch":NAGA,"p_pet":pet["id"],"p_appointment":appt,"p_request_id":uid(),"p_expected_revision":0,"p_complaint":"Synthetic draft","p_examination":"","p_assessment":"","p_plan":""}
@@ -228,7 +245,7 @@ insert into public.clinic_service_resources(service_id,resource_id,capacity) val
     data=b"%PDF-1.4\nDawney synthetic fixture, no patient data.\n%%EOF\n"
     s.http("POST","/storage/v1/object/"+BUCKET+"/"+path,ta,data,(200,201),ctype="application/pdf")
     def download(stack,token,expected=(200,)):
-        return stack.http("GET","/storage/v1/object/authenticated/"+BUCKET+"/"+path,token,expected,raw=True)
+        return stack.http("GET","/storage/v1/object/authenticated/"+BUCKET+"/"+path,token,expected=expected,raw=True)
     require(download(s,ta)==data,"source storage bytes mismatch")
     download(s,tb,(400,401,403,404))
     mark("actual private Storage upload/download and unrelated owner denial")
@@ -342,7 +359,7 @@ def restore(s,package_info,f):
     s.rpc("assert_staff_branch",{"p_branch":CAVITE},vet,expected=(401,403))
     require(s.rpc("get_branch_inventory_balance",{"p_branch":NAGA,"p_medicine":med},admin)==balance,"restored stock balance mismatch")
     s.rpc("read_staff_patient_chart",{"p_branch":NAGA,"p_pet":pet["id"],"p_section":"appointments"},vet)
-    require(s.rows("appointments","id=eq."+appt+"&select=id,status",ta)==[{"id":appt,"status":"checked_in"}],"restored appointment")
+    require(s.rows("appointments","id=eq."+appt+"&select=id,status",ta)==[{"id":appt,"status":"confirmed"}],"restored appointment")
     mark("fresh real Auth, same UUID, actual Storage bytes/metadata/private access and backend API after restore")
 
 def main():
@@ -400,12 +417,14 @@ def main():
             pack=package(src,work,fixture_data)
             backup_seconds=round(time.monotonic()-t,2)
             source_id=src.cid
+            source_images=src.images
             src.stop()
             dest=Stack(work,"dawney-synthetic-target",False)
             stage("destination_real_services")
             t=time.monotonic()
             dest.start()
             require(dest.cid!=source_id,"same database container")
+            require(dest.images==source_images,"source/destination service version mismatch")
             restore(dest,pack,fixture_data)
             print("SYNTHETIC_BACKUP_SECONDS=",backup_seconds,"RESTORE_AND_START_SECONDS=",round(time.monotonic()-t,2),flush=True)
             print("FULLSTACK_SYNTHETIC_SCOPED_PASS",flush=True)
