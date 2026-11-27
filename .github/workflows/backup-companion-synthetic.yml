@@ -1,0 +1,25 @@
+name: Backup companion offline synthetic tests
+on:
+  pull_request:
+    paths:
+      - 'tools/backup-companion/**'
+      - '.github/workflows/backup-companion-synthetic.yml'
+permissions:
+  contents: read
+jobs:
+  fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Test offline fixture and real GPG
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v gpg
+          python3 -m py_compile tools/backup-companion/core.py tools/backup-companion/gui.pyw
+          cd tools/backup-companion
+          python3 -m unittest -v test_core
