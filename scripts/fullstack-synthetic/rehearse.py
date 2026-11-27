@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Disposable synthetic-only Supabase CLI rehearsal. Never accepts remote URLs or credentials."""
+import base64
 import datetime as dt
 import hashlib
 import json
@@ -141,8 +142,9 @@ enabled = false
     def raw_data(self,path,*args):
         path.write_bytes(run(["docker","exec",self.cid,"pg_dump","-U","postgres","-d","postgres","--data-only",*args]))
         require(path.stat().st_size>0,"empty data dump")
-    def http(self,method,path,token=None,body=None,expected=(200,),raw=False,ctype="application/json",prefer=None,service=False):
+    def http(self,method,path,token=None,body=None,expected=(200,),raw=False,ctype="application/json",prefer=None,service=False,trace=None):
         require(path.startswith(("/auth/v1/","/rest/v1/","/storage/v1/")),"invalid local route")
+        require(method not in ("GET","HEAD") or body is None,"read request must not carry a body")
         key = self.service if service else self.anon
         headers={"apikey":key,"Authorization":"Bearer "+(token or key),"Content-Type":ctype}
         if prefer: headers["Prefer"]=prefer
@@ -153,6 +155,9 @@ enabled = false
                 status,b=response.status,response.read()
         except urllib.error.HTTPError as exc:
             status,b=exc.code,exc.read()
+        if trace:
+            # Controlled labels only; never log object path, bearer token or raw body.
+            print("HTTP:",self.label,trace,method,status,flush=True)
         if status not in expected:
             # Endpoint and normalized database code only, no error payload or token.
             code = ""
@@ -182,6 +187,47 @@ enabled = false
         return self.http("GET","/rest/v1/"+table+"?"+query,token)
     def insert(self,table,value,token):
         return self.http("POST","/rest/v1/"+table,token,value,(201,),prefer="return=representation")[0]
+
+def live_session(s, actor):
+    # Decode only to correlate a real signed token already obtained from Auth
+    # with its actual live row; not a replacement for API signature validation.
+    user,token=actor
+    part=token.split(".")[1]
+    claims=json.loads(base64.urlsafe_b64decode(part+"="*(-len(part)%4)))
+    sid=str(uuid.UUID(claims["session_id"]))
+    require(claims["sub"]==user and claims["role"]=="authenticated"
+            and claims["exp"]>time.time(),"fresh Auth claims mismatch")
+    require(s.sql(f"select count(*) from auth.sessions where id='{sid}' and user_id='{user}';")=="1","fresh Auth session row absent")
+    return sid
+
+def object_metadata(s):
+    # Compare stable supported attributes only; Storage API generates new
+    # object ID, version, ETag/timestamps on re-upload.
+    return json.loads(s.sql("""select coalesce(json_agg(json_build_object(
+       'bucket',bucket_id,'name',name,'owner_id',owner_id,
+       'size',(metadata->>'size')::bigint,'mimetype',metadata->>'mimetype')
+       order by name),'[]'::json) from storage.objects;"""))
+
+def download_allowed(s,path,token,data,label):
+    result=s.http("GET","/storage/v1/object/authenticated/"+BUCKET+"/"+path,
+                  token=token,expected=(200,),raw=True,trace=label)
+    require(result==data and sha(result)==sha(data),"authorized Storage byte mismatch")
+    return result
+
+def download_denied(s,path,token,label):
+    # A legacy Storage 400 can wrap a real authorization denial. Verify
+    # controlled error semantics, not just any malformed-request response.
+    result=s.http("GET","/storage/v1/object/authenticated/"+BUCKET+"/"+path,
+                  token=token,expected=(400,401,403,404),trace=label)
+    require(isinstance(result,dict),"Storage denial body not structured")
+    values=[str(result.get(k,"")).lower() for k in ("code","error","message","statusCode")]
+    combined=" ".join(values)
+    # Exact permitted semantic families only; other validation/DB errors fail.
+    allowed=("object not found","nosuchkey","not_found","not found",
+             "accessdenied","access denied","unauthorized","forbidden",
+             "permission denied","row-level security","not authorized")
+    require(any(x in combined for x in allowed),"Storage response is not a recognized access denial")
+    print("DENIAL:",s.label,label,"recognized access-denied/not-found response",flush=True)
 
 def snapshot(s):
     tables=s.sql("select schemaname||'.'||tablename from pg_tables where schemaname in ('public','clinic_private','supabase_migrations') order by 1;").splitlines()
@@ -258,14 +304,13 @@ insert into public.clinic_service_resources(service_id,resource_id,capacity) val
     path="pets/"+pet["id"]+"/owners/"+a+"/"+uid()+".pdf"
     data=b"%PDF-1.4\nDawney synthetic fixture, no patient data.\n%%EOF\n"
     s.http("POST","/storage/v1/object/"+BUCKET+"/"+path,ta,data,(200,201),ctype="application/pdf")
-    def download(stack,token,expected=(200,)):
-        return stack.http("GET","/storage/v1/object/authenticated/"+BUCKET+"/"+path,token,expected=expected,raw=True)
-    require(download(s,ta)==data,"source storage bytes mismatch")
+    download_allowed(s,path,ta,data,"source-owner-get")
     # Actual application metadata, linked to the uploaded immutable object.
     attachment=s.insert("pet_attachments",{"pet_id":pet["id"],"category":"health_card",
         "object_path":path,"original_filename":"fixture.pdf","mime_type":"application/pdf","size_bytes":len(data)},ta)
     require(attachment["object_path"]==path and attachment["pet_id"]==pet["id"],"attachment relationship")
-    download(s,tb,(400,401,403,404))
+    download_allowed(s,path,ta,data,"source-owner-get-after-attachment")
+    download_denied(s,path,tb,"source-unrelated-owner-get")
     mark("actual private Storage upload/download and unrelated owner denial")
     return people,owner,pet,appt,med,path,data,balance,draft
 
@@ -308,7 +353,9 @@ def package(s,work,f):
     bucket=json.loads(s.sql("select row_to_json(b)::text from (select id,name,public,file_size_limit,allowed_mime_types from storage.buckets where id='clinical-attachments') b;"))
     require(bucket["public"] is False,"private bucket required")
     config={"source":"synthetic-source","cutoff_utc":dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),"postgres_major":17,"cli_version":"3.0.0","auth_storage_versions":"same pinned local CLI runtime; user/identity rows only; sessions excluded; no managed equivalence","settings":{k:"isolated fixture only" for k in ("auth","storage","extensions","realtime","functions","network","secrets_reconfiguration")},"coverage_attestation":"operator-reviewed-quiescent-export"}
-    config["settings"]["storage"]=json.dumps(bucket)
+    meta=object_metadata(s)
+    require(meta==[{"bucket":BUCKET,"name":path,"owner_id":people["owner-a"][0],"size":len(data),"mimetype":"application/pdf"}],"source object metadata mismatch")
+    config["settings"]["storage"]=json.dumps({"bucket":bucket,"object_metadata":meta})
     (root/"configuration/inventory.json").write_text(json.dumps(config))
     require(before==snapshot(s),"source application changed during collection")
     mark("actual local logical collection, independent object listing and stable application snapshot")
@@ -362,21 +409,34 @@ def restore(s,package_info,f):
     stage("fresh_auth_and_storage_restore")
     fresh={k:s.login(k) for k in people}
     require(all(fresh[k][0]==people[k][0] for k in people),"Auth UUID mismatch after fresh login")
+    require(len({live_session(s,actor) for actor in fresh.values()})==len(fresh),"distinct fresh sessions required")
+    require(all(fresh[k][1]!=people[k][1] for k in people),"old access token reused")
+    mark("fresh real Auth for four restored UUIDs and distinct live sessions")
     ta=fresh["owner-a"][1]; tb=fresh["owner-b"][1]; admin=fresh["administrator"][1]; vet=fresh["veterinarian"][1]
     s.http("POST","/storage/v1/bucket",body=bucket,expected=(200,201),service=True)
     contents=(prepared/"storage-objects"/BUCKET/path).read_bytes()
-    s.http("POST","/storage/v1/object/"+BUCKET+"/"+path,ta,contents,(200,201),ctype="application/pdf")
-    require(s.http("GET","/storage/v1/object/authenticated/"+BUCKET+"/"+path,ta,raw=True)==data,"restored object bytes mismatch")
-    s.http("GET","/storage/v1/object/authenticated/"+BUCKET+"/"+path,tb,(400,401,403,404),raw=True)
+    require(contents==data,"prepared object content mismatch")
+    s.http("POST","/storage/v1/object/"+BUCKET+"/"+path,token=ta,body=contents,expected=(200,201),ctype="application/pdf",trace="restored-owner-upload")
+    inventory=json.loads((prepared/"configuration/inventory.json").read_text())
+    expected_meta=json.loads(inventory["settings"]["storage"])["object_metadata"]
+    require(object_metadata(s)==expected_meta,"restored stable object metadata mismatch")
+    mark("restored Storage bucket path owner size and MIME match signed collection")
+    download_allowed(s,path,ta,contents,"restored-owner-get")
+    mark("restored authorized Storage download and SHA256 byte parity")
+    download_denied(s,path,tb,"restored-unrelated-owner-get")
+    mark("restored unrelated-owner Storage denial")
     require(s.sql("select count(*) from storage.objects;")=="1","restored object count")
     newbucket=json.loads(s.sql("select row_to_json(b)::text from (select id,name,public,file_size_limit,allowed_mime_types from storage.buckets where id='clinical-attachments') b;"))
     require(bucket==newbucket,"bucket configuration mismatch")
+    require(s.rows("pet_attachments","object_path=eq."+path+"&select=pet_id,object_path,size_bytes,mime_type",ta)==[{"pet_id":pet["id"],"object_path":path,"size_bytes":len(data),"mime_type":"application/pdf"}],"restored attachment relationship mismatch")
+    require(s.rows("pet_attachments","object_path=eq."+path+"&select=id",tb)==[],"restored attachment metadata leaked")
     require(s.rows("pets","id=eq."+pet["id"]+"&select=id",ta)==[{"id":pet["id"]}],"owner restored read")
     require(s.rows("pets","id=eq."+pet["id"]+"&select=id",tb)==[],"restored owner isolation")
     s.rpc("assert_staff_branch",{"p_branch":NAGA},vet)
     s.rpc("assert_staff_branch",{"p_branch":CAVITE},vet,expected=(401,403))
     require(s.rpc("get_branch_inventory_balance",{"p_branch":NAGA,"p_medicine":med},admin)==balance,"restored stock balance mismatch")
     s.rpc("read_staff_patient_chart",{"p_branch":NAGA,"p_pet":pet["id"],"p_section":"appointments"},vet)
+    require(s.sql(f"select count(*) from public.clinical_encounter_drafts where appointment_id='{appt}' and revision=1;")=="1","restored clinical draft revision mismatch")
     require(s.rows("appointments","id=eq."+appt+"&select=id,status",ta)==[{"id":appt,"status":"confirmed"}],"restored appointment")
     mark("fresh real Auth, same UUID, actual Storage bytes/metadata/private access and backend API after restore")
 
