@@ -1,0 +1,32 @@
+name: CLOUD connected browser harness offline validation
+on:
+  pull_request:
+    paths:
+      - 'web/tests/connected/**'
+      - '.github/workflows/cloud-connected-harness.yml'
+permissions:
+  contents: read
+jobs:
+  offline-harness:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'ai/cloud/rc2-connected-browser-acceptance'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and offline guard tests only (no connected runtime)
+        run: |
+          node --check web/tests/connected/run.mjs
+          node --test web/tests/connected/runtime-guard.test.mjs
+      - name: Missing runtime must block without opening a browser
+        shell: bash
+        run: |
+          set +e
+          node web/tests/connected/run.mjs
+          code=$?
+          test "$code" -eq 2
