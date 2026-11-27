@@ -24,7 +24,7 @@ test('CLOUD Backup Center: administrator-only rehearsal, role/account isolation,
    const disabled=async text=>assert.equal(await b.value('!!('+selectText(text)+')&&('+selectText(text)+').disabled'),true,text)
    const key=async(name)=>{
     const codes={Tab:9,Enter:13,Escape:27}
-    await b.send('Input.dispatchKeyEvent',{type:'keyDown',key:name,code:name,windowsVirtualKeyCode:codes[name]})
+    await b.send('Input.dispatchKeyEvent',{type:'keyDown',key:name,code:name,windowsVirtualKeyCode:codes[name],...(name==='Enter'?{text:'\r',unmodifiedText:'\r'}:{})})
     await b.send('Input.dispatchKeyEvent',{type:'keyUp',key:name,code:name,windowsVirtualKeyCode:codes[name]})
    }
    const open=async(role,theme='light',fail=false)=>{

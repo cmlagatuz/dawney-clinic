@@ -144,6 +144,17 @@ export const CLINIC_ROUTE_CONTRACTS = Object.freeze([
     persistence:'provider-unverified',missing:'PR126 operational RPC source pending SOL and integrated real hosted Auth/RLS, first-admin bootstrap separately owner-authorized'
   },
   {
+    id:'backup-preview',path:'/app/admin/backup',surface:'staff',title:'Administrator Backup & Recovery rehearsal',
+    role:'verified clinic administrator for preview only; no system-wide backup authorization',scope:'current verified account, active administrator branch and server assertions; no backup data access',
+    reads:['verifiedStaffNavigationBranches for current administrator preview access only'],writes:[],
+    migration:['Existing verified Auth and branch membership contracts; MISSING approved system backup grant'],
+    flag:'VITE_ADMIN_BACKUP_PREVIEW_UI (OFF; rehearsal only)',
+    request:'Guided fictional destination and backup stages; no credential, filesystem or native launch input',
+    response:'Explicitly simulated workflow; real export, restore, identity verification and actual receipt history unavailable',
+    failure:'Deny non-administrator and failed verification; account or recheck resets rehearsal, no stale data or false success',
+    persistence:'missing-server-adapter',missing:'MISSING independently accepted system-wide fresh-auth grant, native companion, actual readiness and verified receipt contracts'
+  },
+  {
     id:'inventory-operator',path:'/app/inventory',surface:'staff',title:'Inventory product and receipt workspace',
     role:'active receptionist or administrator',scope:'currently asserted branch and independently RLS-protected stock and ledger rows',
     reads:['existing medicine_catalog branch-scoped pharmacy port','get_branch_inventory_balance(p_branch,p_medicine)','stock_movements exact event readback','branch_medicine_rules branch-local profile'],
