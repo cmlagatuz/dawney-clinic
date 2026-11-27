@@ -22,7 +22,6 @@ jobs:
     env:
       VITE_SUPABASE_URL: https://backup-preview-fixture.supabase.co
       VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_backup_preview_fixture
-      DAWNEY_BACKUP_SCREENSHOT_DIR: ${{ runner.temp }}/dawney-backup-screenshots
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,13 +39,13 @@ jobs:
           test -z "${VITE_ADMIN_BACKUP_PREVIEW_UI:-}"
           npm run build
       - name: Run actual Chromium synthetic backup center
-        run: node --test tests/backup-center.browser.test.mjs
+        run: DAWNEY_BACKUP_SCREENSHOT_DIR="$RUNNER_TEMP/dawney-backup-screenshots" node --test tests/backup-center.browser.test.mjs
       - name: Verify screenshot evidence exists (synthetic only)
         run: |
-          test -s "$DAWNEY_BACKUP_SCREENSHOT_DIR/dashboard-360-light.png"
-          test -s "$DAWNEY_BACKUP_SCREENSHOT_DIR/dashboard-1440-dark.png"
-          test -s "$DAWNEY_BACKUP_SCREENSHOT_DIR/destination-768-dark.png"
-          test -s "$DAWNEY_BACKUP_SCREENSHOT_DIR/simulated-result-1440-dark.png"
+          test -s "$RUNNER_TEMP/dawney-backup-screenshots/dashboard-360-light.png"
+          test -s "$RUNNER_TEMP/dawney-backup-screenshots/dashboard-1440-dark.png"
+          test -s "$RUNNER_TEMP/dawney-backup-screenshots/destination-768-dark.png"
+          test -s "$RUNNER_TEMP/dawney-backup-screenshots/simulated-result-1440-dark.png"
       - uses: actions/upload-artifact@v4
         with:
           name: dawney-backup-center-synthetic-screenshots
