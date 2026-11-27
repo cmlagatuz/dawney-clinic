@@ -101,7 +101,7 @@ test('CLOUD Backup Center: administrator-only rehearsal, role/account isolation,
      await click('Simulate integrity failure');await has('Simulated backup failed')
      await has('Not issued — rehearsal only')
      await disabled('Create Database Backup');await clean()
-     await click('Return to dashboard');assert.equal(await b.value('!!document.querySelector(".backup-example-receipt")'),false)
+     await click('Return to dashboard');await b.until('!document.querySelector(".backup-example-receipt")&&!document.querySelector(".backup-wizard")')
     }
    }
    await guide();await start();await click('Cancel rehearsal');await has('Simulated backup interrupted');await has('partial output is not a valid backup')
