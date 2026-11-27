@@ -18,6 +18,10 @@
 | Connected clinical browser coverage | [PR137](https://github.com/cmlagatuz/dawney-clinic/pull/137) `931b231f957ee9f51dcd380f0e9c610b7ca77192` | Test-only delta; 309/310 React, test 112 failed; 3/5 CI overall, historical PG17 guard also blocked before SQL. Durable save reconciliation remains an activation blocker |
 
 
+### PM checkpoint — 27 November 2026, export exact-file acceptance
+
+- [SOL exact-file PASS](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7211731192), independent raw SHA256 matches ASTRA; [PM acceptance](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7214239708). Scoped token form shows staging-only Database JIT Read. Source-review gate cleared for separately owner-approved synthetic local trial; actual Windows/hosted execution unverified. No password rotation, broad token, actual export or provider changes by PM. Full recovery and clinic-live NO-GO.
+
 ### PM checkpoint — 27 November 2026, 09:30 Asia/Riyadh
 
 - [ASTRA Temporary Access correction](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7206104509) and [re-delivery](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7211559630) delivered. PM inspected complete project-file text; raw-byte materialization unavailable, exact hash/Windows execution not independently verified. [PM checkpoint](https://github.com/cmlagatuz/dawney-clinic/pull/140#issuecomment-7211599523). SOL exact-file review outstanding; no further ASTRA development or storage checks. Owner-approved synthetic staging only, temporary role/token not created by PM, no password rotation, no actual export/restore. RC2 frozen, all20 triggered successful; provider healthy, staging11/production6 histories unchanged. Clinic-live NO-GO.
