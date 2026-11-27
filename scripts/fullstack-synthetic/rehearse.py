@@ -165,7 +165,7 @@ enabled = false
                 pass
             route = path.split("?")[0].split("/")
             name = route[4] if len(route)>4 and route[3]=="rpc" else route[1]+"/"+route[3]
-            raise RuntimeError("unexpected HTTP status "+str(status)+" for "+name+code)
+            raise RuntimeError("unexpected HTTP status "+str(status)+" for "+method+" "+name+code)
         if raw: return b
         return json.loads(b) if b else None
     def rpc(self,name,args,token,expected=(200,)):
@@ -241,12 +241,30 @@ insert into public.clinic_service_resources(service_id,resource_id,capacity) val
     require(s.rpc("save_staff_clinical_encounter_draft",draftargs,tvet)==draft,"draft replay")
     mark("actual appointment lifecycle and clinical draft receipt")
     stage("private_storage_real_bytes")
+    # Frozen migration #5 requires a private bucket created through the Storage
+    # API or dashboard, not a SQL insert. This is isolated operator fixture setup.
+    bucket_expected={"id":BUCKET,"name":BUCKET,"public":False,"file_size_limit":5242880,
+                     "allowed_mime_types":["application/pdf","image/png","image/jpeg"]}
+    count=s.sql("select count(*) from storage.buckets where id='clinical-attachments';")
+    require(count in ("0","1"),"invalid bucket inventory")
+    if count=="0":
+        s.http("POST","/storage/v1/bucket",body=bucket_expected,expected=(200,201),service=True)
+    observed=json.loads(s.sql("select row_to_json(b)::text from (select id,name,public,file_size_limit,allowed_mime_types from storage.buckets where id='clinical-attachments') b;"))
+    require(observed["id"]==BUCKET and observed["name"]==BUCKET and observed["public"] is False
+            and observed["file_size_limit"]==5242880
+            and sorted(observed["allowed_mime_types"])==sorted(bucket_expected["allowed_mime_types"]),
+            "private bucket fixture configuration mismatch")
+    mark("private clinical bucket configured through actual Storage API")
     path="pets/"+pet["id"]+"/owners/"+a+"/"+uid()+".pdf"
     data=b"%PDF-1.4\nDawney synthetic fixture, no patient data.\n%%EOF\n"
     s.http("POST","/storage/v1/object/"+BUCKET+"/"+path,ta,data,(200,201),ctype="application/pdf")
     def download(stack,token,expected=(200,)):
         return stack.http("GET","/storage/v1/object/authenticated/"+BUCKET+"/"+path,token,expected=expected,raw=True)
     require(download(s,ta)==data,"source storage bytes mismatch")
+    # Actual application metadata, linked to the uploaded immutable object.
+    attachment=s.insert("pet_attachments",{"pet_id":pet["id"],"category":"health_card",
+        "object_path":path,"original_filename":"fixture.pdf","mime_type":"application/pdf","size_bytes":len(data)},ta)
+    require(attachment["object_path"]==path and attachment["pet_id"]==pet["id"],"attachment relationship")
     download(s,tb,(400,401,403,404))
     mark("actual private Storage upload/download and unrelated owner denial")
     return people,owner,pet,appt,med,path,data,balance,draft
