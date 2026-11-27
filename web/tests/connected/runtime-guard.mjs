@@ -1,6 +1,6 @@
 import {lookup} from 'node:dns/promises'
 import {execFileSync} from 'node:child_process'
-import {existsSync,readdirSync,realpathSync} from 'node:fs'
+import {existsSync,readdirSync,realpathSync,statSync} from 'node:fs'
 import {resolve,relative,isAbsolute,sep} from 'node:path'
 export const RC2='8bb23dd31a516c16bc3e6544a25ef0cf9bb7403b'
 export const WEB='f5dc0a98bf82fc75db7a5bf144f23236523505b8'
@@ -18,7 +18,7 @@ export function validatePacket(p,approval){
  requireThat(p&&p.version===1&&p.sourceSha===RC2&&p.webTree===WEB,'BLOCKED: exact RC2 packet required')
  requireThat(/^[a-z0-9-]{8,32}$/.test(p.runId??'')&&approval===p.runId,'BLOCKED: matching explicit synthetic run approval required')
  requireThat(p.backendOrigin===BACKEND&&p.runtime==='isolated-disposable-full-stack'&&p.networkIsolation===true&&p.syntheticOnly===true&&p.noExternalMail===true&&p.freshSeed===true&&p.migrationCount===23,'BLOCKED: ASTRA isolated runtime and all 23 migrations required')
- requireThat(typeof p.runtimeEvidence==='string'&&p.runtimeEvidence.length>=12&&p.runtimeEvidence.length<=200,'BLOCKED: runtime evidence reference required')
+ requireThat(typeof p.runtimeEvidence==='string'&&/^[A-Za-z0-9._:/-]{12,200}$/.test(p.runtimeEvidence),'BLOCKED: sanitized runtime evidence reference required')
  requireThat(typeof p.publishableKey==='string'&&/^sb_publishable_[A-Za-z0-9_-]{8,}$/.test(p.publishableKey),'BLOCKED: compatible local synthetic publishable key required')
  requireThat(p.accounts&&Object.keys(p.accounts).length===roles.length,'BLOCKED: seven distinct synthetic actors required')
  const emails=[]
@@ -53,7 +53,8 @@ export function verifySource(root){
  requireThat(git('rev-parse',RC2+':web')===WEB,'BLOCKED: frozen web object mismatch')
  const changes=git('diff','--name-only',RC2,'--','web').split('\n').filter(Boolean)
  requireThat(changes.every(p=>p.startsWith('web/tests/connected/')),'BLOCKED: non-harness web changes')
- const untracked=git('ls-files','--others','--exclude-standard','--','web').split('\n').filter(Boolean)
+ requireThat(!git('diff','--name-only',RC2,'--','scripts/browser'),'BLOCKED: accepted Chromium driver changed')
+ const untracked=git('ls-files','--others','--exclude-standard','--','web','scripts/browser').split('\n').filter(Boolean)
  requireThat(untracked.every(p=>p.startsWith('web/tests/connected/')),'BLOCKED: unexpected untracked web input')
  for(const dir of [root,resolve(root,'web')]){
   requireThat(!readdirSync(dir).some(n=>n==='.env'||(n.startsWith('.env.')&&n!=='.env.example')),'BLOCKED: remove runtime-specific environment files from disposable checkout')
@@ -67,5 +68,12 @@ export function outsideCheckout(root,path){
  const rel=relative(realpathSync(root),actual)
  requireThat(rel.startsWith('..'+sep)||isAbsolute(rel),'BLOCKED: evidence must stay outside checkout')
  requireThat(!existsSync(actual),'BLOCKED: output must be a new directory')
+ return actual
+}
+
+export function privatePacket(root,path){
+ requireThat(isAbsolute(path),'BLOCKED: absolute private packet required')
+ const actual=realpathSync(path),rel=relative(realpathSync(root),actual),st=statSync(actual)
+ requireThat((rel.startsWith('..'+sep)||isAbsolute(rel))&&st.isFile()&&(st.mode&0o077)===0,'BLOCKED: packet must be private and outside checkout')
  return actual
 }

@@ -8,17 +8,18 @@ import {fileURLToPath} from 'node:url'
 import {execFileSync} from 'node:child_process'
 import {createInterface} from 'node:readline/promises'
 import assert from 'node:assert/strict'
-import {BACKEND,RC2,WEB,flags,validatePacket,verifyLocalBackend,verifySource,outsideCheckout} from './runtime-guard.mjs'
+import {BACKEND,RC2,WEB,flags,validatePacket,verifyLocalBackend,verifySource,outsideCheckout,privatePacket} from './runtime-guard.mjs'
 import {withChromium} from '../../../scripts/browser/cdp.mjs'
 const root=fileURLToPath(new URL('../../../',import.meta.url))
 const web=resolve(root,'web')
 const q=JSON.stringify
+const shortRef=id=>id.replace(/-/g,'').slice(0,6).toUpperCase()
 const packetPath=process.env.DAWNEY_CONNECTED_PACKET
 const outputPath=process.env.DAWNEY_CONNECTED_EVIDENCE
 if(!packetPath||!outputPath){console.error('BLOCKED: ASTRA runtime packet and new private evidence directory required');process.exit(2)}
 let p,out
 try{
- p=validatePacket(JSON.parse(await readFile(packetPath,'utf8')),process.env.DAWNEY_CONNECTED_APPROVAL)
+ p=validatePacket(JSON.parse(await readFile(privatePacket(root,packetPath),'utf8')),process.env.DAWNEY_CONNECTED_APPROVAL)
  verifySource(root)
  out=outsideCheckout(root,outputPath)
  await verifyLocalBackend(p)
@@ -26,7 +27,7 @@ try{
 await mkdir(out,{mode:0o700})
 const buildDir=await mkdtemp(resolve(tmpdir(),'dawney-connected-'))
 const results=[]
-const cases=['public','owner-register','owner-persistence','owner-isolation','staff-request','admin-review','staff-persistence','operations','owner-status','clinical','clinical-admin','clinical-role-denial','inventory','pharmacy','finance-unavailable','clinical-uncertain','connected-reader-faults']
+const cases=['public','owner-register','owner-persistence','owner-isolation','staff-request','admin-review','staff-persistence','operations','owner-status','clinical','clinical-admin','clinical-role-denial','inventory','pharmacy','inventory-edit','accountant-denial','session-transition','network-retry','owner-cancel','finance-unavailable','clinical-uncertain','controlled-late-response','additional-lifecycle']
 const report=async()=>writeFile(resolve(out,'result.json'),JSON.stringify({sourceSha:RC2,webTree:WEB,runId:p.runId,runtimeEvidence:p.runtimeEvidence,evidenceClass:'isolated-synthetic-real-api-browser-not-hosted',results:cases.map(id=>results.find(x=>x.id===id)??{id,status:'NOT_RUN'})},null,2),{mode:0o600})
 let previewServer,failed=false,blocked=false,origin
 const marker='Synthetic '+p.runId
@@ -36,7 +37,7 @@ let applicantPrefix,bookDay,bookingStart
 // Only DOM interactions. Never write authentication state or fixture data into browser storage.
 function ui(b){
  const wait=(expr,ms=20000)=>b.until(expr,ms)
- const go=async path=>{assert.match(path,/^\/(?:app\/[a-z/-]+|auth\/[a-z]+|services|about|location|contact|book)?$/);await b.goto(origin+path);await wait('location.origin==='+q(origin)+'&&!!document.querySelector("h1")')}
+ const go=async path=>{assert.match(path,/^\/(?:app\/[a-z/-]+|auth\/[a-z]+|services|about|location|contact|book)?$/);await b.goto(origin+path);await wait('location.origin==='+q(origin)+'&&(location.pathname==='+q(path)+'||('+q(path.startsWith('/app/'))+'&&location.pathname==="/auth/signin"))&&!!document.querySelector("h1")')}
  const has=(text,scope='#main-content')=>wait('document.querySelector('+q(scope)+')?.innerText.includes('+q(text)+')')
  const visible=expr=>'('+expr+')?.getClientRects().length>0'
  const element=(selector,text)=>'Array.from(document.querySelectorAll('+q(selector)+')).filter(e=>e.getClientRects().length&&'+(text===undefined?'true':'e.textContent.trim()==='+q(text))+')'
@@ -54,7 +55,7 @@ function ui(b){
  }
  const field=(label,scope='main')=>'Array.from(document.querySelectorAll('+q(scope+' label')+')).find(e=>e.textContent.trim().startsWith('+q(label)+'))?.querySelector("input,select,textarea")'
  const fillExpr=async(expr,value)=>{
-  await wait('!!('+expr+')&&!('+expr+').disabled')
+  await wait('!!('+expr+')&&!('+expr+').disabled&&(!('+expr+' instanceof HTMLSelectElement)||Array.from(('+expr+').options).some(o=>o.value==='+q(value)+'&&!o.disabled))')
   assert.equal(await b.value('(()=>{const e='+expr+';const proto=e instanceof HTMLSelectElement?HTMLSelectElement.prototype:e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;if(e instanceof HTMLSelectElement&&!Array.from(e.options).some(o=>o.value==='+q(value)+'&&!o.disabled))return false;Object.getOwnPropertyDescriptor(proto,"value").set.call(e,'+q(value)+');e.dispatchEvent(new Event("input",{bubbles:true}));e.dispatchEvent(new Event("change",{bubbles:true}));return e.value==='+q(value)+'})()'),true)
  }
  const fill=(label,value,scope)=>fillExpr(field(label,scope),value)
@@ -69,8 +70,9 @@ function ui(b){
   const png=await b.send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false})
   await writeFile(resolve(out,name+'.png'),Buffer.from(png.data,'base64'),{mode:0o600})
  }
+ const requests=prefix=>b.value('performance.getEntriesByType("resource").filter(e=>e.name.startsWith('+q(BACKEND+prefix)+')).length')
  const realRequest=async prefix=>wait('performance.getEntriesByType("resource").some(e=>e.name.startsWith('+q(BACKEND+prefix)+'))')
- return {b,wait,go,has,click,clickExpr,clickSel,exactRow,fill,fillExpr,field,select,key,viewport,theme,shot,realRequest,one}
+ return {b,wait,go,has,click,clickExpr,clickSel,exactRow,fill,fillExpr,field,select,key,viewport,theme,shot,realRequest,requests,one}
 }
 async function browser(fn){return withChromium(async b=>{await b.send('Network.enable');return fn(ui(b))})}
 async function signIn(u,role){
@@ -110,9 +112,9 @@ async function ops(u,day){
 async function clinical(u,role){
  await u.go('/app/clinical');await branch(u,'#clinical-branch')
  await u.fillExpr('document.querySelector("#clinical-day")',p.checkedInDay)
- const visit=await u.exactRow('.clinical-patient','Visit '+p.checkedInVisitId.slice(0,8))
+ const visit=await u.exactRow('.clinical-patient','Visit '+shortRef(p.checkedInVisitId))
  await u.clickExpr(visit);await u.wait('!!document.querySelector(".clinical-chart")')
- await u.has(p.checkedInPetId.slice(0,8),'.clinical-chart')
+ await u.has(shortRef(p.checkedInPetId),'.clinical-chart')
  await u.clickSel('#clinical-tab-encounter');await u.wait('!!document.querySelector(".clinical-encounter-editor")')
 }
 async function run(id,fn){
@@ -155,7 +157,7 @@ try{
   await u.fill('First name','Synthetic');await u.fill('Last name',p.runId)
   const create=await u.b.value('Array.from(document.querySelectorAll("button")).some(e=>e.textContent.trim()==="Create owner profile")')
   await u.click(create?'Create owner profile':'Save changes');await u.has('Your profile was saved to the clinic database.')
-  await u.go('/app/pets');await u.click('Add patient');await u.fill('Name',pet)
+  await u.go('/app/pets');await u.clickExpr(u.one('main button','Add patient'));await u.fill('Name',pet)
   await u.clickSel('input[role=combobox]');await u.fillExpr('document.querySelector("input[role=combobox]")',p.speciesLabel)
   await u.clickExpr(await u.exactRow('[role=option]',p.speciesLabel))
   await u.select('select[id$="-breed"]',p.breedId);await u.click('Save patient');await u.has(pet)
@@ -179,7 +181,7 @@ try{
   await u.has('Request received');await u.go('/app/appointments')
   const row=await u.exactRow('.booking-item',concern)
   assert.equal(await u.b.value(row+'.innerText.toLowerCase().includes("requested")'),true)
-  assert.equal(await u.b.value(row+'.querySelector("time").dateTime'),bookingStart)
+  assert.equal(Date.parse(await u.b.value(row+'.querySelector("time").dateTime')),Date.parse(bookingStart))
   await u.realRequest('/rest/v1/appointments');await u.shot('owner-requested')
  }))
  await run('owner-isolation',()=>browser(async u=>{
@@ -228,7 +230,7 @@ try{
   await u.wait('Array.from(document.querySelectorAll(".ops-visit")).some(e=>e.innerText.includes('+q(concern)+')&&e.innerText.toLowerCase().includes("confirmed"))')
   await u.go('/app/ops');await ops(u,bookDay);const saved=await u.exactRow('.ops-visit',concern)
   assert.equal(await u.b.value(saved+'.innerText.toLowerCase().includes("confirmed")'),true)
-  await u.click('Schedule');await u.click('Week');await u.wait('document.querySelector(\'[aria-label="Schedule length"] button[aria-pressed=true]\').textContent==="Week"')
+  await u.click('Schedule');await u.click('Week');await u.wait('document.querySelector(\'[aria-label="Schedule length"] button[aria-pressed=true]\').textContent==="Week"&&document.querySelectorAll(".ops-weekday").length===7&&!document.querySelector(".ops-weekday [role=status],.ops-weekday [role=alert]")')
   await u.click('Day');await u.click('Flow board')
   for(const [w,h] of [[360,740],[768,900],[1440,600]])for(const theme of ['light','dark']){await u.viewport(w,h);await u.theme(theme);await u.shot('operations-'+w+'-'+theme)}
  }))
@@ -239,6 +241,10 @@ try{
  await run('clinical',async()=>{
   await browser(async u=>{
    await signIn(u,'veterinarian');await clinical(u,'veterinarian')
+   const count=await u.requests('/rest/v1/rpc/save_staff_clinical_encounter_draft')
+   await u.fillExpr('document.querySelector(".clinical-encounter-editor textarea")',' ')
+   await u.click('Save encounter DRAFT','.clinical-encounter-editor');await u.has('Correct the highlighted fields. Nothing was saved.','.clinical-encounter-editor')
+   assert.equal(await u.requests('/rest/v1/rpc/save_staff_clinical_encounter_draft'),count,'invalid draft never submits')
    await u.fillExpr('document.querySelector(".clinical-encounter-editor textarea")',draft)
    await u.has('Unsaved local edits','.clinical-encounter-editor');await u.click('Save encounter DRAFT','.clinical-encounter-editor')
    await u.has('Verified persisted DRAFT saved.','.clinical-encounter-editor')
@@ -265,8 +271,8 @@ try{
   await signIn(u,'receptionist');await u.go('/app/clinical');await branch(u,'#clinical-branch')
   await u.fillExpr('document.querySelector("#clinical-day")',p.checkedInDay)
   await u.wait('!!document.querySelector(".clinical-patient")')
-  await u.clickExpr(await u.exactRow('.clinical-patient',p.checkedInPetId.slice(0,8)))
-  await u.wait('!!document.querySelector(".clinical-chart")')
+  await u.clickExpr(await u.exactRow('.clinical-patient',shortRef(p.checkedInPetId)))
+  await u.wait('!!document.querySelector(".clinical-chart")');await u.clickSel('#clinical-tab-encounter');await u.has('Receptionists can view authorized appointments only.','.clinical-chart')
   assert.equal(await u.b.value('!Array.from(document.querySelectorAll(".clinical-encounter-editor button[type=submit]")).some(e=>!e.disabled)'),true)
   assert.equal(await u.b.value('!document.body.innerText.includes('+q(draft)+')'),true)
  }))
@@ -276,10 +282,11 @@ try{
    const scope='[aria-labelledby="add-item-heading"]'
    await u.fill('Product type','supply',scope);await u.fill('Item code',sku,scope);await u.fill('Description / item name',medicine,scope);await u.fill('Stock unit','unit',scope);await u.fill('Reorder point','0',scope)
    await u.clickExpr('document.querySelector('+q(scope+' button[type=submit]')+')')
-   await u.has('Item saved and confirmed on server: '+sku)
+   await u.has('Item saved and confirmed on server: '+sku+' · on hand 0')
    const receive='[aria-labelledby="receive-heading"]'
-   await u.fill('Existing item code',sku,receive);await u.fill('Batch / lot number',lot,receive);await u.fill('Quantity','10',receive);await u.fill('Expiry date',p.expiryDay,receive)
-   await u.click('Receive Stock',receive);await u.has('Received 10 units — server-confirmed stock event')
+   await u.fill('Existing item code',sku,receive);await u.fill('Batch / lot number',lot,receive);await u.fill('Quantity','0',receive);await u.fill('Expiry date',p.expiryDay,receive)
+   const before=await u.requests('/rest/v1/rpc/receive_branch_inventory_stock');await u.click('Receive Stock',receive);await u.wait('!!document.querySelector('+q(receive+' [aria-invalid=true]')+')');assert.equal(await u.requests('/rest/v1/rpc/receive_branch_inventory_stock'),before)
+   await u.fill('Quantity','10',receive);await u.click('Receive Stock',receive);await u.has('Received 10 units — server-confirmed stock event')
    await u.shot('inventory-receipt')
   })
   await browser(async u=>{
@@ -293,10 +300,76 @@ try{
  await run('pharmacy',()=>browser(async u=>{
   await signIn(u,'veterinarian');await u.go('/app/pharmacy');await branch(u,'#pharmacy-branch')
   await u.clickExpr(await u.exactRow('.pharmacy-medicine',sku));await u.has(lot,'.pharmacy-panel')
-  await u.clickExpr(u.one('[role=tab]','FEFO candidates'));await u.has(lot,'.pharmacy-panel')
+  for(const n of ['30','60','90']){await u.fill('Expiry preview horizon',n,'.pharmacy-panel');await u.has(lot,'.pharmacy-panel')}
+  await u.b.value('document.querySelector("#pharmacy-tab-batches").focus();true');await u.key('ArrowRight');await u.wait('document.activeElement?.id==="pharmacy-tab-fefo"&&document.activeElement.getAttribute("aria-selected")==="true"');await u.has(lot,'.pharmacy-panel')
   await u.clickExpr(u.one('[role=tab]','Movement history'));await u.has('Change: +10','.pharmacy-panel')
-  assert.equal(await u.b.value('Array.from(document.querySelectorAll("button")).filter(e=>["Receive stock","Adjust quantity","Dispense medicine","Transfer between branches"].includes(e.textContent.trim())).every(e=>e.disabled)'),true)
+  assert.equal(await u.b.value('(()=>{const a=Array.from(document.querySelectorAll("button")).filter(e=>["Receive stock","Adjust quantity","Dispense medicine","Transfer between branches"].includes(e.textContent.trim()));return a.length===4&&a.every(e=>e.disabled)})()'),true)
   await u.shot('pharmacy-ledger')
+ }))
+ await run('inventory-edit',()=>browser(async u=>{
+  await signIn(u,'administrator');await u.go('/app/inventory');await branch(u,'#operator-branch')
+  const f=u.field('Select an existing branch item')
+  await u.wait('!!('+f+')&&Array.from(('+f+').options).some(o=>o.textContent.includes('+q(sku)+'))')
+  const id=await u.b.value('Array.from(('+f+').options).find(o=>o.textContent.includes('+q(sku)+')).value')
+  await u.fillExpr(f,id);await u.wait('!!document.querySelector("#edit-heading")')
+  const scope='[aria-labelledby="edit-heading"]',renamed=medicine+' edited'
+  await u.fill('Branch display name',renamed,scope);await u.fill('Reorder point','2',scope);await u.fill('Expiry warning days','60',scope)
+  await u.click('Save branch item edit',scope);await u.has('Item change confirmed at server revision')
+  await u.go('/app/inventory');await branch(u,'#operator-branch');await u.fillExpr(f,id)
+  await u.wait('!!document.querySelector("#edit-heading")&&document.querySelector(".operator-balances strong")?.textContent==="10"')
+  assert.equal(await u.b.value(u.field('Branch display name',scope)+'.value'),renamed)
+  assert.equal(await u.b.value(u.field('Expiry warning days',scope)+'.value'),'60')
+  await u.select('#operator-branch',p.otherBranchId)
+  await u.wait('!!('+f+')&&document.querySelector("#operator-branch").value==='+q(p.otherBranchId))
+  assert.equal(await u.b.value('!Array.from(('+f+').options).some(o=>o.value==='+q(id)+')'),true)
+  assert.equal(await u.b.value('!document.querySelector(".operator-balances")'),true)
+ }))
+ await run('accountant-denial',()=>browser(async u=>{
+  await signIn(u,'accountant');await u.go('/app/staff-access');await u.has('Restricted accountant')
+  await u.go('/app/staff-management');await u.has('Administrator approval required')
+  await u.go('/app/inventory');await u.wait('!!document.querySelector("main [role=alert]")')
+  assert.equal(await u.b.value('!document.querySelector("#add-item-heading")'),true)
+  await u.go('/app/clinical');await u.wait('!!document.querySelector(".clinical-failure")')
+  assert.equal(await u.b.value('!document.querySelector(".clinical-chart")'),true)
+  await u.go('/app/ops');await u.wait('!!document.querySelector(".ops-failure")')
+  assert.equal(await u.b.value('!document.querySelector(".ops-visit")'),true)
+  await u.go('/app/pharmacy');await u.wait('!!document.querySelector(".pharmacy-failure")')
+  assert.equal(await u.b.value('!document.querySelector(".pharmacy-medicine")'),true)
+ }))
+ await run('session-transition',()=>browser(async u=>{
+  await signIn(u,'ownerNew');await u.go('/app/appointments');await u.exactRow('.booking-item',concern)
+  await u.viewport(1440,900)
+  await u.click('Sign out','.sidebar');await u.wait('location.pathname==="/auth/signin"')
+  await u.go('/app/appointments');await u.wait('location.pathname==="/auth/signin"')
+  assert.equal(await u.b.value('!document.querySelector(".booking-item")'),true)
+  await signIn(u,'ownerOther');await u.go('/app/pets');await u.has(p.otherOwnerPet)
+  assert.equal(await u.b.value('!document.body.innerText.includes('+q(pet)+')'),true)
+  await u.go('/app/appointments');await u.has('My bookings')
+  assert.equal(await u.b.value('!document.body.innerText.includes('+q(concern)+')'),true)
+ }))
+ await run('network-retry',()=>browser(async u=>{
+  await signIn(u,'receptionist');await ops(u,bookDay);await u.exactRow('.ops-visit',concern)
+  // Browser transport disconnect, no response interception and no writes.
+  // This is a real client network failure; it does NOT prove post-commit loss.
+  await u.b.send('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0})
+  try{
+   await u.clickSel('button[aria-label="Refresh authorized branch appointments and counts"]')
+   await u.wait('!document.querySelector(".ops-visit")&&!!document.querySelector(".ops-failure")',30000)
+   assert.equal(await u.b.value('!document.body.innerText.includes('+q(concern)+')'),true)
+   await u.shot('operations-network-unavailable')
+  }finally{await u.b.send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1})}
+  const retry=await u.b.value('!!document.querySelector(".ops-failure button")')
+  if(retry)await u.clickSel('.ops-failure button')
+  else await u.click('Recheck staff permissions')
+  await u.exactRow('.ops-visit',concern)
+ }))
+ await run('owner-cancel',()=>browser(async u=>{
+  await signIn(u,'ownerNew');await u.go('/app/appointments');const row=await u.exactRow('.booking-item',concern)
+  assert.equal(await u.b.value(row+'.innerText.toLowerCase().includes("confirmed")'),true)
+  await u.clickExpr(row+'.querySelector("button")')
+  await u.has('The clinic recorded the cancellation.')
+  await u.go('/app/appointments');const saved=await u.exactRow('.booking-item',concern)
+  assert.equal(await u.b.value(saved+'.innerText.toLowerCase().includes("cancelled")'),true)
  }))
  await run('finance-unavailable',()=>browser(async u=>{
   await signIn(u,'administrator');await u.go('/app/billing');await u.wait('!!document.querySelector("#billing-title")')
@@ -310,7 +383,8 @@ try{
  // ASTRA's independently controlled real server/proxy fault interface. Never
  // substitute an intercepted response or mark a theoretical scenario passed.
  results.push({id:'clinical-uncertain',status:'BLOCKED',reason:'real committed-response loss control not yet contracted'})
- results.push({id:'connected-reader-faults',status:'BLOCKED',reason:'real delay/deny/retry control not yet contracted'})
+ results.push({id:'controlled-late-response',status:'BLOCKED',reason:'real held/denied response and account-switch control not yet contracted'})
+ results.push({id:'additional-lifecycle',status:'BLOCKED',reason:'time-qualified synthetic check-in/no-show/decline/cancel/complete visit fixtures not yet contracted'})
 } catch {failed=true;console.error('FAIL: connected runner build/runtime error; no raw data logged')}
 finally{
  await report()
