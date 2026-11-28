@@ -2,6 +2,8 @@
 """Same-job synthetic browser runtime preflight. Never invokes connected scenarios by default."""
 import datetime as dt
 import importlib.util
+import ipaddress
+import struct
 import json
 import os
 from pathlib import Path
@@ -24,7 +26,7 @@ spec=importlib.util.spec_from_file_location("accepted",ROOT/"scripts/fullstack-s
 b=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(b)
 A="9c71619083f61ecdd208223ed2334ca3fa3801a9"
-C="c2c39703884a85ba675f370f169339abb35f8bad"
+C="2bb4818fe35a0048b64697c91ca90e5c58503aad"
 H="8bb23dd31a516c16bc3e6544a25ef0cf9bb7403b"
 WEB="f5dc0a98bf82fc75db7a5bf144f23236523505b8"
 ALIAS="dawney-rc2-synthetic.supabase.co"
@@ -60,7 +62,11 @@ class Stack(b.Stack):
             args+=["--network-id",NET]
             # Sanitize start failure before returning; classify real connection
             # failures separately from application migration SQL failures.
-            proc=subprocess.run([b.CLI,*args],cwd=self.dir,env=b.ENV,capture_output=True,timeout=timeout)
+            try:
+                proc=subprocess.run([b.CLI,*args],cwd=self.dir,env=b.ENV,capture_output=True,timeout=timeout)
+            except subprocess.TimeoutExpired:
+                self.relays.diagnostics()
+                raise RuntimeError("isolated CLI start exceeded its bounded timeout") from None
             if proc.returncode:
                 raw=(proc.stdout+proc.stderr).decode("utf-8","replace")
                 low=raw.lower()
@@ -76,80 +82,143 @@ class Stack(b.Stack):
                 versions=sorted(set(re.findall(r"\b(202611[0-9]{8})_[a-z0-9_]+\.sql\b",raw)))
                 print("CLI_START_FAILURE_CLASSES:",",".join(clues),"SQLSTATES:",",".join(codes),
                       "MIGRATION_VERSIONS:",",".join(versions[-4:]),flush=True)
+                self.relays.diagnostics()
                 raise RuntimeError("isolated CLI startup failed; classified diagnostics above")
             return proc.stdout
         return super().cli(*args,timeout=timeout)
 
 class LoopbackRelays:
-    """Bridge the CLI's host-side readiness/migration connection only if Docker
-    internal networking omits the published localhost port. Never route off NET."""
-    def __init__(self,label):
-        self.label=label;self.stop=threading.Event();self.servers=[]
+    """Observe exact isolated containers throughout CLI startup; never trust a
+    TCP accept alone as proof that the local PostgreSQL relay works."""
+    ENDPOINTS={"db":(54322,5432),"kong":(54321,8000),"inbucket":(54324,8025)}
+    def __init__(self,label,subnet):
+        self.label=label;self.subnet=ipaddress.ip_network(subnet)
+        self.stop=threading.Event();self.ready=threading.Event();self.servers={}
         self.thread=threading.Thread(target=self.watch,daemon=True)
-        self.error=None
+        self.error=None;self.states={};self.lock=threading.Lock()
     def start(self): self.thread.start()
     @staticmethod
     def reachable(port):
         try:
-            with socket.create_connection(("127.0.0.1",port),timeout=0.15):return True
+            with socket.create_connection(("127.0.0.1",port),timeout=0.2):return True
         except OSError:return False
+    @staticmethod
+    def protocol(host,port,name):
+        try:
+            with socket.create_connection((host,port),timeout=0.6) as sock:
+                sock.settimeout(0.6)
+                if name=="db":
+                    sock.sendall(struct.pack("!II",8,80877103))
+                    return sock.recv(1) in (b"S",b"N")
+                sock.sendall(b"GET / HTTP/1.0\r\nHost: localhost\r\n\r\n")
+                return sock.recv(12).startswith(b"HTTP/")
+        except OSError:return False
+    def record(self,name,state):
+        with self.lock:
+            if self.states.get(name)!=state:
+                self.states[name]=state
+                print("LOCAL_LIFECYCLE:",name,*state,flush=True)
+    def diagnostics(self):
+        with self.lock:
+            for name in self.ENDPOINTS:
+                print("LOCAL_FINAL:",name,*self.states.get(name,("not-observed",)),flush=True)
+        print("LOCAL_WATCHER:",self.error or ("all-protocols-ready" if self.ready.is_set() else "not-ready"),flush=True)
+    def inspect(self,name):
+        try:
+            p=subprocess.run(["docker","inspect","supabase_"+name+"_"+self.label],
+                env=b.ENV,capture_output=True,timeout=8)
+        except subprocess.TimeoutExpired:
+            return None,"inspect-timeout"
+        if p.returncode:return None,"absent"
+        items=json.loads(p.stdout)
+        require(len(items)==1 and items[0]["Name"]=="/supabase_"+name+"_"+self.label,"unexpected relay container identity")
+        return items[0],None
+    def bind(self,name,local,target,remote):
+        class Handler(socketserver.BaseRequestHandler):
+            def handle(self):
+                import selectors
+                try:
+                    with socket.create_connection(self.server.target,timeout=10) as remote_sock:
+                        self.request.settimeout(120);remote_sock.settimeout(120)
+                        with selectors.DefaultSelector() as sel:
+                            sel.register(self.request,selectors.EVENT_READ,remote_sock)
+                            sel.register(remote_sock,selectors.EVENT_READ,self.request)
+                            while True:
+                                ready=sel.select(timeout=120)
+                                if not ready:return
+                                for key,_ in ready:
+                                    data=key.fileobj.recv(65536)
+                                    if not data:return
+                                    key.data.sendall(data)
+                except OSError:pass
+        class Server(socketserver.ThreadingTCPServer):
+            daemon_threads=True
+            allow_reuse_address=True
+        try:srv=Server(("127.0.0.1",local),Handler)
+        except OSError:return False
+        srv.target=(target,remote)
+        thread=threading.Thread(target=srv.serve_forever,daemon=True)
+        thread.start()
+        self.servers[name]=(srv,thread)
+        print("LOCAL_PORT:",name,"fixed loopback relay bound",flush=True)
+        return True
     def watch(self):
         try:
-            pending={"db":(54322,5432),"kong":(54321,8000),"inbucket":(54324,8025)}
-            while pending and not self.stop.is_set():
-                for name,(local,remote) in list(pending.items()):
-                    p=subprocess.run(["docker","inspect","supabase_"+name+"_"+self.label],
-                        env=b.ENV,capture_output=True,timeout=5)
-                    if p.returncode:continue
-                    item=json.loads(p.stdout)[0]
-                    if not item["State"]["Running"]:continue
+            while not self.stop.is_set():
+                qualified=set()
+                for name,(local,remote) in self.ENDPOINTS.items():
+                    item,reason=self.inspect(name)
+                    if item is None:
+                        self.record(name,(reason,))
+                        continue
+                    state=item["State"]
+                    lifecycle=state.get("Status","unknown")
+                    health=state.get("Health",{}).get("Status","none")
+                    require(lifecycle in ("created","running","paused","restarting","removing","exited","dead"),"unknown lifecycle")
+                    require(health in ("starting","healthy","unhealthy","none"),"unknown health")
+                    if not state["Running"]:
+                        self.record(name,(lifecycle,health,"not-running"))
+                        continue
                     networks=item["NetworkSettings"]["Networks"]
-                    require(set(networks)=={NET},"relay target not exclusively on internal network")
-                    target=networks[NET]["IPAddress"]
-                    require(re.fullmatch(r"[0-9.]+",target),"invalid internal relay IP")
-                    if self.reachable(local):
-                        print("LOCAL_PORT:",name,"Docker localhost reachable",flush=True)
-                    else:
-                        # Only after Docker has created/started this exact named container.
-                        # No external address, no arbitrary caller-supplied destination.
-                        class Handler(socketserver.BaseRequestHandler):
-                            def handle(self):
-                                import selectors
-                                try:
-                                    with socket.create_connection(self.server.target,timeout=10) as remote_sock:
-                                        self.request.settimeout(120);remote_sock.settimeout(120)
-                                        with selectors.DefaultSelector() as sel:
-                                            sel.register(self.request,selectors.EVENT_READ,remote_sock)
-                                            sel.register(remote_sock,selectors.EVENT_READ,self.request)
-                                            while True:
-                                                ready=sel.select(timeout=120)
-                                                if not ready:return
-                                                for key,_ in ready:
-                                                    data=key.fileobj.recv(65536)
-                                                    if not data:return
-                                                    key.data.sendall(data)
-                                except OSError:pass
-                        class Server(socketserver.ThreadingTCPServer):
-                            daemon_threads=True
-                            allow_reuse_address=True
+                    require(not item["HostConfig"]["Privileged"] and set(networks).issubset({NET}),"relay container alternate network or privilege")
+                    target=networks.get(NET,{}).get("IPAddress")
+                    if not target:
+                        self.record(name,(lifecycle,health,"awaiting-internal-address"))
+                        continue
+                    require(set(networks)=={NET} and ipaddress.ip_address(target) in self.subnet,"relay target not exclusively on exact internal network")
+                    if name in self.servers:
+                        require(self.servers[name][0].target==(target,remote),"relay target changed during startup")
+                    elif not self.reachable(local):
+                        self.bind(name,local,target,remote)
+                    direct=self.protocol(target,remote,name)
+                    forwarded=self.protocol("127.0.0.1",local,name)
+                    pg="not-applicable"
+                    if name=="db" and direct and forwarded:
                         try:
-                            srv=Server(("127.0.0.1",local),Handler)
-                        except OSError:
-                            # Docker may have bound the port concurrently.
-                            if not self.reachable(local):continue
-                            print("LOCAL_PORT:",name,"Docker localhost reachable after race",flush=True)
-                        else:
-                            srv.target=(target,remote)
-                            thread=threading.Thread(target=srv.serve_forever,daemon=True)
-                            thread.start();self.servers.append((srv,thread))
-                            print("LOCAL_PORT:",name,"internal-network fixed loopback relay",flush=True)
-                    del pending[name]
+                            result=subprocess.run(["docker","exec","supabase_db_"+self.label,
+                                "pg_isready","-h","127.0.0.1","-p","5432","-U","postgres","-d","postgres","-t","1"],
+                                env=b.ENV,capture_output=True,timeout=4)
+                            pg={0:"pg-accepting",1:"pg-rejecting",2:"pg-no-response",3:"pg-invalid"}.get(result.returncode,"pg-check-failed")
+                        except subprocess.TimeoutExpired:pg="pg-check-timeout"
+                    transport="fixed-relay" if name in self.servers else "docker-local"
+                    self.record(name,(lifecycle,health,transport,"direct-ok" if direct else "direct-pending",
+                        "local-ok" if forwarded else "local-pending",pg))
+                    if direct and forwarded and (name!="db" or pg=="pg-accepting"):
+                        qualified.add(name)
+                if qualified==set(self.ENDPOINTS):
+                    self.ready.set()
+                    return
                 self.stop.wait(.25)
-        except Exception:
-            self.error="loopback relay setup failed"
+        except Exception as exc:
+            self.error="watcher-"+type(exc).__name__
+            self.diagnostics()
+    def wait_ready(self):
+        require(self.ready.wait(20) and self.error is None,"fixed host relays did not qualify")
+        self.diagnostics()
+        mark("actual PostgreSQL accepting connections and all three fixed local transports respond")
     def close(self):
-        self.stop.set();self.thread.join(timeout=8)
-        for srv,thread in self.servers:
+        self.stop.set();self.thread.join(timeout=12)
+        for srv,thread in self.servers.values():
             srv.shutdown();srv.server_close();thread.join(timeout=5)
 
 def docker_network(s):
@@ -366,7 +435,7 @@ insert into public.clinic_service_species values('{fixture_service}','dog');""")
     labels={row["slug"]:row["display_name"] for row in s.rows("clinic_branches","select=slug,display_name")}
     packet={"version":2,"sourceSha":H,"webTree":WEB,"runId":runid,"backendOrigin":"https://"+ALIAS,
         "runtime":"isolated-disposable-full-stack","networkIsolation":True,"syntheticOnly":True,"noExternalMail":True,"freshSeed":True,"migrationCount":23,
-        "runtimeEvidence":"github-actions-runtime-"+os.environ["GITHUB_RUN_ID"],"mailOrigin":"http://127.0.0.1:54324","publishableKey":pub,
+        "runtimeEvidence":"github-actions-runtime-"+os.environ["GITHUB_RUN_ID"],"mailOrigin":"http://127.0.0.1:54324","publishableKey":pub,"authLinks":False,
         "accounts":accounts,"branchId":b.NAGA,"otherBranchId":b.CAVITE,"branchLabel":labels["naga"],"otherBranchLabel":labels["cavite"],
         "serviceId":b.SERVICE,"speciesId":"dog","speciesLabel":"Dog","breedId":"dog-labrador-retriever","checkedInVisitId":ids["clinical"]["id"],"checkedInPetId":clinical["id"],
         "checkedInDay":visit_day,"expiryDay":expiry,"otherOwnerPet":other_name,"lifecycleVisits":{k:v for k,v in ids.items() if k!="clinical"}}
@@ -415,7 +484,7 @@ def main():
             require(not git("diff","--name-only",H,"HEAD","--","scripts/browser",cwd=cloud),"browser driver changed")
             run(["npm","ci","--ignore-scripts","--no-audit","--no-fund"],cwd=cloud/"web",timeout=180)
             run(["node","--test","web/tests/connected/runtime-guard.test.mjs"],cwd=cloud)
-            mark("exact CLOUD c2c3970 checkout, locked deps and offline contract tests")
+            mark("exact CLOUD 2bb4818 checkout, locked deps and offline contract tests")
             archive=work/"cli.tar.gz"
             run(["curl","--fail","--silent","--show-error","--location","--max-time","90","--output",str(archive),"https://github.com/supabase/cli/releases/download/v3.0.0/supabase_3.0.0_linux_amd64.tar.gz"])
             require(b.sha(archive.read_bytes())=="eeb61edcd59a4735fcb5e58596574f25d03d420efca779f43ddb307e1cc5c754","CLI archive checksum")
@@ -436,13 +505,17 @@ def main():
                 run(["sudo",executable,"-I","INPUT","1",*rule])
                 rules.append((executable,rule))
             s=Stack(work)
-            ports=LoopbackRelays(s.label);ports.start()
+            require(network["Internal"] is True and network["Driver"]=="bridge","unexpected startup network")
+            subnets=[v["Subnet"] for v in network["IPAM"]["Config"] if ":" not in v["Subnet"]]
+            require(len(subnets)==1,"exact IPv4 internal subnet required")
+            ports=LoopbackRelays(s.label,subnets[0]);s.relays=ports;ports.start()
             s.start()
-            require(ports.error is None,"fixed host relay setup failed")
+            ports.wait_ready()
             info=json.loads(s.cli("status","-o","json"))
             pub=info.get("PUBLISHABLE_KEY","")
             require(re.fullmatch(r"sb_publishable_[A-Za-z0-9_-]{8,}",pub) and pub!=s.service,"genuine CLI publishable key missing")
             require(s.sql("select version from supabase_migrations.schema_migrations order by version;").splitlines()==[x.name.split("_")[0] for x in b.MIGRATIONS],"actual migration history mismatch")
+            mark("actual exact 23 migration history, native local publishable key")
             docker_network(s)
             b.stage("tls_and_process_namespace")
             home=certs(work)
@@ -462,6 +535,7 @@ def main():
             result=isolated_node(prefix,cloud,["preflight",str(cloud),str(path)],timeout=90)
             require("PASS: exact CLOUD v2 packet and actual catalog/mail freshness" in result,"missing actual packet preflight")
             mark("actual private version 2 packet validated against exact CLOUD guard in same-job runtime")
+            print("OPTIONAL_AUTH_LINKS_BLOCKED: OTP-only local template; callback and recovery links unqualified",flush=True)
             print("CONNECTED_RUNTIME_PREFLIGHT_PASS; CONNECTED_APPLICATION_SCENARIOS_NOT_RUN",flush=True)
             # Deliberately no execution hook in automatic PR CI. After separate
             # SOL/PM review, same-job invocation uses this exact prefix, packet,

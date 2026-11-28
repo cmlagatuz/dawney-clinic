@@ -92,7 +92,9 @@ if(mode==='otp'){
  const known=[
   'local mail list incomplete or invalid','invalid local mail metadata','unexpected or ambiguous signup mail','duplicate signup mail',
   'signup mail recipient or identity mismatch','local signup code template mismatch','isolated local mail read unavailable',
-  'real isolated signup mail not delivered within 45 seconds','stale signup mail',
+  'real isolated mail not delivered within 45 seconds','stale signup mail',
+  'anonymous taxonomy denial not verified','seeded synthetic owner authentication failed','seeded owner identity not verified',
+  'authenticated local taxonomy catalog unavailable','local catalog preflight session cleanup failed',
   'runtime branch fixture mismatch','missing, inactive or unsupported synthetic species',
   'missing, inactive, pending or mismatched synthetic breed'
  ]
