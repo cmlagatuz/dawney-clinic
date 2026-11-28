@@ -257,8 +257,13 @@ def report_outcomes(output,p,launched,orderly):
               and stat.S_IMODE(st.st_mode)==0o700,"private browser output directory")
         reported,complete=read_report(output/"result.json",p)
     except Exception:return states,False
+    # The pinned CLOUD runner appends both intentionally blocked fault
+    # controls only after traversing its case sequence. An exit code alone
+    # cannot prove its final report was reached (an exception can also exit 1).
+    terminal=complete and orderly and all(reported.get(case)=="BLOCKED" for case in
+                                        ("clinical-uncertain","controlled-late-response"))
     for case,value in reported.items():
-        states[case]="UNKNOWN" if launched and value=="NOT_RUN" and not (complete and orderly) else value
+        states[case]="UNKNOWN" if launched and value=="NOT_RUN" and not terminal else value
     return states,complete
 
 def receipt_status(browser,verification):
@@ -266,7 +271,16 @@ def receipt_status(browser,verification):
     return {"PASS":"PASS_PERSISTENCE","FAIL":"FAIL_PERSISTENCE",
             "UI_ONLY":"PASS_BROWSER_ONLY","BLOCKED":"BLOCKED",
             "REQUEST":"PASS_REQUEST_RECEIPT","ISOLATION":"PASS_BROWSER_ONLY",
-            "ISOLATION_FAIL":"FAIL_ISOLATION_READBACK"}[verification]
+            "ISOLATION_FAIL":"FAIL_ISOLATION_READBACK","UNVERIFIED":"UNVERIFIED"}[verification]
+
+def unavailable_readback(case,browser):
+    # Preserve known browser-only assertions even if the independent database
+    # snapshot itself failed. Report required independent checks as unverified,
+    # not as false negatives or fabricated session-transition verification.
+    if browser!="PASS_BROWSER":return browser
+    if case in ("public","network-retry","finance-unavailable","accessibility-mobile"):
+        return "PASS_BROWSER_ONLY"
+    return "UNVERIFIED"
 
 class Collector:
     def __init__(self,s,p,b):
@@ -638,7 +652,7 @@ class Collector:
                             verification="FAIL";scope="independent-check-failed"
                             print("RECEIPT_CHECK_FAILED:",case,type(exc).__name__,flush=True)
                     elif case in ("email-callback","email-recovery","clinical-uncertain","controlled-late-response"):
-                        verification="BLOCKED"
+                        verification="BLOCKED";scope="unsupported-independent-contract"
                     outcomes[case]=receipt_status(browser,verification)
                 else:
                     outcomes[case]=browser;scope="browser-"+browser.lower()
@@ -740,8 +754,10 @@ def execute(s,p,b,collector,prefix,cloud,work,packet_path,recheck):
     try:outcomes=collector.reconcile(states,quiescent=quiescent)
     except Exception:
         print("RECEIPT_COLLECTION_FAILED: database readback unavailable",flush=True)
-        outcomes={case:("FAIL_PERSISTENCE" if state=="PASS_BROWSER" else state) for case,state in states.items()}
-        for case in CASES:print("CASE_RECEIPT:",case,"browser="+states[case],"result="+outcomes[case],flush=True)
+        outcomes={case:unavailable_readback(case,state) for case,state in states.items()}
+        for case in CASES:
+            print("CASE_RECEIPT:",case,"browser="+states[case],"result="+outcomes[case],
+                  "scope=independent-readback-unavailable",flush=True)
         report_valid=False
     summary={k:sum(v==k for v in outcomes.values()) for k in sorted(set(outcomes.values()))}
     print("CONNECTED_RECEIPT_SUMMARY:",json.dumps(summary,sort_keys=True),flush=True)

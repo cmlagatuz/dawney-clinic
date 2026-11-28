@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import Mock, patch
 from receipts import (CASES, OWNER, OWNER_ID, REPO, REPO_ID, PR_ID, BRANCH, WORKFLOW,
     WORKFLOW_ID, LABEL, requested, clearance, authorize, read_report, report_outcomes,
-    receipt_status, literal, Collector)
+    receipt_status, literal, Collector, execute, unavailable_readback)
 
 class Contract(unittest.TestCase):
     def setUp(self):
@@ -154,6 +154,10 @@ class Contract(unittest.TestCase):
             rows=[{"id":c,"status":"NOT_RUN"} for c in CASES];rows[0]["status"]="PASS_BROWSER"
             path=self.report(out,rows)
             self.assertTrue(read_report(path,self.p)[1])
+            self.assertEqual(report_outcomes(out,self.p,True,True)[0]["owner-register"],"UNKNOWN")
+            for row in rows:
+                if row["id"] in ("clinical-uncertain","controlled-late-response"):row["status"]="BLOCKED"
+            self.report(out,rows)
             self.assertEqual(report_outcomes(out,self.p,True,True)[0]["owner-register"],"NOT_RUN")
             self.assertEqual(report_outcomes(out,self.p,True,False)[0]["owner-register"],"UNKNOWN")
             path.chmod(0o644);self.assertFalse(report_outcomes(out,self.p,True,True)[1])
@@ -192,6 +196,20 @@ class Contract(unittest.TestCase):
         self.assertTrue(any("independent session revocation UNVERIFIED" in line for line in lines))
         self.assertTrue(any("intermediate-pending-no-grant-UNVERIFIED" in line for line in lines))
         c.owner_access.assert_called_once()
+    def test_recheck_refusal_prevents_process_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            work=Path(root);collector=Mock();collector.baseline={}
+            recheck=Mock(side_effect=RuntimeError("approval revoked"))
+            with patch("receipts.namespace_pids",return_value={123}),patch("receipts.subprocess.Popen") as launch:
+                with self.assertRaisesRegex(RuntimeError,"approval revoked"):
+                    execute(None,self.p,Mock(),collector,["isolated"],work,work,work/"packet.json",recheck)
+            recheck.assert_called_once();launch.assert_not_called()
+    def test_unavailable_readback_does_not_erase_or_overclaim_browser(self):
+        for case in ("session-transition","staff-request","clinical"):
+            self.assertEqual(unavailable_readback(case,"PASS_BROWSER"),"UNVERIFIED")
+        self.assertEqual(unavailable_readback("public","PASS_BROWSER"),"PASS_BROWSER_ONLY")
+        for state in ("UNKNOWN","FAIL","BLOCKED","NOT_RUN"):
+            self.assertEqual(unavailable_readback("staff-request",state),state)
     def test_literal(self):
         self.assertEqual(literal("a'b"),"'a''b'")
         with self.assertRaises(RuntimeError):literal("a\\b")
