@@ -7,6 +7,9 @@ import os
 from pathlib import Path
 import re
 import secrets
+import socket
+import socketserver
+import threading
 import shutil
 import subprocess
 import sys
@@ -54,7 +57,99 @@ class Stack(b.Stack):
             args=list(args)
             args[args.index("-x")+1]=args[args.index("-x")+1].replace("mailpit,","")
             args+=["--network-id",NET]
+            # Sanitize start failure before returning; classify real connection
+            # failures separately from application migration SQL failures.
+            proc=subprocess.run([b.CLI,*args],cwd=self.dir,env=b.ENV,capture_output=True,timeout=timeout)
+            if proc.returncode:
+                raw=(proc.stdout+proc.stderr).decode("utf-8","replace")
+                low=raw.lower()
+                clues=[label for needle,label in (
+                    ("connection refused","connection refused"),("connect:","connection error"),
+                    ("timeout","timeout"),("timed out","timed out"),("no route to host","no route"),
+                    ("health check","health check"),("migration","migration"),("permission denied","permission denied"),
+                    ("failed to parse","config parse"),("no such host","DNS lookup"),
+                    ("port is already allocated","port collision"),("network not found","network missing"),
+                    ("dial tcp","TCP dial"),("database system is ready","database ready"),("failed to connect","DB connect")
+                ) if needle in low]
+                codes=sorted(set(re.findall(r"SQLSTATE[\s:=]+([A-Z0-9]{5})",raw,re.I)))
+                versions=sorted(set(re.findall(r"\b(202611[0-9]{8})_[a-z0-9_]+\.sql\b",raw)))
+                print("CLI_START_FAILURE_CLASSES:",",".join(clues),"SQLSTATES:",",".join(codes),
+                      "MIGRATION_VERSIONS:",",".join(versions[-4:]),flush=True)
+                raise RuntimeError("isolated CLI startup failed; classified diagnostics above")
+            return proc.stdout
         return super().cli(*args,timeout=timeout)
+
+class LoopbackRelays:
+    """Bridge the CLI's host-side readiness/migration connection only if Docker
+    internal networking omits the published localhost port. Never route off NET."""
+    def __init__(self,label):
+        self.label=label;self.stop=threading.Event();self.servers=[]
+        self.thread=threading.Thread(target=self.watch,daemon=True)
+        self.error=None
+    def start(self): self.thread.start()
+    @staticmethod
+    def reachable(port):
+        try:
+            with socket.create_connection(("127.0.0.1",port),timeout=0.15):return True
+        except OSError:return False
+    def watch(self):
+        try:
+            pending={"db":(54322,5432),"kong":(54321,8000),"inbucket":(54324,8025)}
+            while pending and not self.stop.is_set():
+                for name,(local,remote) in list(pending.items()):
+                    p=subprocess.run(["docker","inspect","supabase_"+name+"_"+self.label],
+                        env=b.ENV,capture_output=True,timeout=5)
+                    if p.returncode:continue
+                    item=json.loads(p.stdout)[0]
+                    if not item["State"]["Running"]:continue
+                    networks=item["NetworkSettings"]["Networks"]
+                    require(set(networks)=={NET},"relay target not exclusively on internal network")
+                    target=networks[NET]["IPAddress"]
+                    require(re.fullmatch(r"[0-9.]+",target),"invalid internal relay IP")
+                    if self.reachable(local):
+                        print("LOCAL_PORT:",name,"Docker localhost reachable",flush=True)
+                    else:
+                        # Only after Docker has created/started this exact named container.
+                        # No external address, no arbitrary caller-supplied destination.
+                        class Handler(socketserver.BaseRequestHandler):
+                            def handle(self):
+                                import selectors
+                                try:
+                                    with socket.create_connection(self.server.target,timeout=10) as remote_sock:
+                                        self.request.settimeout(120);remote_sock.settimeout(120)
+                                        with selectors.DefaultSelector() as sel:
+                                            sel.register(self.request,selectors.EVENT_READ,remote_sock)
+                                            sel.register(remote_sock,selectors.EVENT_READ,self.request)
+                                            while True:
+                                                ready=sel.select(timeout=120)
+                                                if not ready:return
+                                                for key,_ in ready:
+                                                    data=key.fileobj.recv(65536)
+                                                    if not data:return
+                                                    key.data.sendall(data)
+                                except OSError:pass
+                        class Server(socketserver.ThreadingTCPServer):
+                            daemon_threads=True
+                            allow_reuse_address=True
+                        try:
+                            srv=Server(("127.0.0.1",local),Handler)
+                        except OSError:
+                            # Docker may have bound the port concurrently.
+                            if not self.reachable(local):continue
+                            print("LOCAL_PORT:",name,"Docker localhost reachable after race",flush=True)
+                        else:
+                            srv.target=(target,remote)
+                            thread=threading.Thread(target=srv.serve_forever,daemon=True)
+                            thread.start();self.servers.append((srv,thread))
+                            print("LOCAL_PORT:",name,"internal-network fixed loopback relay",flush=True)
+                    del pending[name]
+                self.stop.wait(.25)
+        except Exception:
+            self.error="loopback relay setup failed"
+    def close(self):
+        self.stop.set();self.thread.join(timeout=8)
+        for srv,thread in self.servers:
+            srv.shutdown();srv.server_close();thread.join(timeout=5)
 
 def docker_network(s):
     net=json.loads(run(["docker","network","inspect",NET]))[0]
@@ -69,6 +164,8 @@ def docker_network(s):
         for family in ("-4","-6"):
             routes=run(["sudo","nsenter","-t",pid,"-n","ip",family,"route","show","default"]).strip()
             require(not routes,"service has external default route")
+    require(run(["docker","exec",s.cid,"getent","ahostsv4","kong"]).strip(),"internal DNS positive control failed")
+    run(["docker","exec",s.cid,"bash","-c","command -v timeout >/dev/null && command -v getent >/dev/null"])
     # Actual negative controls from real PG container; external DNS and TEST-NET
     # must not work, not merely Docker configuration metadata.
     for cmd in (["getent","ahostsv4","example.com"],
@@ -259,7 +356,8 @@ def main():
     os.umask(0o077)
     b.ENV={"PATH":os.environ["PATH"],"LANG":"C.UTF-8","LC_ALL":"C.UTF-8","CI":"true"}
     require(git("rev-parse","HEAD")==event["pull_request"]["head"]["sha"],"wrong job checkout")
-    require(git("rev-parse","HEAD^")==A,"not direct accepted PR144 child")
+    git("merge-base","--is-ancestor",A,"HEAD")
+    require(set(git("diff","--name-only",A,"HEAD").splitlines())=={"scripts/connected-runtime/runtime.py","scripts/connected-runtime/relay.py","scripts/connected-runtime/probe.mjs",".github/workflows/rc2-connected-runtime.yml","docs/RC2_CONNECTED_RUNTIME.md"},"unexpected verification delta")
     for path,tree in (("web",WEB),("supabase","8750a8be478c56acc5b6e9740946138f0b2f39f7"),("scripts/recovery","f105bb506be210707683eb5e4a988383b0ee49ad")):
         require(git("rev-parse","HEAD:"+path)==tree,"frozen tree mismatch "+path)
     require(git("hash-object","scripts/fullstack-synthetic/rehearse.py")=="65a414531e44e8f1cfb85dad418cfeb5fa0a3841","accepted recovery harness changed")
@@ -276,7 +374,7 @@ def main():
         hosthome=work/"host-home";hosthome.mkdir()
         b.ENV.update(HOME=str(hosthome),TMPDIR=str(work))
         cloud=work/"cloud"
-        s=None;procs=[];net=False;ns=False;checked=False
+        s=None;procs=[];net=False;ns=False;checked=False;ports=None;bridge=None;rules=[]
         try:
             b.stage("dependency_and_source_preflight")
             available=int(re.search(r"MemAvailable:\s+(\d+)",Path("/proc/meminfo").read_text())[1])*1024
@@ -301,8 +399,22 @@ def main():
             b.CLI=str(work/"supabase")
             require(run([b.CLI,"--version"]).decode().strip()=="3.0.0","CLI version")
             b.stage("internal_stack_start")
-            run(["docker","network","create","--internal",NET]);net=True
-            s=Stack(work);s.start()
+            for local in (54321,54322,54324):
+                require(not LoopbackRelays.reachable(local),"unexpected pre-existing localhost listener")
+            run(["docker","network","create","--internal","--opt","com.docker.network.bridge.host_binding_ipv4=127.0.0.1",NET]);net=True
+            # Prevent new container-initiated connections to the runner itself.
+            # Scoped to the new bridge only; existing host networking unchanged.
+            network=json.loads(run(["docker","network","inspect",NET]))[0]
+            bridge="br-"+network["Id"][:12]
+            require(re.fullmatch(r"br-[0-9a-f]{12}",bridge),"invalid isolated bridge")
+            for executable in ("iptables","ip6tables"):
+                rule=["-i",bridge,"-m","conntrack","--ctstate","NEW","-j","DROP"]
+                run(["sudo",executable,"-I","INPUT","1",*rule])
+                rules.append((executable,rule))
+            s=Stack(work)
+            ports=LoopbackRelays(s.label);ports.start()
+            s.start()
+            require(ports.error is None,"fixed host relay setup failed")
             info=json.loads(s.cli("status","-o","json"))
             pub=info.get("PUBLISHABLE_KEY","")
             require(re.fullmatch(r"sb_publishable_[A-Za-z0-9_-]{8,}",pub) and pub!=s.service,"genuine CLI publishable key missing")
@@ -337,6 +449,9 @@ def main():
             if ns:
                 run(["sudo","ip","netns","delete",NS])
             if s and s.started:s.stop()
+            if ports:ports.close()
+            for executable,rule in reversed(rules):
+                run(["sudo",executable,"-D","INPUT",*rule])
             if net:
                 # CLI may remove the custom network when stopping; only remove if present.
                 if subprocess.run(["docker","network","inspect",NET],env=b.ENV,capture_output=True).returncode==0:
