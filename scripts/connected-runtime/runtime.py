@@ -54,7 +54,12 @@ class Stack(b.Stack):
         s+="\n[auth.rate_limit]\nemail_sent = 100\n[auth.email.template.confirmation]\nsubject = \"Dawney synthetic signup confirmation\"\ncontent_path = \"./supabase/templates/confirmation.html\"\n"
         p.write_text(s)
         templates=self.conf/"templates";templates.mkdir()
-        (templates/"confirmation.html").write_text("Dawney synthetic confirmation code: {{ .Token }}\n")
+        template=templates/"confirmation.html"
+        template.write_text("Dawney synthetic confirmation code: {{ .Token }}\n")
+        # CLI bind-mounts the static nonsecret template into Kong. Its different
+        # container UID cannot read a host-owned 0600 file from our private umask.
+        template.chmod(0o644)
+        require(templates.stat().st_mode&0o777==0o700,"template parent not private")
     def cli(self,*args,timeout=180):
         if args[0]=="start":
             args=list(args)
@@ -303,6 +308,38 @@ def isolated_node(prefix,cloud,args,timeout=90):
     require(proc.returncode==0,"isolated Node probe refused; controlled marker above")
     return proc.stdout.decode("utf-8","replace")
 
+def qualify_mail_template(s):
+    """Prove the actual local Auth and Kong template configuration before signup."""
+    def exact_container(name):
+        item=json.loads(run(["docker","inspect","supabase_"+name+"_"+s.label]))[0]
+        require(item["Name"]=="/supabase_"+name+"_"+s.label and item["State"]["Running"]
+                and set(item["NetworkSettings"]["Networks"])=={NET}
+                and not item["HostConfig"]["Privileged"],"mail service identity/isolation mismatch")
+        return item
+    auth=exact_container("auth")
+    kong=exact_container("kong")
+    env=dict(line.split("=",1) for line in auth["Config"]["Env"] if "=" in line)
+    endpoint="http://supabase_kong_"+s.label+":8088/email/confirmation.html"
+    require(env.get("GOTRUE_MAILER_SUBJECTS_CONFIRMATION")=="Dawney synthetic signup confirmation",
+            "Auth configured signup subject mismatch")
+    require(env.get("GOTRUE_MAILER_TEMPLATES_CONFIRMATION")==endpoint,"Auth configured internal template route mismatch")
+    require(env.get("GOTRUE_SMTP_HOST")=="supabase_inbucket_"+s.label
+            and env.get("GOTRUE_SMTP_PORT")=="1025","Auth SMTP is not fixed local Mailpit")
+    source=s.conf/"templates/confirmation.html"
+    matches=[m for m in kong["Mounts"] if m.get("Destination")=="/home/kong/templates/email/confirmation.html"]
+    require(len(matches)==1 and matches[0].get("Source")==str(source),"Kong exact template bind mismatch")
+    require(source.stat().st_mode&0o777==0o644,"static template unreadable")
+    address=ipaddress.ip_address(kong["NetworkSettings"]["Networks"][NET]["IPAddress"])
+    require(address in s.relays.subnet,"Kong template outside internal subnet")
+    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),b.NoRedirect())
+    try:
+        with opener.open("http://"+str(address)+":8088/email/confirmation.html",timeout=8) as response:
+            require(response.status==200 and response.read(4096)==source.read_bytes(),
+                    "Kong did not serve exact static OTP template")
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError("Kong internal template HTTP status "+str(exc.code)) from None
+    mark("actual Auth subject and fixed SMTP config, exact Kong internal OTP template served")
+
 def host_mail_check():
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),b.NoRedirect())
     with opener.open("http://127.0.0.1:54324/api/v1/messages?limit=100",timeout=8) as response:
@@ -526,6 +563,7 @@ def main():
             b.stage("real_node_chromium_transport_preflight")
             transport=work/"transport.json";packet_write(transport,{"publishableKey":pub})
             isolated_node(prefix,cloud,["transport",str(cloud),str(transport)],timeout=90)
+            qualify_mail_template(s)
             host_mail_check()
             # No packet until real fixture seed and enforced controls; probe
             # consumes it in the same namespace and verifies all assertions.

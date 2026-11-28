@@ -19,6 +19,13 @@ if(mode==='otp'){
   console.log('MAIL_SHAPE: list array='+Array.isArray(list.messages)+' total integer='+Number.isSafeInteger(list.total))
   step='exact-mail-parser'
   const email=args[0]
+  // Fixed classifications only; never the recipient, subject or mail body.
+  if(Array.isArray(list.messages)){
+    const candidates=list.messages.filter(m=>Array.isArray(m?.To)&&m.To.some(t=>t?.Address===email))
+    const exact=candidates.filter(m=>m.To.length===1&&m.Subject===guard.SIGNUP_SUBJECT)
+    const defaults=candidates.filter(m=>m.Subject==='Confirm your email address')
+    console.log('MAIL_SHAPE: recipient matches='+candidates.length+' exact subject and single recipient='+exact.length+' default confirmation subject='+defaults.length)
+  }
   const ids=guard.matchingSignupMessages(list,email)
   if(ids.length===1){
     const detailRes=await fetch('http://127.0.0.1:54324/api/v1/message/'+encodeURIComponent(ids[0]),{redirect:'error',signal:AbortSignal.timeout(5000)})
