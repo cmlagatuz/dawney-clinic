@@ -5,7 +5,6 @@ import json
 import os
 from pathlib import Path
 import re
-import signal
 import stat
 import subprocess
 import time
@@ -184,7 +183,7 @@ class Collector:
             "transition_receipts":self.rows("select appointment_id,actor_id,request_id from clinic_private.appointment_transition_receipts where appointment_id in "+ids),
             "staff":self.rows("select user_id,requested_branch_id,note,state,revision,reviewed_by from public.staff_access_requests where user_id in ("+self.new_user_sql+")"),
             "memberships":self.rows("select user_id,branch_id,role,is_active,assigned_by from public.staff_branch_memberships where user_id in ("+self.new_user_sql+")"),
-            "global_roles":self.rows("select user_id,role from public.staff_memberships where user_id in ("+self.new_user_sql+")"),
+            "global_roles":self.rows("select user_id,role,is_active from public.staff_memberships where user_id in ("+self.new_user_sql+")"),
             "staff_events":self.rows("select e.actor_id,e.target_id,e.branch_id,e.action,e.old_state,e.new_state,e.new_role,e.request_id,r.request_payload,r.response "
                 "from clinic_private.staff_operation_events e left join clinic_private.staff_review_receipts r on r.actor_id=e.actor_id and r.nonce=e.request_id "
                 "where e.target_id in ("+self.new_user_sql+") order by e.id"),
@@ -244,7 +243,7 @@ class Collector:
 
     def owner(self):
         uid=self.auth_observed("ownerNew")
-        owner=singleton(self.final["owners"]);pet=singleton(self.final["pets"])
+        owner=singleton([row for row in self.final["owners"] if row["user_id"]==uid]);pet=singleton(self.final["pets"])
         check(owner["user_id"]==uid and owner["first_name"]=="Synthetic" and owner["last_name"]==self.run
               and pet["owner_id"]==owner["id"] and pet["name"]==self.marker+" patient"
               and pet["species_id"]==self.p["speciesId"] and pet["breed_id"]==self.p["breedId"]
@@ -313,11 +312,12 @@ class Collector:
         check(row["state"]=="approved" and row["revision"]==2 and row["reviewed_by"]==admin
               and grant["user_id"]==uid and grant["branch_id"]==branch and grant["role"]=="receptionist"
               and grant["is_active"] is True and grant["assigned_by"]==admin
-              and global_role=={"user_id":uid,"role":"receptionist"}
+              and global_role=={"user_id":uid,"role":"receptionist","is_active":True}
               and event["actor_id"]==admin and event["target_id"]==uid and event["branch_id"]==branch
               and event["old_state"]=="pending" and event["new_state"]=="approved" and event["new_role"]=="receptionist"
               and event["request_payload"]=={"target":uid,"action":"approve","role":"receptionist","branches":[branch],"expectedRevision":1}
-              and event["response"]["userId"]==uid and event["response"]["revision"]==2 and event["response"]["state"]=="approved",
+              and event["response"]["userId"]==uid and event["response"]["revision"]==2 and event["response"]["state"]=="approved"
+              and event["response"]["role"]=="receptionist",
               "staff approval, branch grant or durable receipt mismatch")
 
     def branch_access(self):
@@ -415,7 +415,7 @@ class Collector:
         uid,owner,pet=self.owner();a=singleton(self.final["attachments"]);obj=singleton(self.final["objects"])
         path=a["object_path"]
         check(isinstance(path,str) and re.fullmatch(r"pets/[0-9a-f-]{36}/owners/[0-9a-f-]{36}/[0-9a-f-]{36}\.png",path)
-              and path.startswith("pets/"+pet["id"]+"/owners/"+owner["id"]+"/")
+              and path.startswith("pets/"+pet["id"]+"/owners/"+uid+"/")
               and obj["name"]==path and a["pet_id"]==pet["id"] and a["uploaded_by"]==a["object_owner"]==uid
               and a["category"]=="health_card" and a["version_no"]==1
               and a["original_filename"]=="synthetic-"+self.run+"-health-card.png"
@@ -448,7 +448,7 @@ class Collector:
         a=self.confirmed()
         check(a["status"]=="cancelled" and a["lifecycle_revision"]==3,"owner cancellation missing")
 
-    def reconcile(self,states):
+    def reconcile(self,states,quiescent=True):
         self.observe_sessions()
         self.final=self.snapshot()
         print("BROWSER_CREATED_COUNTS:",json.dumps({k:len(self.final[k]) for k in
@@ -468,13 +468,23 @@ class Collector:
             for case in CASES:
                 browser=states[case];verification="UI_ONLY"
                 if browser=="PASS_BROWSER":
-                    if case in checks:
+                    if not quiescent:verification="BLOCKED"
+                    elif case in checks:
                         try:checks[case]();verification="PASS"
-                        except Exception:verification="FAIL"
+                        except Exception as exc:
+                            verification="FAIL"
+                            print("RECEIPT_CHECK_FAILED:",case,type(exc).__name__,flush=True)
                     elif case in ("email-callback","email-recovery","clinical-uncertain","controlled-late-response"):
                         verification="BLOCKED"
                     outcomes[case]=receipt_status(browser,verification)
-                else:outcomes[case]=browser
+                else:
+                    outcomes[case]=browser
+                    if browser=="FAIL" and case in checks and quiescent:
+                        try:
+                            checks[case]()
+                            partial="persisted-invariant-observed"
+                        except Exception:partial="absent-or-mismatch"
+                        print("PARTIAL_DB_CHECK:",case,partial,"browser failure unchanged",flush=True)
                 print("CASE_RECEIPT:",case,"browser="+browser,"result="+outcomes[case],flush=True)
         finally:
             # Observer sessions are independently obtained, never counted as
@@ -495,6 +505,23 @@ def stop_process(proc):
         except subprocess.TimeoutExpired:pass
     raise RuntimeError("browser process could not be stopped")
 
+def namespace_pids(b):
+    text=b.run(["sudo","ip","netns","pids","dawney-rc2-browser"],timeout=8).decode().split()
+    check(all(re.fullmatch(r"[1-9][0-9]*",pid) for pid in text),"namespace process inventory invalid")
+    return {int(pid) for pid in text}
+
+def quiesce(b,baseline):
+    # Ensure there are no stray browser descendants able to commit writes
+    # during independent readback. Never signal baseline relay or host PIDs.
+    for sig in ("TERM","KILL"):
+        current=namespace_pids(b)
+        check(baseline.issubset(current),"namespace relay unexpectedly stopped")
+        extra=current-baseline
+        if not extra:return True
+        b.run(["sudo","kill","-"+sig,"--",*map(str,sorted(extra))],timeout=8)
+        time.sleep(1)
+    return namespace_pids(b)==baseline
+
 def execute(s,p,b,collector,prefix,cloud,work,packet_path):
     check(collector.baseline is not None,"fresh receipt baseline required")
     output=work/"new-evidence";log=work/"browser-private.log"
@@ -502,7 +529,9 @@ def execute(s,p,b,collector,prefix,cloud,work,packet_path):
     args=prefix+["env","DAWNEY_CONNECTED_PACKET="+str(packet_path),
         "DAWNEY_CONNECTED_APPROVAL="+p["runId"],"DAWNEY_CONNECTED_EVIDENCE="+str(output),
         "node",str(cloud/"web/tests/connected/run.mjs")]
-    timed_out=False;proc=None;started=time.monotonic()
+    timed_out=False;proc=None;started=time.monotonic();launch_failed=False
+    baseline=namespace_pids(b)
+    check(len(baseline)==1,"expected only fixed namespace relay before browser launch")
     with log.open("xb") as private_log:
         try:
             proc=subprocess.Popen(args,cwd=cloud,env=b.ENV,stdout=private_log,stderr=subprocess.STDOUT,start_new_session=True)
@@ -511,8 +540,17 @@ def execute(s,p,b,collector,prefix,cloud,work,packet_path):
                 if time.monotonic()-started>=900:
                     timed_out=True;stop_process(proc);break
                 time.sleep(1)
+        except Exception:
+            launch_failed=True
+            print("BROWSER_PROCESS_CONTROL_FAILED",flush=True)
         finally:
-            if proc is not None and proc.poll() is None:stop_process(proc)
+            if proc is not None and proc.poll() is None:
+                try:stop_process(proc)
+                except Exception:launch_failed=True
+    quiescent=False
+    try:quiescent=quiesce(b,baseline) and (proc is None or proc.poll() is not None)
+    except Exception:pass
+    print("BROWSER_NAMESPACE_QUIESCENT:",str(quiescent).lower(),flush=True)
     rc=proc.returncode if proc is not None else None
     print("BROWSER_EXIT:",rc,"timeout="+str(timed_out).lower(),flush=True)
     report_valid=False
@@ -536,7 +574,7 @@ def execute(s,p,b,collector,prefix,cloud,work,packet_path):
         except Exception:report_valid=False
     print("PRIVATE_SYNTHETIC_SCREENSHOTS:",screenshots,"not published; destroyed at teardown",flush=True)
     # Even failure, timeout, or incomplete report must reach actual readback.
-    try:outcomes=collector.reconcile(states)
+    try:outcomes=collector.reconcile(states,quiescent=quiescent)
     except Exception:
         print("RECEIPT_COLLECTION_FAILED: database readback unavailable",flush=True)
         outcomes={case:("FAIL_PERSISTENCE" if state=="PASS_BROWSER" else state) for case,state in states.items()}
@@ -549,4 +587,4 @@ def execute(s,p,b,collector,prefix,cloud,work,packet_path):
     if timed_out:return 124
     if rc is None:return 1
     if rc!=0:return rc if rc>0 else 128-rc
-    return 0 if report_valid and all(v in ("PASS_PERSISTENCE","PASS_BROWSER_ONLY") for v in outcomes.values()) else 1
+    return 0 if report_valid and quiescent and not launch_failed and all(v in ("PASS_PERSISTENCE","PASS_BROWSER_ONLY") for v in outcomes.values()) else 1
