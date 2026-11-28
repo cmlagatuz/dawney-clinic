@@ -31,7 +31,7 @@ jobs:
           fi
           command -v google-chrome || command -v chromium
           python3 -m py_compile scripts/connected-runtime/runtime.py scripts/connected-runtime/relay.py scripts/connected-runtime/receipts.py
-          python3 -m unittest discover -s scripts/connected-runtime -p test_receipts.py -v
+          python3 -m unittest discover -s scripts/connected-runtime -p 'test_*.py' -v
           node --check scripts/connected-runtime/probe.mjs
       - name: Actual isolated preflight (connected execution only after exact explicit clearance)
         run: python3 -u scripts/connected-runtime/runtime.py

@@ -11,6 +11,7 @@ import re
 import secrets
 import socket
 import socketserver
+import signal
 import threading
 import shutil
 import subprocess
@@ -49,6 +50,7 @@ def packet_write(path,data): secure_write(path,json.dumps(data).encode())
 class Stack(b.Stack):
     def __init__(self,work):
         super().__init__(work,"dawney-connected-synthetic",True)
+        self.start_attempted=False
         p=self.conf/"config.toml"
         s=p.read_text().replace("enable_confirmations = false","enable_confirmations = true\nmax_frequency = \"1s\"\notp_length = 6")
         s=s.replace("[local_smtp]\nenabled = false","[local_smtp]\nenabled = true\nport = 54324\nadmin_email = \"clinic@example.test\"\nsender_name = \"Dawney Synthetic\"")
@@ -68,13 +70,32 @@ class Stack(b.Stack):
             args+=["--network-id",NET]
             # Sanitize start failure before returning; classify real connection
             # failures separately from application migration SQL failures.
+            self.start_attempted=True
+            # One CLI start only. Poll its private output and stop immediately
+            # on a terminal watcher fault instead of waiting for a DB timeout.
+            proc=subprocess.Popen([b.CLI,*args],cwd=self.dir,env=b.ENV,stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,start_new_session=True)
+            deadline=time.monotonic()+timeout
             try:
-                proc=subprocess.run([b.CLI,*args],cwd=self.dir,env=b.ENV,capture_output=True,timeout=timeout)
-            except subprocess.TimeoutExpired:
+                while True:
+                    if self.relays.failed.is_set():
+                        raise WatcherFault("terminal-watcher-fault")
+                    remaining=deadline-time.monotonic()
+                    if remaining<=0:raise WatcherFault("cli-start-timeout")
+                    try:
+                        stdout,stderr=proc.communicate(timeout=min(.5,remaining));break
+                    except subprocess.TimeoutExpired:continue
+                if self.relays.failed.is_set():raise WatcherFault("terminal-watcher-fault")
+            except WatcherFault:
                 self.relays.diagnostics()
-                raise RuntimeError("isolated CLI start exceeded its bounded timeout") from None
+                if proc.poll() is None:
+                    os.killpg(proc.pid,signal.SIGTERM)
+                    try:proc.communicate(timeout=8)
+                    except subprocess.TimeoutExpired:
+                        os.killpg(proc.pid,signal.SIGKILL);proc.communicate(timeout=8)
+                raise
             if proc.returncode:
-                raw=(proc.stdout+proc.stderr).decode("utf-8","replace")
+                raw=(stdout+stderr).decode("utf-8","replace")
                 low=raw.lower()
                 clues=[label for needle,label in (
                     ("connection refused","connection refused"),("connect:","connection error"),
@@ -90,18 +111,25 @@ class Stack(b.Stack):
                       "MIGRATION_VERSIONS:",",".join(versions[-4:]),flush=True)
                 self.relays.diagnostics()
                 raise RuntimeError("isolated CLI startup failed; classified diagnostics above")
-            return proc.stdout
+            return stdout
         return super().cli(*args,timeout=timeout)
+
+class WatcherFault(RuntimeError):
+    """Only fixed diagnostic categories, never Docker data or error text."""
+
+def watcher_check(ok,category):
+    if not ok:raise WatcherFault(category)
 
 class LoopbackRelays:
     """Observe exact isolated containers throughout CLI startup; never trust a
     TCP accept alone as proof that the local PostgreSQL relay works."""
     ENDPOINTS={"db":(54322,5432),"kong":(54321,8000),"inbucket":(54324,8025)}
-    def __init__(self,label,subnet):
-        self.label=label;self.subnet=ipaddress.ip_network(subnet)
-        self.stop=threading.Event();self.ready=threading.Event();self.servers={}
+    def __init__(self,label,subnet,network_id):
+        self.label=label;self.subnet=ipaddress.ip_network(subnet);self.network_id=network_id
+        watcher_check(re.fullmatch(r"[a-f0-9]{64}",network_id) is not None,"network-id-format")
+        self.stop=threading.Event();self.ready=threading.Event();self.failed=threading.Event();self.servers={}
         self.thread=threading.Thread(target=self.watch,daemon=True)
-        self.error=None;self.states={};self.lock=threading.Lock()
+        self.error=None;self.states={};self.lock=threading.Lock();self.identities={};self.current="none"
     def start(self): self.thread.start()
     @staticmethod
     def reachable(port):
@@ -130,15 +158,82 @@ class LoopbackRelays:
                 print("LOCAL_FINAL:",name,*self.states.get(name,("not-observed",)),flush=True)
         print("LOCAL_WATCHER:",self.error or ("all-protocols-ready" if self.ready.is_set() else "not-ready"),flush=True)
     def inspect(self,name):
+        expected="supabase_"+name+"_"+self.label
         try:
-            p=subprocess.run(["docker","inspect","supabase_"+name+"_"+self.label],
+            # Supabase creates a named DB volume BEFORE the same-named
+            # container. Generic docker inspect may return the volume instead.
+            p=subprocess.run(["docker","container","inspect",expected],
                 env=b.ENV,capture_output=True,timeout=8)
         except subprocess.TimeoutExpired:
             return None,"inspect-timeout"
-        if p.returncode:return None,"absent"
-        items=json.loads(p.stdout)
-        require(len(items)==1 and items[0]["Name"]=="/supabase_"+name+"_"+self.label,"unexpected relay container identity")
-        return items[0],None
+        if p.returncode:
+            err=p.stderr.decode("utf-8","replace").strip()
+            absent=re.fullmatch(r"(?:Error(?: response from daemon)?: )?No such (?:container|object): "+re.escape(expected),err,re.I)
+            if absent:return None,"container-absent"
+            raise WatcherFault("container-inspect-command-failed")
+        try:items=json.loads(p.stdout)
+        except (ValueError,UnicodeError):raise WatcherFault("container-inspect-invalid-json") from None
+        watcher_check(isinstance(items,list) and len(items)==1 and isinstance(items[0],dict),"container-inspect-shape")
+        item=items[0]
+        watcher_check(item.get("Name")=="/"+expected,"container-name-mismatch")
+        cid=item.get("Id")
+        watcher_check(isinstance(cid,str) and re.fullmatch(r"[a-f0-9]{64}",cid),"container-id-format")
+        watcher_check(self.identities.setdefault(name,cid)==cid,"container-id-changed")
+        return item,None
+
+    def endpoint(self,name,item):
+        # Exact container config and network identity, even before running.
+        state=item.get("State");host=item.get("HostConfig");network_settings=item.get("NetworkSettings")
+        watcher_check(all(isinstance(v,dict) for v in (state,host,network_settings)),"container-inspect-fields")
+        lifecycle=state.get("Status");health_state=state.get("Health")
+        watcher_check(health_state is None or isinstance(health_state,dict),"health-shape")
+        health=health_state.get("Status") if health_state is not None else "none"
+        watcher_check(lifecycle in ("created","running","paused","restarting","removing","exited","dead"),"unknown-lifecycle")
+        # Uninitialized health can only be pending, never qualified. Explicit
+        # known states retain the existing readiness protocol requirements.
+        if health in ("",None) and lifecycle in ("created","running","restarting"):
+            health="initializing"
+        watcher_check(health in ("starting","healthy","unhealthy","none","initializing"),"unknown-health")
+        watcher_check(host.get("Privileged") is False,"privileged-container")
+        watcher_check(host.get("NetworkMode") in (NET,self.network_id),"alternate-network-mode")
+        networks=network_settings.get("Networks")
+        watcher_check(isinstance(networks,dict),"network-inspect-shape")
+        watcher_check(set(networks).issubset({NET}),"alternate-network-membership")
+        endpoint=networks.get(NET,{})
+        watcher_check(isinstance(endpoint,dict),"network-endpoint-shape")
+        nid=endpoint.get("NetworkID")
+        watcher_check(nid in (None,"",self.network_id),"network-id-mismatch")
+        target=endpoint.get("IPAddress")
+        if target:
+            try:address=ipaddress.ip_address(target)
+            except (ValueError,TypeError):raise WatcherFault("invalid-relay-address") from None
+            watcher_check(address in self.subnet and nid==self.network_id,"relay-address-or-network-mismatch")
+        watcher_check(isinstance(state.get("Running"),bool),"running-state-shape")
+        if lifecycle in ("removing","exited","dead"):
+            raise WatcherFault("container-terminal-state")
+        if lifecycle!="running" or not state["Running"]:
+            return (lifecycle,health,"not-running"),None
+        if not target:
+            return (lifecycle,health,"awaiting-internal-address"),None
+        return (lifecycle,health),target
+
+    def reproduce_volume_collision(self):
+        """Actual fresh-run Docker regression, no container/image or data created."""
+        name="supabase_db_"+self.label
+        item,reason=self.inspect("db")
+        watcher_check(item is None and reason=="container-absent","collision-probe-container-not-absent")
+        existing=run(["docker","volume","ls","--format","{{.Name}}"]).decode().splitlines()
+        watcher_check(name not in existing,"collision-probe-volume-already-exists")
+        run(["docker","volume","create",name])
+        try:
+            generic=json.loads(run(["docker","inspect",name]))
+            watcher_check(isinstance(generic,list) and len(generic)==1 and generic[0].get("Name")==name
+                          and "Driver" in generic[0] and "State" not in generic[0],"collision-probe-unexpected-object")
+            item,reason=self.inspect("db")
+            watcher_check(item is None and reason=="container-absent","typed-inspect-volume-collision")
+            print("PASS: actual Docker same-name volume reproduced generic inspect ambiguity; typed container lookup reports absent",flush=True)
+        finally:
+            run(["docker","volume","rm",name])
     def bind(self,name,local,target,remote):
         class Handler(socketserver.BaseRequestHandler):
             def handle(self):
@@ -173,27 +268,21 @@ class LoopbackRelays:
             while not self.stop.is_set():
                 qualified=set()
                 for name,(local,remote) in self.ENDPOINTS.items():
+                    self.current=name
                     item,reason=self.inspect(name)
                     if item is None:
+                        # A known container disappearing after its identity was
+                        # captured is terminal. A timed-out inspect is pending.
+                        watcher_check(reason!="container-absent" or name not in self.identities,"observed-container-disappeared")
                         self.record(name,(reason,))
                         continue
-                    state=item["State"]
-                    lifecycle=state.get("Status","unknown")
-                    health=state.get("Health",{}).get("Status","none")
-                    require(lifecycle in ("created","running","paused","restarting","removing","exited","dead"),"unknown lifecycle")
-                    require(health in ("starting","healthy","unhealthy","none"),"unknown health")
-                    if not state["Running"]:
-                        self.record(name,(lifecycle,health,"not-running"))
-                        continue
-                    networks=item["NetworkSettings"]["Networks"]
-                    require(not item["HostConfig"]["Privileged"] and set(networks).issubset({NET}),"relay container alternate network or privilege")
-                    target=networks.get(NET,{}).get("IPAddress")
+                    observed,target=self.endpoint(name,item)
                     if not target:
-                        self.record(name,(lifecycle,health,"awaiting-internal-address"))
+                        self.record(name,observed)
                         continue
-                    require(set(networks)=={NET} and ipaddress.ip_address(target) in self.subnet,"relay target not exclusively on exact internal network")
+                    lifecycle,health=observed
                     if name in self.servers:
-                        require(self.servers[name][0].target==(target,remote),"relay target changed during startup")
+                        watcher_check(self.servers[name][0].target==(target,remote),"relay-target-changed")
                     elif not self.reachable(local):
                         self.bind(name,local,target,remote)
                     direct=self.protocol(target,remote,name)
@@ -209,18 +298,30 @@ class LoopbackRelays:
                     transport="fixed-relay" if name in self.servers else "docker-local"
                     self.record(name,(lifecycle,health,transport,"direct-ok" if direct else "direct-pending",
                         "local-ok" if forwarded else "local-pending",pg))
-                    if direct and forwarded and (name!="db" or pg=="pg-accepting"):
+                    if direct and forwarded and health!="initializing" and (name!="db" or pg=="pg-accepting"):
                         qualified.add(name)
                 if qualified==set(self.ENDPOINTS):
                     self.ready.set()
                     return
                 self.stop.wait(.25)
+        except WatcherFault as exc:
+            self.error=self.current+":"+str(exc)
+            self.failed.set()
+            self.diagnostics()
         except Exception as exc:
-            self.error="watcher-"+type(exc).__name__
+            # Unknown exceptions are fatal, not retried or ignored. Never log
+            # arbitrary exception text, Docker output, credentials or IDs.
+            category={KeyError:"unexpected-field",TypeError:"unexpected-type",ValueError:"unexpected-value",
+                      OSError:"unexpected-os-error",RuntimeError:"unexpected-runtime-error"}.get(type(exc),"unexpected-exception")
+            self.error=self.current+":"+category
+            self.failed.set()
             self.diagnostics()
     def wait_ready(self):
-        require(self.ready.wait(20) and self.error is None,"fixed host relays did not qualify")
+        deadline=time.monotonic()+20
+        while not self.ready.is_set() and not self.failed.is_set() and time.monotonic()<deadline:
+            self.failed.wait(.25)
         self.diagnostics()
+        require(self.ready.is_set() and not self.failed.is_set(),"fixed host relays did not qualify")
         mark("actual PostgreSQL accepting connections and all three fixed local transports respond")
     def close(self):
         self.stop.set();self.thread.join(timeout=12)
@@ -233,7 +334,7 @@ def docker_network(s):
     members=net["Containers"]
     require(len(members)==6,"expected exactly six isolated service containers")
     for cid,m in members.items():
-        item=json.loads(run(["docker","inspect",cid]))[0]
+        item=json.loads(run(["docker","container","inspect",cid]))[0]
         require(item["Name"].startswith("/supabase_") and item["Name"].endswith("_"+s.label),"unexpected network member")
         require(set(item["NetworkSettings"]["Networks"])=={NET} and not item["HostConfig"]["Privileged"],"service has alternate network or privilege")
         pid=str(item["State"]["Pid"])
@@ -490,7 +591,7 @@ def main():
     execute_authorized=authorize(event,git("rev-parse","HEAD"),C,os.environ.get("GITHUB_RUN_ATTEMPT",""))
     print("CONNECTED_EXECUTION_GATE:", "AUTHORIZED_EXPLICIT_LABEL" if execute_authorized else "PREFLIGHT_ONLY",flush=True)
     git("merge-base","--is-ancestor",A,"HEAD")
-    require(set(git("diff","--name-only",A,"HEAD").splitlines())=={"scripts/connected-runtime/runtime.py","scripts/connected-runtime/relay.py","scripts/connected-runtime/probe.mjs",".github/workflows/rc2-connected-runtime.yml","docs/RC2_CONNECTED_RUNTIME.md","scripts/connected-runtime/receipts.py","scripts/connected-runtime/test_receipts.py"},"unexpected verification delta")
+    require(set(git("diff","--name-only",A,"HEAD").splitlines())=={"scripts/connected-runtime/runtime.py","scripts/connected-runtime/relay.py","scripts/connected-runtime/probe.mjs",".github/workflows/rc2-connected-runtime.yml","docs/RC2_CONNECTED_RUNTIME.md","scripts/connected-runtime/receipts.py","scripts/connected-runtime/test_receipts.py","scripts/connected-runtime/test_startup.py"},"unexpected verification delta")
     for path,tree in (("web",WEB),("supabase","8750a8be478c56acc5b6e9740946138f0b2f39f7"),("scripts/recovery","f105bb506be210707683eb5e4a988383b0ee49ad")):
         require(git("rev-parse","HEAD:"+path)==tree,"frozen tree mismatch "+path)
     require(git("hash-object","scripts/fullstack-synthetic/rehearse.py")=="65a414531e44e8f1cfb85dad418cfeb5fa0a3841","accepted recovery harness changed")
@@ -548,7 +649,9 @@ def main():
             require(network["Internal"] is True and network["Driver"]=="bridge","unexpected startup network")
             subnets=[v["Subnet"] for v in network["IPAM"]["Config"] if ":" not in v["Subnet"]]
             require(len(subnets)==1,"exact IPv4 internal subnet required")
-            ports=LoopbackRelays(s.label,subnets[0]);s.relays=ports;ports.start()
+            ports=LoopbackRelays(s.label,subnets[0],network["Id"]);s.relays=ports
+            ports.reproduce_volume_collision()
+            ports.start()
             s.start()
             ports.wait_ready()
             info=json.loads(s.cli("status","-o","json"))
@@ -593,8 +696,12 @@ def main():
                 except subprocess.TimeoutExpired:p.kill();p.wait()
             if ns:
                 run(["sudo","ip","netns","delete",NS])
-            if s and s.started:s.stop()
             if ports:ports.close()
+            if s and s.started:s.stop()
+            elif s and s.start_attempted:
+                # Failed start may have partially created project resources.
+                # Stop only this known disposable project while INPUT rules stay in place.
+                s.cli("stop",timeout=120)
             for executable,rule in reversed(rules):
                 run(["sudo",executable,"-D","INPUT",*rule])
             if net:
