@@ -6,9 +6,8 @@ import {tmpdir} from 'node:os'
 import {resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {execFileSync} from 'node:child_process'
-import {createInterface} from 'node:readline/promises'
 import assert from 'node:assert/strict'
-import {BACKEND,RC2,WEB,flags,validatePacket,verifyLocalBackend,verifySource,outsideCheckout,privatePacket} from './runtime-guard.mjs'
+import {BACKEND,RC2,WEB,flags,validatePacket,verifyLocalBackend,verifySource,outsideCheckout,privatePacket,requireEmptySignupMailbox,waitForSignupOtp} from './runtime-guard.mjs'
 import {withChromium} from '../../../scripts/browser/cdp.mjs'
 const root=fileURLToPath(new URL('../../../',import.meta.url))
 const web=resolve(root,'web')
@@ -82,17 +81,16 @@ async function signIn(u,role){
  assert.equal(await u.b.value('document.querySelector(".sidebar-bottom").innerText.includes('+q(p.accounts[role].email)+')'),true)
 }
 async function signup(u,role){
- if(!process.stdin.isTTY)throw Object.assign(Error('local mail operator required'),{blocked:true})
+ // Recheck before the actual signup: a stale message cannot satisfy this case.
+ await requireEmptySignupMailbox(p,role)
  await u.go('/auth/signup');await u.fill('First name','Synthetic');await u.fill('Last name',p.runId)
  await u.fill('Email address',p.accounts[role].email);await u.fill('Password',p.accounts[role].password)
  await u.click('Create account');await u.has('confirmation link','.auth-panel')
  await u.realRequest('/auth/v1/signup')
- // ASTRA must configure an actual local-only mail sink with OTP template.
- // Code is entered interactively from that sink, never preseeded or recorded.
+ // Actual Auth sends mail to the verified isolated sink. Only read the exact
+ // new recipient's message; no preverification, token minting or log output.
+ const otp=await waitForSignupOtp(p,role)
  await u.go('/auth/verify');await u.fill('Email address',p.accounts[role].email)
- const rl=createInterface({input:process.stdin,output:process.stderr})
- let otp
- try{otp=(await rl.question('Local synthetic mail OTP for '+role+' (no external mail): ')).trim()}finally{rl.close()}
  assert.match(otp,/^[0-9]{6,8}$/)
  await u.fill('Confirmation code',otp);await u.click('Verify email')
  await u.wait('location.pathname==="/app/overview"&&!!document.querySelector(".sidebar")')

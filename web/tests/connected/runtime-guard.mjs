@@ -1,10 +1,14 @@
 import {lookup} from 'node:dns/promises'
 import {execFileSync} from 'node:child_process'
 import {existsSync,readdirSync,realpathSync,statSync} from 'node:fs'
-import {resolve,relative,isAbsolute,sep} from 'node:path'
+import {resolve,relative,isAbsolute,sep,dirname,basename} from 'node:path'
+import {setTimeout as sleep} from 'node:timers/promises'
 export const RC2='8bb23dd31a516c16bc3e6544a25ef0cf9bb7403b'
 export const WEB='f5dc0a98bf82fc75db7a5bf144f23236523505b8'
 export const BACKEND='https://dawney-rc2-synthetic.supabase.co'
+// Fixed local Mailpit read-only API; never a caller-controlled mail destination.
+export const MAIL='http://127.0.0.1:54324'
+export const SIGNUP_SUBJECT='Dawney synthetic signup confirmation'
 export const flags=Object.freeze([
  'VITE_PHASE4_PATIENT_FORM','VITE_PHASE5A_OPS_UI','VITE_STAFF_APPOINTMENT_WRITES_ENABLED',
  'VITE_CLINICAL_WORKSPACE_UI','VITE_CLINICAL_DRAFT_PERSISTENCE_UI','VITE_PHASE5B_PHARMACY_UI',
@@ -13,11 +17,15 @@ export const flags=Object.freeze([
 export const roles=['ownerNew','ownerOther','applicant','administrator','veterinarian','receptionist','accountant']
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const day=/^\d{4}-\d{2}-\d{2}$/
+// Match the frozen taxonomy adapter's canonical text-ID syntax, not UUIDs.
+const catalogId=/^[a-z][a-z0-9-]{1,100}$/
+const syntheticEmail=/^[a-z0-9._+-]+@example\.test$/
 function requireThat(ok,message){if(!ok)throw Error(message)}
 export function validatePacket(p,approval){
- requireThat(p&&p.version===1&&p.sourceSha===RC2&&p.webTree===WEB,'BLOCKED: exact RC2 packet required')
+ requireThat(p&&p.version===2&&p.sourceSha===RC2&&p.webTree===WEB,'BLOCKED: exact RC2 packet required')
  requireThat(/^[a-z0-9-]{8,32}$/.test(p.runId??'')&&approval===p.runId,'BLOCKED: matching explicit synthetic run approval required')
  requireThat(p.backendOrigin===BACKEND&&p.runtime==='isolated-disposable-full-stack'&&p.networkIsolation===true&&p.syntheticOnly===true&&p.noExternalMail===true&&p.freshSeed===true&&p.migrationCount===23,'BLOCKED: ASTRA isolated runtime and all 23 migrations required')
+ requireThat(p.mailOrigin===MAIL,'BLOCKED: exact local mail sink required')
  requireThat(typeof p.runtimeEvidence==='string'&&/^[A-Za-z0-9._:/-]{12,200}$/.test(p.runtimeEvidence),'BLOCKED: sanitized runtime evidence reference required')
  requireThat(typeof p.publishableKey==='string'&&/^sb_publishable_[A-Za-z0-9_-]{8,}$/.test(p.publishableKey),'BLOCKED: compatible local synthetic publishable key required')
  requireThat(p.accounts&&Object.keys(p.accounts).length===roles.length,'BLOCKED: seven distinct synthetic actors required')
@@ -28,7 +36,8 @@ export function validatePacket(p,approval){
   emails.push(a.email)
  }
  requireThat(new Set(emails).size===emails.length,'BLOCKED: actors must be distinct')
- requireThat([p.branchId,p.otherBranchId,p.serviceId,p.breedId,p.checkedInVisitId,p.checkedInPetId].every(v=>typeof v==='string'&&uuid.test(v))&&p.branchId!==p.otherBranchId,'BLOCKED: exact synthetic branch/service/patient/visit IDs required')
+ requireThat([p.branchId,p.otherBranchId,p.serviceId,p.checkedInVisitId,p.checkedInPetId].every(v=>typeof v==='string'&&uuid.test(v))&&p.branchId!==p.otherBranchId,'BLOCKED: exact synthetic branch/service/patient/visit IDs required')
+ requireThat(typeof p.speciesId==='string'&&catalogId.test(p.speciesId)&&typeof p.breedId==='string'&&catalogId.test(p.breedId)&&!uuid.test(p.breedId),'BLOCKED: canonical species and breed text IDs required')
  requireThat(typeof p.speciesLabel==='string'&&p.speciesLabel.length>0&&p.speciesLabel.length<=80&&typeof p.branchLabel==='string'&&p.branchLabel.length>0&&p.branchLabel.length<=100&&typeof p.otherBranchLabel==='string'&&p.otherBranchLabel.length>0&&p.otherBranchLabel.length<=100,'BLOCKED: fixture labels required')
  requireThat(day.test(p.checkedInDay??'')&&day.test(p.expiryDay??'')&&p.expiryDay>p.checkedInDay,'BLOCKED: valid isolated calendar dates required')
  requireThat(typeof p.otherOwnerPet==='string'&&p.otherOwnerPet.startsWith('Synthetic ')&&p.otherOwnerPet.includes(p.runId),'BLOCKED: owner B seed marker required')
@@ -54,7 +63,23 @@ export async function verifyLocalBackend(p){
  requireThat(catalog.ok,'BLOCKED: local Data API unavailable')
  const rows=await catalog.json()
  requireThat(Array.isArray(rows)&&rows.some(x=>x.id===p.branchId&&x.slug==='naga')&&rows.some(x=>x.id===p.otherBranchId),'BLOCKED: runtime branch fixture mismatch')
+ const readCatalog=async(table,fields,id)=>{
+  const query=new URLSearchParams({select:fields,id:'eq.'+id})
+  const result=await fetch(BACKEND+'/rest/v1/'+table+'?'+query,{redirect:'error',headers:{apikey:p.publishableKey},signal:AbortSignal.timeout(10000)})
+  requireThat(result.ok,'BLOCKED: actual local taxonomy catalog unavailable')
+  return result.json()
+ }
+ const species=await readCatalog('species_catalog','id,label,is_active,clinic_supported',p.speciesId)
+ const breeds=await readCatalog('breed_catalog','id,species_id,is_active,review_status',p.breedId)
+ validateCatalogRows(p,species,breeds)
+ // Validate the actual local mail list and that both signup mailboxes are fresh before browser launch.
+ for(const role of ['ownerNew','applicant'])await requireEmptySignupMailbox(p,role)
 }
+export function validateCatalogRows(p,species,breeds){
+ requireThat(Array.isArray(species)&&species.length===1&&species[0]?.id===p.speciesId&&species[0].label===p.speciesLabel&&species[0].is_active===true&&species[0].clinic_supported===true,'BLOCKED: missing, inactive or unsupported synthetic species')
+ requireThat(Array.isArray(breeds)&&breeds.length===1&&breeds[0]?.id===p.breedId&&breeds[0].species_id===p.speciesId&&breeds[0].is_active===true&&['curated','staff_reviewed'].includes(breeds[0].review_status),'BLOCKED: missing, inactive, pending or mismatched synthetic breed')
+}
+
 export function verifySource(root){
  const git=(...args)=>execFileSync('git',args,{cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()
  requireThat(git('rev-parse',RC2+':web')===WEB,'BLOCKED: frozen web object mismatch')
@@ -71,7 +96,8 @@ export function verifySource(root){
 export function outsideCheckout(root,path){
  requireThat(isAbsolute(path),'BLOCKED: absolute private evidence path required')
  // Require an existing private parent; do not follow symlinks into checkout.
- const parent=realpathSync(resolve(path,'..')), actual=resolve(parent,path.split(sep).at(-1))
+ const parent=realpathSync(dirname(path)), actual=resolve(parent,basename(path))
+ requirePrivateParent(parent)
  const rel=relative(realpathSync(root),actual)
  requireThat(rel.startsWith('..'+sep)||isAbsolute(rel),'BLOCKED: evidence must stay outside checkout')
  requireThat(!existsSync(actual),'BLOCKED: output must be a new directory')
@@ -81,6 +107,68 @@ export function outsideCheckout(root,path){
 export function privatePacket(root,path){
  requireThat(isAbsolute(path),'BLOCKED: absolute private packet required')
  const actual=realpathSync(path),rel=relative(realpathSync(root),actual),st=statSync(actual)
- requireThat((rel.startsWith('..'+sep)||isAbsolute(rel))&&st.isFile()&&(st.mode&0o077)===0,'BLOCKED: packet must be private and outside checkout')
+ requirePrivateParent(dirname(actual))
+ requireThat((rel.startsWith('..'+sep)||isAbsolute(rel))&&st.isFile()&&st.uid===process.getuid()&&(st.mode&0o777)===0o600,'BLOCKED: packet must be owner-controlled mode 0600 and outside checkout')
  return actual
+}
+
+function requirePrivateParent(path){
+ const st=statSync(path)
+ requireThat(typeof process.getuid==='function'&&st.isDirectory()&&st.uid===process.getuid()&&(st.mode&0o077)===0,'BLOCKED: private directory must belong to current isolated runner user')
+}
+
+// These helpers inspect only a fresh disposable Mailpit mailbox. Never print
+// the response, token, recipient address or raw exceptions. The surrounding
+// runtime's actual isolation/SMTP routing must be independently verified.
+function signupEmail(p,role){
+ requireThat(['ownerNew','applicant'].includes(role),'BLOCKED: only new synthetic signup recipients allowed')
+ const email=p.accounts[role].email
+ requireThat(syntheticEmail.test(email)&&email.includes(p.runId),'BLOCKED: invalid synthetic recipient')
+ return email
+}
+const mailId=/^[A-Za-z0-9_-]{1,128}$/
+export function matchingSignupMessages(payload,email){
+ requireThat(syntheticEmail.test(email),'BLOCKED: invalid synthetic mail recipient')
+ requireThat(payload&&Array.isArray(payload.messages)&&Number.isSafeInteger(payload.total)&&payload.total===payload.messages.length&&payload.total<=100,'BLOCKED: local mail list incomplete or invalid')
+ const matches=[]
+ const ids=new Set()
+ for(const message of payload.messages){
+  requireThat(message&&typeof message.ID==='string'&&mailId.test(message.ID)&&!ids.has(message.ID)&&Array.isArray(message.To)&&message.To.every(t=>t&&typeof t.Address==='string'&&syntheticEmail.test(t.Address)),'BLOCKED: invalid local mail metadata')
+  ids.add(message.ID)
+  if(message.To.some(t=>t.Address===email)){
+   requireThat(message.To.length===1&&message.Subject===SIGNUP_SUBJECT,'BLOCKED: unexpected or ambiguous signup mail')
+   matches.push(message.ID)
+  }
+ }
+ requireThat(matches.length<=1,'BLOCKED: duplicate signup mail')
+ return matches
+}
+export function extractSignupOtp(message,id,email){
+ requireThat(syntheticEmail.test(email)&&typeof id==='string'&&mailId.test(id)&&message?.ID===id&&message.Subject===SIGNUP_SUBJECT&&Array.isArray(message.To)&&message.To.length===1&&message.To[0]?.Address===email&&(!message.Cc||Array.isArray(message.Cc)&&message.Cc.length===0)&&(!message.Bcc||Array.isArray(message.Bcc)&&message.Bcc.length===0),'BLOCKED: signup mail recipient or identity mismatch')
+ const match=typeof message.Text==='string'&&message.Text.length<=100&&/^Dawney synthetic confirmation code: ([0-9]{6,8})\r?\n?$/.exec(message.Text)
+ requireThat(match,'BLOCKED: local signup code template mismatch')
+ return match[1]
+}
+async function mailJson(path){
+ // No redirect, external URL, arbitrary hostname, API credential or SMTP send.
+ const res=await fetch(MAIL+path,{redirect:'error',signal:AbortSignal.timeout(5000)})
+ requireThat(res.ok,'BLOCKED: isolated local mail read unavailable')
+ return res.json()
+}
+async function signupMessages(email){
+ return matchingSignupMessages(await mailJson('/api/v1/messages?limit=100'),email)
+}
+export async function requireEmptySignupMailbox(p,role){
+ const email=signupEmail(p,role)
+ requireThat((await signupMessages(email)).length===0,'BLOCKED: stale signup mail; fresh seed required')
+}
+export async function waitForSignupOtp(p,role){
+ const email=signupEmail(p,role)
+ const deadline=Date.now()+45000
+ while(Date.now()<deadline){
+  const ids=await signupMessages(email)
+  if(ids.length===1)return extractSignupOtp(await mailJson('/api/v1/message/'+encodeURIComponent(ids[0])),ids[0],email)
+  await sleep(500)
+ }
+ throw Error('BLOCKED: real isolated signup mail not delivered within 45 seconds')
 }
