@@ -9,6 +9,8 @@ export const BACKEND='https://dawney-rc2-synthetic.supabase.co'
 // Fixed local Mailpit read-only API; never a caller-controlled mail destination.
 export const MAIL='http://127.0.0.1:54324'
 export const SIGNUP_SUBJECT='Dawney synthetic signup confirmation'
+export const RECOVERY_SUBJECT='Dawney synthetic password recovery'
+export const LINK_PORT=4173
 export const flags=Object.freeze([
  'VITE_PHASE4_PATIENT_FORM','VITE_PHASE5A_OPS_UI','VITE_STAFF_APPOINTMENT_WRITES_ENABLED',
  'VITE_CLINICAL_WORKSPACE_UI','VITE_CLINICAL_DRAFT_PERSISTENCE_UI','VITE_PHASE5B_PHARMACY_UI',
@@ -26,6 +28,8 @@ export function validatePacket(p,approval){
  requireThat(/^[a-z0-9-]{8,32}$/.test(p.runId??'')&&approval===p.runId,'BLOCKED: matching explicit synthetic run approval required')
  requireThat(p.backendOrigin===BACKEND&&p.runtime==='isolated-disposable-full-stack'&&p.networkIsolation===true&&p.syntheticOnly===true&&p.noExternalMail===true&&p.freshSeed===true&&p.migrationCount===23,'BLOCKED: ASTRA isolated runtime and all 23 migrations required')
  requireThat(p.mailOrigin===MAIL,'BLOCKED: exact local mail sink required')
+ requireThat(p.authLinks===undefined||typeof p.authLinks==='boolean','BLOCKED: invalid optional link capability')
+ requireThat(p.authLinks!==true||p.authLinkPort===LINK_PORT,'BLOCKED: exact link redirect preview port required')
  requireThat(typeof p.runtimeEvidence==='string'&&/^[A-Za-z0-9._:/-]{12,200}$/.test(p.runtimeEvidence),'BLOCKED: sanitized runtime evidence reference required')
  requireThat(typeof p.publishableKey==='string'&&/^sb_publishable_[A-Za-z0-9_-]{8,}$/.test(p.publishableKey),'BLOCKED: compatible local synthetic publishable key required')
  requireThat(p.accounts&&Object.keys(p.accounts).length===roles.length,'BLOCKED: seven distinct synthetic actors required')
@@ -74,6 +78,7 @@ export async function verifyLocalBackend(p){
  validateCatalogRows(p,species,breeds)
  // Validate the actual local mail list and that both signup mailboxes are fresh before browser launch.
  for(const role of ['ownerNew','applicant'])await requireEmptySignupMailbox(p,role)
+ if(p.authLinks)await requireEmptyRecoveryMailbox(p)
 }
 export function validateCatalogRows(p,species,breeds){
  requireThat(Array.isArray(species)&&species.length===1&&species[0]?.id===p.speciesId&&species[0].label===p.speciesLabel&&species[0].is_active===true&&species[0].clinic_supported===true,'BLOCKED: missing, inactive or unsupported synthetic species')
@@ -127,7 +132,8 @@ function signupEmail(p,role){
  return email
 }
 const mailId=/^[A-Za-z0-9_-]{1,128}$/
-export function matchingSignupMessages(payload,email){
+export function matchingSignupMessages(payload,email,subject=SIGNUP_SUBJECT){
+ requireThat([SIGNUP_SUBJECT,RECOVERY_SUBJECT].includes(subject),'BLOCKED: unknown local mail purpose')
  requireThat(syntheticEmail.test(email),'BLOCKED: invalid synthetic mail recipient')
  requireThat(payload&&Array.isArray(payload.messages)&&Number.isSafeInteger(payload.total)&&payload.total===payload.messages.length&&payload.total<=100,'BLOCKED: local mail list incomplete or invalid')
  const matches=[]
@@ -136,18 +142,43 @@ export function matchingSignupMessages(payload,email){
   requireThat(message&&typeof message.ID==='string'&&mailId.test(message.ID)&&!ids.has(message.ID)&&Array.isArray(message.To)&&message.To.every(t=>t&&typeof t.Address==='string'&&syntheticEmail.test(t.Address)),'BLOCKED: invalid local mail metadata')
   ids.add(message.ID)
   if(message.To.some(t=>t.Address===email)){
-   requireThat(message.To.length===1&&message.Subject===SIGNUP_SUBJECT,'BLOCKED: unexpected or ambiguous signup mail')
+   requireThat(message.To.length===1&&message.Subject===subject,'BLOCKED: unexpected or ambiguous signup mail')
    matches.push(message.ID)
   }
  }
  requireThat(matches.length<=1,'BLOCKED: duplicate signup mail')
  return matches
 }
-export function extractSignupOtp(message,id,email){
- requireThat(syntheticEmail.test(email)&&typeof id==='string'&&mailId.test(id)&&message?.ID===id&&message.Subject===SIGNUP_SUBJECT&&Array.isArray(message.To)&&message.To.length===1&&message.To[0]?.Address===email&&(!message.Cc||Array.isArray(message.Cc)&&message.Cc.length===0)&&(!message.Bcc||Array.isArray(message.Bcc)&&message.Bcc.length===0),'BLOCKED: signup mail recipient or identity mismatch')
- const match=typeof message.Text==='string'&&message.Text.length<=100&&/^Dawney synthetic confirmation code: ([0-9]{6,8})\r?\n?$/.exec(message.Text)
+function exactMail(message,id,email,subject){
+ requireThat(syntheticEmail.test(email)&&typeof id==='string'&&mailId.test(id)&&message?.ID===id&&message.Subject===subject&&Array.isArray(message.To)&&message.To.length===1&&message.To[0]?.Address===email&&(!message.Cc||Array.isArray(message.Cc)&&message.Cc.length===0)&&(!message.Bcc||Array.isArray(message.Bcc)&&message.Bcc.length===0),'BLOCKED: signup mail recipient or identity mismatch')
+}
+export function extractSignupOtp(message,id,email,origin){
+ exactMail(message,id,email,SIGNUP_SUBJECT)
+ const match=typeof message.Text==='string'&&message.Text.length<=2048&&/^Dawney synthetic confirmation code: ([0-9]{6,8})(?:\r?\nDawney synthetic confirmation link: (\S+))?\r?\n?$/.exec(message.Text)
  requireThat(match,'BLOCKED: local signup code template mismatch')
+ if(origin){requireThat(match[2],'BLOCKED: signup link required by approved capability');validateAuthLink(match[2],origin,'signup')}
+ else requireThat(!match[2],'BLOCKED: unexpected link in OTP-only runtime')
  return match[1]
+}
+export function validateAuthLink(raw,origin,type){
+ requireThat(origin==='http://127.0.0.1:'+LINK_PORT&&['signup','recovery'].includes(type)&&typeof raw==='string'&&raw.length<=1500,'BLOCKED: approved link target required')
+ let url;try{url=new URL(raw)}catch{throw Error('BLOCKED: invalid local email link')}
+ const keys=[...url.searchParams.keys()].sort().join(',')
+ requireThat(url.origin===BACKEND&&url.pathname==='/auth/v1/verify'&&!url.username&&!url.password&&!url.hash&&keys==='redirect_to,token,type'&&url.searchParams.get('type')===type&&/^[A-Za-z0-9_-]{16,256}$/.test(url.searchParams.get('token')??'')&&url.searchParams.get('redirect_to')===origin+(type==='signup'?'/auth/callback':'/auth/recovery'),'BLOCKED: unapproved email link target or parameters')
+ return url.href
+}
+export function extractAuthLink(message,id,email,origin,type){
+ const subject=type==='signup'?SIGNUP_SUBJECT:RECOVERY_SUBJECT
+ exactMail(message,id,email,subject)
+ if(type==='signup'){
+  extractSignupOtp(message,id,email,origin)
+  const match=/\r?\nDawney synthetic confirmation link: (\S+)\r?\n?$/.exec(message.Text)
+  requireThat(match,'BLOCKED: missing actual signup link')
+  return validateAuthLink(match[1],origin,type)
+ }
+ const match=typeof message.Text==='string'&&message.Text.length<=2048&&/^Dawney synthetic recovery link: (\S+)\r?\n?$/.exec(message.Text)
+ requireThat(match,'BLOCKED: local recovery template mismatch')
+ return validateAuthLink(match[1],origin,type)
 }
 async function mailJson(path){
  // No redirect, external URL, arbitrary hostname, API credential or SMTP send.
@@ -155,20 +186,41 @@ async function mailJson(path){
  requireThat(res.ok,'BLOCKED: isolated local mail read unavailable')
  return res.json()
 }
-async function signupMessages(email){
- return matchingSignupMessages(await mailJson('/api/v1/messages?limit=100'),email)
+async function signupMessages(email,subject=SIGNUP_SUBJECT){
+ return matchingSignupMessages(await mailJson('/api/v1/messages?limit=100'),email,subject)
 }
 export async function requireEmptySignupMailbox(p,role){
  const email=signupEmail(p,role)
  requireThat((await signupMessages(email)).length===0,'BLOCKED: stale signup mail; fresh seed required')
 }
-export async function waitForSignupOtp(p,role){
- const email=signupEmail(p,role)
+async function waitForMail(email,subject){
  const deadline=Date.now()+45000
  while(Date.now()<deadline){
-  const ids=await signupMessages(email)
-  if(ids.length===1)return extractSignupOtp(await mailJson('/api/v1/message/'+encodeURIComponent(ids[0])),ids[0],email)
+  const ids=await signupMessages(email,subject)
+  if(ids.length===1)return {id:ids[0],message:await mailJson('/api/v1/message/'+encodeURIComponent(ids[0]))}
   await sleep(500)
  }
- throw Error('BLOCKED: real isolated signup mail not delivered within 45 seconds')
+ throw Error('BLOCKED: real isolated mail not delivered within 45 seconds')
+}
+export async function waitForSignupOtp(p,role,origin){
+ const email=signupEmail(p,role),{id,message}=await waitForMail(email,SIGNUP_SUBJECT)
+ return extractSignupOtp(message,id,email,p.authLinks?origin:undefined)
+}
+export async function waitForSignupLink(p,role,origin){
+ requireThat(p.authLinks===true&&role==='applicant','BLOCKED: callback capability or recipient missing')
+ const email=signupEmail(p,role),{id,message}=await waitForMail(email,SIGNUP_SUBJECT)
+ return extractAuthLink(message,id,email,origin,'signup')
+}
+function recoveryEmail(p){
+ requireThat(p.authLinks===true,'BLOCKED: recovery capability absent')
+ const email=p.accounts.ownerOther.email
+ requireThat(syntheticEmail.test(email)&&email.includes(p.runId),'BLOCKED: invalid recovery recipient')
+ return email
+}
+export async function requireEmptyRecoveryMailbox(p){
+ requireThat((await signupMessages(recoveryEmail(p),RECOVERY_SUBJECT)).length===0,'BLOCKED: stale recovery message')
+}
+export async function waitForRecoveryLink(p,origin){
+ const email=recoveryEmail(p),{id,message}=await waitForMail(email,RECOVERY_SUBJECT)
+ return extractAuthLink(message,id,email,origin,'recovery')
 }

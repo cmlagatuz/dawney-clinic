@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {RC2,WEB,BACKEND,MAIL,SIGNUP_SUBJECT,roles,flags,validatePacket,validateCatalogRows,matchingSignupMessages,extractSignupOtp,privatePacket,outsideCheckout} from './runtime-guard.mjs'
+import {RC2,WEB,BACKEND,MAIL,SIGNUP_SUBJECT,RECOVERY_SUBJECT,LINK_PORT,validateAuthLink,extractAuthLink,roles,flags,validatePacket,validateCatalogRows,matchingSignupMessages,extractSignupOtp,privatePacket,outsideCheckout} from './runtime-guard.mjs'
 import {mkdtempSync,mkdirSync,writeFileSync,chmodSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
@@ -63,4 +63,28 @@ test('packet and evidence require owner-controlled private parent directories ou
   assert.throws(()=>privatePacket(root,file))
   assert.throws(()=>outsideCheckout(root,join(root,'new-evidence')))
  }finally{rmSync(temp,{recursive:true,force:true})}
+})
+
+test('optional Auth link runtime is backward compatible but requires fixed approved redirect port',()=>{
+ const p=packet();assert.doesNotThrow(()=>validatePacket(p,runId))
+ assert.doesNotThrow(()=>validatePacket({...p,authLinks:true,authLinkPort:LINK_PORT},runId))
+ for(const candidate of [{authLinks:'true'},{authLinks:true},{authLinks:true,authLinkPort:443}])assert.throws(()=>validatePacket({...p,...candidate},runId))
+})
+const linkOrigin='http://127.0.0.1:'+LINK_PORT
+const linkFor=type=>BACKEND+'/auth/v1/verify?'+new URLSearchParams({token:'pkce_offline_parser_example_12345',type,redirect_to:linkOrigin+(type==='signup'?'/auth/callback':'/auth/recovery')})
+test('email link allows exact isolated verify route and exact callback only',()=>{
+ const link=linkFor('signup')
+ assert.equal(validateAuthLink(link,linkOrigin,'signup'),link)
+ for(const bad of [link.replace(BACKEND,'https://external.example.test'),link.replace('/auth/v1/verify','/rest/v1/verify'),link+'&token=other',link+'&unexpected=1',link+'#token',link.replace(encodeURIComponent(linkOrigin+'/auth/callback'),encodeURIComponent('https://external.example.test')),linkFor('recovery')])assert.throws(()=>validateAuthLink(bad,linkOrigin,'signup'))
+ assert.throws(()=>validateAuthLink(link,'http://127.0.0.1:9999','signup'))
+})
+test('dual signup and recovery templates keep exact subject, message and recipient',()=>{
+ const message={...envelope,Text:'Dawney synthetic confirmation code: 123456\nDawney synthetic confirmation link: '+linkFor('signup')+'\n'}
+ assert.equal(extractSignupOtp(message,envelope.ID,recipient,linkOrigin),'123456')
+ assert.equal(extractAuthLink(message,envelope.ID,recipient,linkOrigin,'signup'),linkFor('signup'))
+ assert.throws(()=>extractSignupOtp(message,envelope.ID,recipient))
+ const recovery={...envelope,Subject:RECOVERY_SUBJECT,Text:'Dawney synthetic recovery link: '+linkFor('recovery')}
+ assert.equal(extractAuthLink(recovery,envelope.ID,recipient,linkOrigin,'recovery'),linkFor('recovery'))
+ assert.throws(()=>extractAuthLink({...recovery,Text:message.Text},envelope.ID,recipient,linkOrigin,'recovery'))
+ assert.throws(()=>extractAuthLink({...recovery,Subject:SIGNUP_SUBJECT},envelope.ID,recipient,linkOrigin,'recovery'))
 })

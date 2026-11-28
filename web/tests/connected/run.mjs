@@ -1,13 +1,15 @@
 // Explicitly invoked connected acceptance. Never picked up by npm test.
 // No HTTP fixture, intercepted backend response, Auth injection, provider SDK
 // mutation, SQL, arbitrary endpoint, secret logging or production fallback.
-import {readFile,mkdtemp,mkdir,writeFile,rm,chmod} from 'node:fs/promises'
+import {readFile,mkdtemp,mkdir,writeFile,rm,readdir} from 'node:fs/promises'
+import {randomBytes,createHash} from 'node:crypto'
+import {setTimeout as sleep} from 'node:timers/promises'
 import {tmpdir} from 'node:os'
 import {resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {execFileSync} from 'node:child_process'
 import assert from 'node:assert/strict'
-import {BACKEND,RC2,WEB,flags,validatePacket,verifyLocalBackend,verifySource,outsideCheckout,privatePacket,requireEmptySignupMailbox,waitForSignupOtp} from './runtime-guard.mjs'
+import {BACKEND,RC2,WEB,flags,validatePacket,verifyLocalBackend,verifySource,outsideCheckout,privatePacket,requireEmptySignupMailbox,waitForSignupOtp,waitForSignupLink,requireEmptyRecoveryMailbox,waitForRecoveryLink,LINK_PORT} from './runtime-guard.mjs'
 import {withChromium} from '../../../scripts/browser/cdp.mjs'
 const root=fileURLToPath(new URL('../../../',import.meta.url))
 const web=resolve(root,'web')
@@ -26,13 +28,13 @@ try{
 await mkdir(out,{mode:0o700})
 const buildDir=await mkdtemp(resolve(tmpdir(),'dawney-connected-'))
 const results=[]
-const cases=['public','owner-register','owner-persistence','owner-isolation','staff-request','admin-review','staff-persistence','operations','owner-status','clinical','clinical-admin','clinical-role-denial','inventory','pharmacy','inventory-edit','accountant-denial','session-transition','network-retry','owner-cancel','finance-unavailable','clinical-uncertain','controlled-late-response','additional-lifecycle']
+const cases=['public','owner-register','owner-persistence','owner-isolation','staff-request','admin-review','staff-persistence','operations','owner-status','clinical','clinical-admin','clinical-role-denial','inventory','pharmacy','inventory-edit','accountant-denial','session-transition','network-retry','owner-cancel','finance-unavailable','private-attachment','attachment-owner-isolation','email-callback','email-recovery','accessibility-mobile','clinical-uncertain','controlled-late-response','additional-lifecycle']
 const report=async()=>writeFile(resolve(out,'result.json'),JSON.stringify({sourceSha:RC2,webTree:WEB,runId:p.runId,runtimeEvidence:p.runtimeEvidence,evidenceClass:'isolated-synthetic-real-api-browser-not-hosted',results:cases.map(id=>results.find(x=>x.id===id)??{id,status:'NOT_RUN'})},null,2),{mode:0o600})
 let previewServer,failed=false,blocked=false,origin
 const marker='Synthetic '+p.runId
 const pet=marker+' patient',concern=marker+' appointment',draft=marker+' encounter'
 const sku=('UAT-'+p.runId).toUpperCase(),medicine=marker+' supply',lot='LOT-'+p.runId
-let applicantPrefix,bookDay,bookingStart
+let applicantPrefix,bookDay,bookingStart,attachment,applicantVerifiedByLink=false
 // Only DOM interactions. Never write authentication state or fixture data into browser storage.
 function ui(b){
  const wait=(expr,ms=20000)=>b.until(expr,ms)
@@ -59,7 +61,7 @@ function ui(b){
  }
  const fill=(label,value,scope)=>fillExpr(field(label,scope),value)
  const select=async(selector,value)=>{const expr='document.querySelector('+q(selector)+')';await wait('!!('+expr+')&&Array.from(('+expr+').options).some(o=>o.value==='+q(value)+'&&!o.disabled)');await fillExpr(expr,value)}
- const key=async(name)=>{const code={Enter:13,Tab:9,Escape:27,ArrowRight:39}[name];await b.send('Input.dispatchKeyEvent',{type:'keyDown',key:name,code:name,windowsVirtualKeyCode:code,...(name==='Enter'?{text:'\r',unmodifiedText:'\r'}:{})});await b.send('Input.dispatchKeyEvent',{type:'keyUp',key:name,code:name,windowsVirtualKeyCode:code})}
+ const key=async(name,shift=false)=>{const code={Enter:13,Tab:9,Escape:27,ArrowRight:39}[name],modifiers=shift?8:0;await b.send('Input.dispatchKeyEvent',{type:'keyDown',key:name,code:name,windowsVirtualKeyCode:code,modifiers,...(name==='Enter'?{text:'\r',unmodifiedText:'\r'}:{})});await b.send('Input.dispatchKeyEvent',{type:'keyUp',key:name,code:name,windowsVirtualKeyCode:code,modifiers})}
  const viewport=async(w,h)=>{await b.send('Emulation.setDeviceMetricsOverride',{width:w,height:h,deviceScaleFactor:1,mobile:false});await wait('innerWidth==='+w+'&&innerHeight==='+h);assert.equal(await b.value('document.documentElement.scrollWidth<=innerWidth'),true)}
  const theme=async name=>{if(await b.value('document.documentElement.getAttribute("data-theme")')!==name){await clickSel('button[aria-label="Switch to '+name+' theme"]');await wait('document.documentElement.getAttribute("data-theme")==='+q(name))}}
  const shot=async(name)=>{
@@ -80,16 +82,19 @@ async function signIn(u,role){
  await u.realRequest('/auth/v1/token')
  assert.equal(await u.b.value('document.querySelector(".sidebar-bottom").innerText.includes('+q(p.accounts[role].email)+')'),true)
 }
-async function signup(u,role){
+async function beginSignup(u,role){
  // Recheck before the actual signup: a stale message cannot satisfy this case.
  await requireEmptySignupMailbox(p,role)
  await u.go('/auth/signup');await u.fill('First name','Synthetic');await u.fill('Last name',p.runId)
  await u.fill('Email address',p.accounts[role].email);await u.fill('Password',p.accounts[role].password)
  await u.click('Create account');await u.has('confirmation link','.auth-panel')
  await u.realRequest('/auth/v1/signup')
+}
+async function signup(u,role){
+ await beginSignup(u,role)
  // Actual Auth sends mail to the verified isolated sink. Only read the exact
  // new recipient's message; no preverification, token minting or log output.
- const otp=await waitForSignupOtp(p,role)
+ const otp=await waitForSignupOtp(p,role,origin)
  await u.go('/auth/verify');await u.fill('Email address',p.accounts[role].email)
  assert.match(otp,/^[0-9]{6,8}$/)
  await u.fill('Confirmation code',otp);await u.click('Verify email')
@@ -127,7 +132,7 @@ try{
  const {build,preview}=await import('vite')
  execFileSync(process.execPath,[resolve(web,'node_modules/typescript/bin/tsc'),'--noEmit'],{cwd:web,stdio:'ignore'})
  await build({root:web,logLevel:'silent',build:{outDir:buildDir,emptyOutDir:true}})
- previewServer=await preview({root:web,logLevel:'silent',build:{outDir:buildDir},preview:{host:'127.0.0.1',port:0}})
+ previewServer=await preview({root:web,logLevel:'silent',build:{outDir:buildDir},preview:{host:'127.0.0.1',port:p.authLinks?LINK_PORT:0,strictPort:!!p.authLinks}})
  origin='http://127.0.0.1:'+previewServer.httpServer.address().port
  await run('public',()=>browser(async u=>{
   for(const [w,h] of [[360,740],[768,900],[1440,900]])for(const theme of ['light','dark']){
@@ -152,7 +157,7 @@ try{
   assert.equal(await u.b.value('parseFloat(getComputedStyle(document.querySelector(".auth-panel input")).fontSize)>=16'),true)
  }))
  await run('owner-register',()=>browser(async u=>{
-  await signup(u,'ownerNew');await u.go('/app/profile')
+  await u.viewport(360,740);await signup(u,'ownerNew');await u.go('/app/profile')
   await u.wait('!!document.querySelector("form.form-stack input[autocomplete=given-name]")')
   await u.fill('First name','Synthetic');await u.fill('Last name',p.runId)
   const create=await u.b.value('Array.from(document.querySelectorAll("button")).some(e=>e.textContent.trim()==="Create owner profile")')
@@ -161,10 +166,85 @@ try{
   await u.clickSel('input[role=combobox]');await u.fillExpr('document.querySelector("input[role=combobox]")',p.speciesLabel)
   await u.clickExpr(await u.exactRow('[role=option]',p.speciesLabel))
   await u.select('select[id$="-breed"]',p.breedId);await u.click('Save patient');await u.has(pet)
-  await u.go('/app/pets');await u.has(pet);await u.realRequest('/rest/v1/pets')
+  await u.go('/app/pets');await u.has(pet);await u.realRequest('/rest/v1/pets');await u.viewport(360,740);await u.shot('owner-patient-mobile')
+ }))
+
+ // Same newly registered patient, no additional backend fixture. Generate
+ // one harmless synthetic PNG document in private temporary storage.
+ const docName='synthetic-'+p.runId+'-health-card.png'
+ const docBytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp1sAAAAASUVORK5CYII=','base64')
+ const docDigest=createHash('sha256').update(docBytes).digest('hex')
+ const fileDir=await mkdtemp(resolve(buildDir,'attachment-'))
+ const downloadDir=resolve(fileDir,'downloads');await mkdir(downloadDir,{mode:0o700})
+ const localDoc=resolve(fileDir,docName);await writeFile(localDoc,docBytes,{mode:0o600})
+ async function editPatient(u,name){
+  await u.go('/app/pets');const card=await u.exactRow('.patient-card',name)
+  await u.clickExpr(card+'.querySelector("button")')
+  await u.wait('!!document.querySelector("#patient-form-top .attachment")')
+ }
+ const health='Array.from(document.querySelectorAll("#patient-form-top fieldset.attachment")).find(e=>e.querySelector("legend")?.textContent.startsWith("Health card"))'
+ // Supplement normal UI download with real actor-token GETs in the actual
+ // browser; no tokens leave the evaluation context. Never write via this path.
+ async function attachmentMetadata(u,filters){
+  const query=new URLSearchParams({select:'id,pet_id,category,version_no,object_path,original_filename,mime_type,size_bytes',...filters})
+  return u.b.value('(async()=>{const s=JSON.parse(localStorage.getItem("dawney.auth.v1"));if(!s?.access_token)throw Error("verified actor required");const r=await fetch('+q(BACKEND+'/rest/v1/pet_attachments?'+query)+',{redirect:"error",headers:{apikey:'+q(p.publishableKey)+',Authorization:"Bearer "+s.access_token}});if(!r.ok)throw Error("metadata read failed");return await r.json()})()')
+ }
+ async function attachmentBytes(u,row){
+  const path=row.object_path
+  assert.match(path,/^pets\/[0-9a-f-]{36}\/owners\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.png$/i)
+  assert.ok(path.startsWith('pets/'+row.pet_id+'/owners/'))
+  return u.b.value('(async()=>{const s=JSON.parse(localStorage.getItem("dawney.auth.v1"));if(!s?.access_token)throw Error("verified actor required");const r=await fetch('+q(BACKEND+'/storage/v1/object/authenticated/clinical-attachments/'+path)+',{redirect:"error",cache:"no-store",headers:{apikey:'+q(p.publishableKey)+',Authorization:"Bearer "+s.access_token}});if(r.ok){const bytes=await r.arrayBuffer();const hash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes))).map(x=>x.toString(16).padStart(2,"0")).join("");return {status:r.status,size:bytes.byteLength,hash}}let denial=false;try{const e=await r.json();const text=[e.error,e.message,e.code].filter(x=>typeof x==="string").join(" ").toLowerCase();denial=[400,401,403,404].includes(r.status)&&/object not found|nosuchkey|not_found|not found|access denied|accessdenied|unauthorized|forbidden|permission denied/.test(text)}catch{}return {status:r.status,denial}})()')
+ }
+ await run('private-attachment',async()=>{
+  await browser(async u=>{
+   await u.viewport(360,740);await signIn(u,'ownerNew');await editPatient(u,pet)
+   await u.wait('('+health+')?.innerText.includes("No document saved yet.")&&!('+health+').disabled')
+   const doc=await u.b.send('DOM.getDocument',{depth:-1})
+   const result=await u.b.send('DOM.querySelectorAll',{nodeId:doc.root.nodeId,selector:'#patient-form-top fieldset.attachment input[type=file]'})
+   assert.equal(result.nodeIds.length,3)
+   // Source orders profile photo, health card, vaccination card; verify label.
+   assert.equal(await u.b.value('Array.from(document.querySelectorAll("#patient-form-top fieldset.attachment"))[1]===('+health+')'),true)
+   await u.b.send('DOM.setFileInputFiles',{nodeId:result.nodeIds[1],files:[localDoc]})
+   await u.wait('('+health+')?.innerText.includes('+q(docName)+')&&('+health+').innerText.includes("Ready — uploads when you save")')
+   await u.click('Save patient changes');await u.has('Patient information updated successfully.')
+   await u.realRequest('/storage/v1/object/clinical-attachments/')
+   await u.realRequest('/rest/v1/pet_attachments')
+  })
+  await browser(async u=>{
+   await signIn(u,'ownerNew');await editPatient(u,pet)
+   await u.wait('('+health+')?.innerText.includes('+q(docName)+')&&('+health+').innerText.includes("version 1")')
+   const rows=await attachmentMetadata(u,{original_filename:'eq.'+docName})
+   assert.equal(rows.length,1);attachment=rows[0]
+   assert.equal(attachment.category,'health_card');assert.equal(attachment.version_no,1)
+   assert.equal(attachment.size_bytes,docBytes.length);assert.equal(attachment.mime_type,'image/png')
+   assert.deepEqual(await attachmentBytes(u,attachment),{status:200,size:docBytes.length,hash:docDigest})
+   await u.b.send('Page.setDownloadBehavior',{behavior:'allow',downloadPath:downloadDir})
+   await u.clickExpr('('+health+').querySelector("button")')
+   const deadline=Date.now()+20000
+   let actual
+   while(Date.now()<deadline){
+    const names=await readdir(downloadDir)
+    if(names.length===1&&names[0]===docName){actual=await readFile(resolve(downloadDir,docName));break}
+    await sleep(200)
+   }
+   assert.ok(actual&&actual.equals(docBytes),'actual UI download must equal uploaded bytes')
+   await u.viewport(360,740);await u.shot('private-attachment-mobile')
+   await u.viewport(768,900);await u.theme('dark');await u.shot('private-attachment-tablet-dark')
+  })
+ })
+ await run('attachment-owner-isolation',()=>browser(async u=>{
+  assert.ok(attachment)
+  await signIn(u,'ownerOther');await editPatient(u,p.otherOwnerPet)
+  await u.wait('('+health+')?.innerText.includes("No document saved yet.")||('+health+')?.innerText.includes("version ")')
+  assert.equal(await u.b.value('!document.body.innerText.includes('+q(docName)+')&&!document.body.innerText.includes('+q(pet)+')'),true)
+  const hidden=await attachmentMetadata(u,{id:'eq.'+attachment.id,pet_id:'eq.'+attachment.pet_id})
+  assert.deepEqual(hidden,[])
+  const denied=await attachmentBytes(u,attachment)
+  assert.equal(denied.denial,true,'known existing private object must be denied to unrelated owner')
+  await u.viewport(360,740);await u.shot('unrelated-owner-documents-mobile')
  }))
  await run('owner-persistence',()=>browser(async u=>{
-  await signIn(u,'ownerNew');await u.go('/app/pets');await u.has(pet)
+  await u.viewport(360,740);await signIn(u,'ownerNew');await u.go('/app/pets');await u.has(pet)
   await u.go('/app/appointments');await u.wait('!!document.querySelector(\'form[aria-label="Appointment request"]\')')
   const form='form[aria-label="Appointment request"]'
   const petExpr='document.querySelector(".patient-select select")'
@@ -191,8 +271,21 @@ try{
   assert.equal(await u.b.value('!document.body.innerText.includes('+q(concern)+')'),true)
   await u.go('/app/staff-management');await u.has('Administrator approval required')
  }))
+ if(p.authLinks){
+  await run('email-callback',()=>browser(async u=>{
+   await beginSignup(u,'applicant')
+   const link=await waitForSignupLink(p,'applicant',origin)
+   // Real email link, same initiating PKCE browser profile. No token injection.
+   await u.b.goto(link);await u.wait('location.origin==='+q(origin)+'&&location.pathname==="/auth/callback"')
+   await u.has('Your account is verified.','.auth-panel')
+   await u.wait('!location.search.includes("code=")&&!location.hash')
+   await u.clickExpr(u.one('.auth-panel a','Continue to your overview'));await u.wait('location.pathname==="/app/overview"&&!!document.querySelector(".sidebar")')
+   assert.equal(await u.b.value('document.querySelector(".sidebar-bottom").innerText.includes('+q(p.accounts.applicant.email)+')'),true)
+   applicantVerifiedByLink=true;await u.shot('email-confirmed-overview')
+  }))
+ }else results.push({id:'email-callback',status:'BLOCKED',reason:'optional actual PKCE signup link runtime not approved; applicant OTP case retained'})
  await run('staff-request',()=>browser(async u=>{
-  await signup(u,'applicant')
+  if(applicantVerifiedByLink)await signIn(u,'applicant');else await signup(u,'applicant')
   // Read only the synthetic user's ID, not the session token; never emit it.
   applicantPrefix=await u.b.value('JSON.parse(localStorage.getItem("dawney.auth.v1")).user.id.slice(0,8)')
   assert.match(applicantPrefix,/^[0-9a-f]{8}$/)
@@ -203,7 +296,7 @@ try{
   await u.go('/app/staff-management');await u.has('Administrator approval required')
  }))
  await run('admin-review',()=>browser(async u=>{
-  await signIn(u,'administrator');await u.go('/app/staff-management');await u.fill('Manage requests in branch',p.branchId)
+  await u.viewport(768,900);await signIn(u,'administrator');await u.go('/app/staff-management');await u.fill('Manage requests in branch',p.branchId)
   const row=await u.exactRow('tbody tr',applicantPrefix)
   assert.equal(await u.b.value(row+'.innerText.includes("Pending Approval")'),true)
   await u.clickExpr(row+'.querySelector("button")');await u.fill('Decision','approve');await u.fill('Assign role','receptionist')
@@ -379,6 +472,78 @@ try{
   assert.equal(await u.b.value('Array.from(document.querySelectorAll("button")).filter(e=>/Send message|Schedule reminder/.test(e.textContent)).every(e=>e.disabled)'),true)
   await u.shot('communications-unavailable')
  }))
+
+ // Representative contrast pairs mirror accepted professional UI checks;
+ // not a blanket WCAG audit. Test actual computed colors, actual key input,
+ // focus trap/restore, and essential connected owner/staff routes.
+ const contrast=async(u,selector,background)=>{
+  const ratio=await u.b.value('(()=>{const e=document.querySelector('+q(selector)+'),b=document.querySelector('+q(background)+');if(!e||!b)return null;const rgb=c=>{const a=c.match(/[\\d.]+/g)?.map(Number);if(!a||a.length<3||a.length===4&&a[3]!==1)return null;return a.slice(0,3).map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4)};const f=rgb(getComputedStyle(e).color),v=rgb(getComputedStyle(b).backgroundColor);if(!f||!v)return null;const l=x=>.2126*x[0]+.7152*x[1]+.0722*x[2];return (Math.max(l(f),l(v))+.05)/(Math.min(l(f),l(v))+.05)})()')
+  assert.ok(Number.isFinite(ratio)&&ratio>=4.5,'representative text contrast must be >=4.5')
+ }
+ await run('accessibility-mobile',async()=>{
+  await browser(async u=>{
+   for(const theme of ['light','dark']){
+    await u.go('/');await u.viewport(360,740);await u.theme(theme);await contrast(u,'.hero h1','.site')
+    await u.go('/auth/signin');await contrast(u,'.auth-panel label','.auth-panel')
+    await u.b.value('document.querySelector(".auth-panel input[type=email]").focus();true');await u.key('Tab')
+    assert.equal(await u.b.value('document.activeElement===document.querySelector(".auth-panel input[type=password]")&&document.activeElement.matches(":focus-visible")'),true)
+    await u.key('Tab',true);assert.equal(await u.b.value('document.activeElement===document.querySelector(".auth-panel input[type=email]")'),true)
+   }
+   await signIn(u,'ownerNew');await u.go('/app/overview')
+   for(const [w,h] of [[360,740],[768,900],[1440,600]])for(const theme of ['light','dark']){
+    await u.viewport(w,h);await u.theme(theme);await contrast(u,'.stat-value','.stat')
+    await u.shot('owner-overview-'+w+'-'+theme)
+   }
+   await u.viewport(360,740);await u.b.value('document.querySelector(".mobile-toggle").focus();true');await u.key('Enter')
+   await u.wait('document.querySelector(".app-content").inert&&document.querySelector(".sidebar").getAttribute("aria-modal")==="true"')
+   const ends='Array.from(document.querySelectorAll(".sidebar a[href],.sidebar button:not(:disabled)")).filter(e=>e.getClientRects().length)'
+   await u.b.value('('+ends+').at(-1).focus();true');await u.key('Tab')
+   assert.equal(await u.b.value('document.activeElement===('+ends+')[0]&&document.activeElement.matches(":focus-visible")'),true)
+   await u.key('Tab',true);assert.equal(await u.b.value('document.activeElement===('+ends+').at(-1)'),true)
+   await u.key('Escape');await u.wait('!document.querySelector(".app-content").inert&&document.activeElement===document.querySelector(".mobile-toggle")')
+   await u.key('Enter');await u.wait('document.querySelector(".app-content").inert')
+   await u.b.value('document.querySelector(".sidebar a[href=\'/app/pets\']").focus();true');await u.key('Enter')
+   await u.wait('location.pathname==="/app/pets"&&!document.querySelector(".app-content").inert&&document.activeElement===document.querySelector("#main-content")');await u.has(pet)
+   await u.viewport(360,740);await u.shot('owner-patients-keyboard-mobile')
+   // Real latency (no fabricated response): load a private patient reader
+   // and require a loading state before its authoritative result.
+   await u.b.send('Network.emulateNetworkConditions',{offline:false,latency:1200,downloadThroughput:1000000,uploadThroughput:1000000})
+   try{const card=await u.exactRow('.patient-card',pet);await u.clickExpr(card+'.querySelector("button")');await u.has('Checking this patient’s saved documents…','#patient-form-top');await u.wait('('+health+')?.innerText.includes('+q(docName)+')',30000)}
+   finally{await u.b.send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1})}
+  })
+  await browser(async u=>{
+   await u.viewport(360,740);await signIn(u,'veterinarian');await clinical(u,'veterinarian')
+   await u.wait('document.querySelector(".clinical-encounter-editor textarea")?.value==='+q(draft))
+   for(const [w,h] of [[360,740],[768,900],[1440,900]])for(const theme of ['light','dark']){
+    await u.viewport(w,h);await u.theme(theme);await u.shot('clinical-persisted-'+w+'-'+theme)
+   }
+  })
+ })
+ if(p.authLinks){
+  await run('email-recovery',async()=>{
+   const newPassword='SyntheticResetA1'+randomBytes(12).toString('hex')
+   await browser(async u=>{
+    await u.viewport(360,740);await u.go('/auth/recovery');await u.has('Recovery link has expired or has not been verified.','.auth-panel')
+    await u.clickExpr(u.one('.auth-panel a','Request a new link'));await u.wait('location.pathname==="/auth/forgot"')
+    await requireEmptyRecoveryMailbox(p)
+    await u.fill('Email address',p.accounts.ownerOther.email);await u.click('Send recovery link')
+    await u.has('If this account exists, a password-reset email will arrive shortly.','.auth-panel');await u.realRequest('/auth/v1/recover')
+    const link=await waitForRecoveryLink(p,origin);await u.b.goto(link)
+    await u.wait('location.origin==='+q(origin)+'&&location.pathname==="/auth/recovery"&&!!document.querySelector(".auth-panel input[type=password]")')
+    await u.wait('!location.search.includes("code=")&&!location.hash')
+    await u.fill('New password',newPassword);await u.click('Update password')
+    await u.wait('location.pathname==="/auth/signin"');await u.realRequest('/auth/v1/user')
+   })
+   await browser(async u=>{
+    await u.go('/auth/signin');await u.fill('Email address',p.accounts.ownerOther.email);await u.fill('Password',p.accounts.ownerOther.password);await u.click('Sign in')
+    await u.has('Email or password is incorrect.','.auth-panel')
+    assert.equal(await u.b.value('location.pathname'),'/auth/signin')
+    await u.fill('Password',newPassword);await u.click('Sign in');await u.wait('location.pathname==="/app/overview"&&!!document.querySelector(".sidebar")')
+    await u.go('/app/pets');await u.has(p.otherOwnerPet);assert.equal(await u.b.value('!document.body.innerText.includes('+q(pet)+')'),true)
+    await u.viewport(360,740);await u.shot('recovered-owner-mobile')
+   })
+  })
+ }else results.push({id:'email-recovery',status:'BLOCKED',reason:'optional actual PKCE recovery-link runtime not approved'})
  await run('additional-lifecycle',async()=>{
   if(!p.lifecycleVisits)throw Object.assign(Error('time-qualified visits required'),{blocked:true})
   // Time-dependent rows must be independently seeded by ASTRA. Never change
