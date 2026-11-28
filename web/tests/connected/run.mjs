@@ -30,7 +30,7 @@ const buildDir=await mkdtemp(resolve(tmpdir(),'dawney-connected-'))
 const results=[]
 const cases=['public','owner-register','owner-persistence','owner-isolation','staff-request','admin-review','staff-persistence','operations','owner-status','clinical','clinical-admin','clinical-role-denial','inventory','pharmacy','inventory-edit','accountant-denial','session-transition','network-retry','owner-cancel','finance-unavailable','private-attachment','attachment-owner-isolation','email-callback','email-recovery','accessibility-mobile','clinical-uncertain','controlled-late-response','additional-lifecycle']
 const report=async()=>writeFile(resolve(out,'result.json'),JSON.stringify({sourceSha:RC2,webTree:WEB,runId:p.runId,runtimeEvidence:p.runtimeEvidence,evidenceClass:'isolated-synthetic-real-api-browser-not-hosted',results:cases.map(id=>results.find(x=>x.id===id)??{id,status:'NOT_RUN'})},null,2),{mode:0o600})
-let previewServer,failed=false,blocked=false,origin
+let previewServer,failed=false,blocked=false,origin,fileDir
 const marker='Synthetic '+p.runId
 const pet=marker+' patient',concern=marker+' appointment',draft=marker+' encounter'
 const sku=('UAT-'+p.runId).toUpperCase(),medicine=marker+' supply',lot='LOT-'+p.runId
@@ -172,9 +172,9 @@ try{
  // Same newly registered patient, no additional backend fixture. Generate
  // one harmless synthetic PNG document in private temporary storage.
  const docName='synthetic-'+p.runId+'-health-card.png'
- const docBytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp1sAAAAASUVORK5CYII=','base64')
+ const docBytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAALUlEQVR4nGMMrZ3GQEvARFPTRy0YtWDUglELRi0YtWDUglELRi0YtWDUAioCAJsdAaiiHDv7AAAAAElFTkSuQmCC','base64')
  const docDigest=createHash('sha256').update(docBytes).digest('hex')
- const fileDir=await mkdtemp(resolve(buildDir,'attachment-'))
+ fileDir=await mkdtemp(resolve(tmpdir(),'dawney-private-attachment-'))
  const downloadDir=resolve(fileDir,'downloads');await mkdir(downloadDir,{mode:0o700})
  const localDoc=resolve(fileDir,docName);await writeFile(localDoc,docBytes,{mode:0o600})
  async function editPatient(u,name){
@@ -586,6 +586,7 @@ try{
 finally{
  await report()
  if(previewServer)await new Promise(resolveClose=>previewServer.httpServer.close(resolveClose))
+ if(fileDir)await rm(fileDir,{recursive:true,force:true})
  await rm(buildDir,{recursive:true,force:true})
 }
 process.exitCode=failed?1:2 // until all mandatory runtime fault cases are implemented and executed

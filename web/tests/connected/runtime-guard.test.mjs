@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {RC2,WEB,BACKEND,MAIL,SIGNUP_SUBJECT,RECOVERY_SUBJECT,LINK_PORT,validateAuthLink,extractAuthLink,roles,flags,validatePacket,validateCatalogRows,matchingSignupMessages,extractSignupOtp,privatePacket,outsideCheckout} from './runtime-guard.mjs'
+import {RC2,WEB,BACKEND,MAIL,SIGNUP_SUBJECT,RECOVERY_SUBJECT,LINK_PORT,validateAuthLink,extractAuthLink,validateCatalogDenial,verifiedCatalogActor,roles,flags,validatePacket,validateCatalogRows,matchingSignupMessages,extractSignupOtp,privatePacket,outsideCheckout} from './runtime-guard.mjs'
 import {mkdtempSync,mkdirSync,writeFileSync,chmodSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
@@ -87,4 +87,18 @@ test('dual signup and recovery templates keep exact subject, message and recipie
  assert.equal(extractAuthLink(recovery,envelope.ID,recipient,linkOrigin,'recovery'),linkFor('recovery'))
  assert.throws(()=>extractAuthLink({...recovery,Text:message.Text},envelope.ID,recipient,linkOrigin,'recovery'))
  assert.throws(()=>extractAuthLink({...recovery,Subject:SIGNUP_SUBJECT},envelope.ID,recipient,linkOrigin,'recovery'))
+})
+
+test('anonymous catalog denial must be permission rejection, not an empty or broken response',()=>{
+ const denied={code:'42501',message:'permission denied for table species_catalog'}
+ assert.equal(validateCatalogDenial(401,denied),true);assert.equal(validateCatalogDenial(403,denied),true)
+ for(const [status,body] of [[200,[]],[400,denied],[500,denied],[403,{code:'PGRST301',message:'Invalid JWT'}],[403,{code:'42501',message:'different error'}]])assert.equal(validateCatalogDenial(status,body),false)
+})
+test('catalog actor requires matching actual-session identity and verified permanent owner shape',()=>{
+ const email=packet().accounts.ownerOther.email
+ const user={id:id(9),email,role:'authenticated',is_anonymous:false,email_confirmed_at:'2026-11-28T00:00:00Z'}
+ const session={user:{id:user.id,email}}
+ assert.equal(verifiedCatalogActor(session,user,email),true)
+ for(const bad of [{...user,id:id(8)},{...user,email:recipient},{...user,is_anonymous:true},{...user,email_confirmed_at:null},{...user,role:'service_role'}])assert.equal(verifiedCatalogActor(session,bad,email),false)
+ assert.equal(verifiedCatalogActor({user:{id:user.id,email:recipient}},user,email),false)
 })

@@ -67,18 +67,47 @@ export async function verifyLocalBackend(p){
  requireThat(catalog.ok,'BLOCKED: local Data API unavailable')
  const rows=await catalog.json()
  requireThat(Array.isArray(rows)&&rows.some(x=>x.id===p.branchId&&x.slug==='naga')&&rows.some(x=>x.id===p.otherBranchId),'BLOCKED: runtime branch fixture mismatch')
- const readCatalog=async(table,fields,id)=>{
+ // Frozen taxonomy is authenticated-only. Prove anonymous rejection and
+ // then use actual password Auth for the existing seeded synthetic owner.
+ const readCatalog=async(table,fields,id,token)=>{
   const query=new URLSearchParams({select:fields,id:'eq.'+id})
-  const result=await fetch(BACKEND+'/rest/v1/'+table+'?'+query,{redirect:'error',headers:{apikey:p.publishableKey},signal:AbortSignal.timeout(10000)})
-  requireThat(result.ok,'BLOCKED: actual local taxonomy catalog unavailable')
-  return result.json()
+  return fetch(BACKEND+'/rest/v1/'+table+'?'+query,{redirect:'error',headers:{apikey:p.publishableKey,...(token?{Authorization:'Bearer '+token}:{})},signal:AbortSignal.timeout(10000)})
  }
- const species=await readCatalog('species_catalog','id,label,is_active,clinic_supported',p.speciesId)
- const breeds=await readCatalog('breed_catalog','id,species_id,is_active,review_status',p.breedId)
- validateCatalogRows(p,species,breeds)
+ const queries=[['species_catalog','id,label,is_active,clinic_supported',p.speciesId],['breed_catalog','id,species_id,is_active,review_status',p.breedId]]
+ for(const query of queries){
+  const denied=await readCatalog(...query)
+  requireThat(validateCatalogDenial(denied.status,await denied.json()),'BLOCKED: anonymous taxonomy denial not verified')
+ }
+ const actor=p.accounts.ownerOther
+ const login=await fetch(BACKEND+'/auth/v1/token?grant_type=password',{method:'POST',redirect:'error',headers:{apikey:p.publishableKey,'Content-Type':'application/json'},body:JSON.stringify({email:actor.email,password:actor.password}),signal:AbortSignal.timeout(10000)})
+ requireThat(login.ok,'BLOCKED: seeded synthetic owner authentication failed')
+ const session=await login.json()
+ const token=session?.access_token
+ requireThat(typeof token==='string'&&token.length>20&&token.length<=8192,'BLOCKED: actual owner session required')
+ const headers={apikey:p.publishableKey,Authorization:'Bearer '+token}
+ try{
+  const user=await fetch(BACKEND+'/auth/v1/user',{redirect:'error',headers,signal:AbortSignal.timeout(10000)})
+  requireThat(user.ok&&verifiedCatalogActor(session,await user.json(),actor.email),'BLOCKED: seeded owner identity not verified')
+  const rows=[]
+  for(const query of queries){
+   const result=await readCatalog(...query,token)
+   requireThat(result.ok,'BLOCKED: authenticated local taxonomy catalog unavailable')
+   rows.push(await result.json())
+  }
+  validateCatalogRows(p,...rows)
+ }finally{
+  const logout=await fetch(BACKEND+'/auth/v1/logout?scope=local',{method:'POST',redirect:'error',headers,signal:AbortSignal.timeout(10000)})
+  requireThat(logout.ok,'BLOCKED: local catalog preflight session cleanup failed')
+ }
  // Validate the actual local mail list and that both signup mailboxes are fresh before browser launch.
  for(const role of ['ownerNew','applicant'])await requireEmptySignupMailbox(p,role)
  if(p.authLinks)await requireEmptyRecoveryMailbox(p)
+}
+export function validateCatalogDenial(status,body){
+ return [401,403].includes(status)&&body?.code==='42501'&&typeof body.message==='string'&&/permission denied|insufficient privilege/i.test(body.message)
+}
+export function verifiedCatalogActor(session,user,email){
+ return typeof email==='string'&&syntheticEmail.test(email)&&!!user&&uuid.test(user.id??'')&&user.id===session?.user?.id&&user.email===email&&session.user.email===email&&user.role==='authenticated'&&user.is_anonymous===false&&typeof user.email_confirmed_at==='string'&&Number.isFinite(Date.parse(user.email_confirmed_at))
 }
 export function validateCatalogRows(p,species,breeds){
  requireThat(Array.isArray(species)&&species.length===1&&species[0]?.id===p.speciesId&&species[0].label===p.speciesLabel&&species[0].is_active===true&&species[0].clinic_supported===true,'BLOCKED: missing, inactive or unsupported synthetic species')
