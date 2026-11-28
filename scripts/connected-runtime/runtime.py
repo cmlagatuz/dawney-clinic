@@ -588,8 +588,13 @@ def main():
     os.umask(0o077)
     b.ENV={"PATH":os.environ["PATH"],"LANG":"C.UTF-8","LC_ALL":"C.UTF-8","CI":"true"}
     require(git("rev-parse","HEAD")==event["pull_request"]["head"]["sha"],"wrong job checkout")
-    execute_authorized=authorize(event,git("rev-parse","HEAD"),C,os.environ.get("GITHUB_RUN_ATTEMPT",""))
-    print("CONNECTED_EXECUTION_GATE:", "AUTHORIZED_EXPLICIT_LABEL" if execute_authorized else "PREFLIGHT_ONLY",flush=True)
+    head=git("rev-parse","HEAD");attempt=os.environ.get("GITHUB_RUN_ATTEMPT","");run_id=os.environ.get("GITHUB_RUN_ID","")
+    execution_grant=authorize(event,head,C,attempt,run_id)
+    def recheck():
+        require(execution_grant is not None and git("rev-parse","HEAD")==head,"execution source or grant changed")
+        require(git("rev-parse","HEAD",cwd=cloud)==C,"CLOUD checkout changed")
+        require(authorize(event,head,C,attempt,run_id,previous=execution_grant)==execution_grant,"execution authority changed")
+    print("CONNECTED_EXECUTION_GATE:", "AUTHORIZED_EXACT_OCCURRENCE" if execution_grant else "PREFLIGHT_ONLY",flush=True)
     git("merge-base","--is-ancestor",A,"HEAD")
     require(set(git("diff","--name-only",A,"HEAD").splitlines())=={"scripts/connected-runtime/runtime.py","scripts/connected-runtime/relay.py","scripts/connected-runtime/probe.mjs",".github/workflows/rc2-connected-runtime.yml","docs/RC2_CONNECTED_RUNTIME.md","scripts/connected-runtime/receipts.py","scripts/connected-runtime/test_receipts.py","scripts/connected-runtime/test_startup.py"},"unexpected verification delta")
     for path,tree in (("web",WEB),("supabase","8750a8be478c56acc5b6e9740946138f0b2f39f7"),("scripts/recovery","f105bb506be210707683eb5e4a988383b0ee49ad")):
@@ -683,12 +688,12 @@ def main():
             b.stage("authoritative_receipt_baseline")
             collector=Collector(s,packet,b)
             collector.prepare()
-            if not execute_authorized:
+            if not execution_grant:
                 print("CONNECTED_RUNTIME_PREFLIGHT_PASS; CONNECTED_APPLICATION_SCENARIOS_NOT_RUN",flush=True)
             else:
                 print("CONNECTED_RUNTIME_PREFLIGHT_PASS; EXPLICIT_CONNECTED_EXECUTION_AUTHORIZED",flush=True)
                 b.stage("connected_application_and_authoritative_receipts")
-                return execute(s,packet,b,collector,prefix,cloud,work,path)
+                return execute(s,packet,b,collector,prefix,cloud,work,path,recheck)
         finally:
             for p in reversed(procs):
                 if p.poll() is None:p.terminate()

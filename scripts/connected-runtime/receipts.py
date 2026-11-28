@@ -1,5 +1,6 @@
 """Read-only independent receipts for the exact CLOUD runner, never a seed substitute."""
 import base64
+import datetime as dt
 import hashlib
 import json
 import os
@@ -21,64 +22,187 @@ CASES=(
 OWNER="cmlagatuz"
 REPO=OWNER+"/dawney-clinic"
 LABEL="connected-runtime-execute"
+BRANCH="ai/astra/rc2-connected-runtime-20261128"
+WORKFLOW=".github/workflows/rc2-connected-runtime.yml"
+WORKFLOW_ID=433513498
+REPO_ID=222492572
+PR_ID=5537994941
+OWNER_ID=15047837
+LABEL_PATTERN=re.compile(r"connected-runtime-execute-([1-9][0-9]{0,11})-([1-9][0-9]{0,11})")
 PNG=base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAALUlEQVR4nGMMrZ3GQEvARFPTRy0YtWDUglELRi0YtWDUglELRi0YtWDUAioCAJsdAaiiHDv7AAAAAElFTkSuQmCC")
 UID=re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 SHA=re.compile(r"[a-f0-9]{40}")
 def check(ok,reason):
     if not ok: raise RuntimeError(reason)
 
+def is_owner(value):
+    return isinstance(value,dict) and value.get("login")==OWNER and value.get("id")==OWNER_ID
+
+def label_ids(name):
+    match=LABEL_PATTERN.fullmatch(name) if isinstance(name,str) else None
+    if match is None:return None
+    sol,pm=map(int,match.groups())
+    return (sol,pm) if sol!=pm else None
+
 def requested(event,attempt):
-    """Ordinary pushes, reruns, existing label and unrelated labels cannot launch."""
-    return (event.get("action")=="labeled" and event.get("label",{}).get("name")==LABEL
-            and event.get("sender",{}).get("login")==OWNER and attempt=="1"
-            and event.get("number")==146 and event.get("repository",{}).get("full_name")==REPO)
+    """A unique owner-applied label only; ordinary pushes and reruns never launch."""
+    return (event.get("action")=="labeled" and label_ids(event.get("label",{}).get("name")) is not None
+            and is_owner(event.get("sender")) and attempt=="1"
+            and event.get("number")==146 and event.get("repository",{}).get("full_name")==REPO
+            and event.get("repository",{}).get("id")==REPO_ID)
 
-def clearance(comments,head,cloud):
-    if not SHA.fullmatch(head) or not SHA.fullmatch(cloud):return False
-    bodies=("SOL CONNECTED RUNTIME AND RECEIPT PASS "+head+" "+cloud,
-            "PM CONNECTED EXECUTION CLEARANCE "+head+" "+cloud)
-    # Agents share the owner account. This verifies two explicit owner-attested
-    # decisions, not cryptographically distinct agent identities.
-    accepted=[c for c in comments if c.get("user",{}).get("login")==OWNER
-              and c.get("author_association")=="OWNER"
-              and c.get("created_at") and c.get("created_at")==c.get("updated_at")
-              and isinstance(c.get("body"),str)]
-    matches=[[c for c in accepted if c["body"].strip()==body] for body in bodies]
-    return (all(len(m)==1 for m in matches)
-            and all(isinstance(m[0].get("id"),int) for m in matches)
-            and matches[0][0]["id"]!=matches[1][0]["id"]
-            and matches[0][0]["created_at"]<=matches[1][0]["created_at"])
+def timestamp(value):
+    # GitHub REST timestamps have second precision. Equal approval/trigger
+    # timestamps are ambiguous and refused rather than ordered by guessed IDs.
+    check(isinstance(value,str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z",value),
+          "unverified GitHub timestamp")
+    try:return dt.datetime.strptime(value,"%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+    except ValueError:raise RuntimeError("unverified GitHub timestamp") from None
 
-def authorize(event,head,cloud,attempt):
-    if not requested(event,attempt):return False
-    # Before dependency bootstrap/isolation, public GitHub GET only. No token.
-    # Fixed endpoints, no arbitrary URL or redirect.
+def positive_id(value):
+    return type(value) is int and value>0
+
+def exact_pr(pr,head,label):
+    return (pr.get("id")==PR_ID and pr.get("number")==146 and pr.get("state")=="open" and pr.get("draft") is True
+            and pr.get("head",{}).get("sha")==head and pr.get("head",{}).get("ref")==BRANCH
+            and pr.get("head",{}).get("repo",{}).get("full_name")==REPO
+            and pr.get("head",{}).get("repo",{}).get("id")==REPO_ID
+            and positive_id(label.get("id"))
+            and [l.get("id") for l in pr.get("labels",[]) if l.get("name")==label.get("name")]==[label["id"]])
+
+def approval_comment(comment,cid,body):
+    check(comment.get("id")==cid and is_owner(comment.get("user")) and comment.get("author_association")=="OWNER"
+          and comment.get("issue_url")=="https://api.github.com/repos/"+REPO+"/issues/146"
+          and comment.get("body")==body and comment.get("created_at")==comment.get("updated_at"),
+          "exact immutable owner approval mismatch")
+    return timestamp(comment.get("created_at"))
+
+def run_identity(run,run_id,head):
+    check(run.get("id")==run_id and run.get("workflow_id")==WORKFLOW_ID and run.get("path")==WORKFLOW
+          and run.get("event")=="pull_request" and run.get("run_attempt")==1
+          and run.get("head_sha")==head and run.get("head_branch")==BRANCH and run.get("status")=="in_progress"
+          and run.get("repository",{}).get("id")==REPO_ID and run.get("repository",{}).get("full_name")==REPO
+          and run.get("head_repository",{}).get("id")==REPO_ID
+          and is_owner(run.get("actor")) and is_owner(run.get("triggering_actor")),"workflow occurrence identity mismatch")
+    prs=run.get("pull_requests")
+    check(isinstance(prs,list) and len(prs)==1 and prs[0].get("id")==PR_ID and prs[0].get("number")==146
+          and prs[0].get("head",{}).get("sha")==head and prs[0].get("head",{}).get("ref")==BRANCH
+          and prs[0].get("head",{}).get("repo",{}).get("id")==REPO_ID,"workflow PR identity mismatch")
+    return timestamp(run.get("created_at"))
+
+def clearance(event,head,cloud,run_id,run,pr,sol,pm,events,runs,now):
+    """Pure verification over trusted GitHub GET responses and runner event.
+
+    Exact comment IDs in a single-use label avoid guessing which approval
+    pair or historical label event an invocation refers to.
+    """
+    check(SHA.fullmatch(head) and SHA.fullmatch(cloud) and positive_id(run_id),"invalid execution identity")
+    check(requested(event,"1"),"not an exact owner label event")
+    label=event["label"];sol_id,pm_id=label_ids(label["name"])
+    check(exact_pr(event["pull_request"],head,label) and exact_pr(pr,head,label),"changed PR or label identity")
+    sol_time=approval_comment(sol,sol_id,"SOL CONNECTED RUNTIME AND RECEIPT PASS "+head+" "+cloud)
+    pm_time=approval_comment(pm,pm_id,"PM CONNECTED EXECUTION CLEARANCE "+head+" "+cloud+" SOL="+str(sol_id))
+    # An approval ID may not appear in another execution label occurrence,
+    # even if it was removed/reapplied or paired with another comment.
+    relevant=[]
+    for e in events:
+        if e.get("event") not in ("labeled","unlabeled"):continue
+        ids=label_ids(e.get("label",{}).get("name"))
+        if ids and set(ids).intersection((sol_id,pm_id)):relevant.append(e)
+    check(len(relevant)==1,"missing, ambiguous or replayed execution label")
+    trigger=relevant[0]
+    check(trigger.get("event")=="labeled" and trigger.get("label",{}).get("name")==label["name"]
+          and positive_id(trigger.get("id")) and is_owner(trigger.get("actor")),"execution label occurrence mismatch")
+    trigger_time=timestamp(trigger.get("created_at"))
+    check(sol_time<pm_time<trigger_time,"approval chronology unverified")
+    check(pm_time-sol_time<=dt.timedelta(hours=24) and trigger_time-pm_time<=dt.timedelta(minutes=15),
+          "stale approvals")
+    # Any post-approval force push, close/reopen or draft-state transition
+    # invalidates the pair; current PR/head and event snapshot also must match.
+    for e in events:
+        if e.get("event") in ("head_ref_force_pushed","closed","reopened","ready_for_review","convert_to_draft"):
+            check(timestamp(e.get("created_at"))<sol_time,"PR state changed since approval")
+    created=run_identity(run,run_id,head)
+    check(trigger_time<=created<=trigger_time+dt.timedelta(minutes=2)
+          and created<=now<=trigger_time+dt.timedelta(minutes=35),"stale or unrelated workflow occurrence")
+    # Only one matching workflow run may exist since this label occurrence.
+    # Ordinary workflow runs on the same commit can make this ambiguous; fail
+    # closed rather than infer causation from a near timestamp or latest label.
+    matching=[]
+    for candidate in runs:
+        check(candidate.get("head_sha")==head and candidate.get("event")=="pull_request","workflow list identity mismatch")
+        if candidate.get("workflow_id")==WORKFLOW_ID and timestamp(candidate.get("created_at"))>=trigger_time:
+            matching.append(candidate)
+    check(len(matching)==1 and matching[0].get("id")==run_id
+          and matching[0].get("created_at")==run.get("created_at") and matching[0].get("run_attempt")==1,
+          "ambiguous or replayed workflow occurrence")
+    # Immutable comparison token retained only in the host process, never in
+    # the private browser packet/environment. Re-read and compare before launch.
+    return (head,cloud,label["name"],label["id"],sol_id,sol["created_at"],pm_id,pm["created_at"],
+            trigger["id"],trigger["created_at"],run_id,run["created_at"])
+
+def github_read(path):
+    # Host control plane only, fixed public GitHub API, no token/redirect/proxy.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args,**kwargs):return None
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
-    def read(path):
-        with opener.open(urllib.request.Request("https://api.github.com/repos/"+REPO+path,
-                         headers={"Accept":"application/vnd.github+json","User-Agent":"Dawney isolated acceptance gate"}),timeout=12) as response:
-            check(response.status==200,"approval source unavailable")
-            return json.loads(response.read(2_000_000))
+    with opener.open(urllib.request.Request("https://api.github.com/repos/"+REPO+path,
+                     headers={"Accept":"application/vnd.github+json","User-Agent":"Dawney isolated acceptance gate",
+                              "Cache-Control":"no-cache","X-GitHub-Api-Version":"2022-11-28"}),timeout=12) as response:
+        check(response.status==200,"approval source unavailable")
+        data=response.read(2_000_001)
+        check(len(data)<=2_000_000,"approval response bound exceeded")
+        return json.loads(data)
+
+def bounded_events(read):
+    result=[]
+    for page in range(1,11):
+        batch=read("/issues/146/events?per_page=100&page="+str(page))
+        check(isinstance(batch,list) and len(batch)<=100 and all(isinstance(e,dict) and positive_id(e.get("id")) for e in batch),
+              "issue event response invalid")
+        result.extend(batch)
+        if len(batch)<100:break
+    else:raise RuntimeError("issue event bound exceeded")
+    check(len({e["id"] for e in result})==len(result),"issue event pagination ambiguous")
+    return result
+
+def bounded_runs(read,head):
+    result=[];total=None
+    for page in range(1,11):
+        batch=read("/actions/runs?head_sha="+head+"&event=pull_request&per_page=100&page="+str(page))
+        count=batch.get("total_count")
+        check(type(count) is int and 0<=count<1000 and (total is None or total==count),"workflow count ambiguous")
+        total=count;items=batch.get("workflow_runs")
+        check(isinstance(items,list) and len(items)<=100 and all(isinstance(e,dict) and positive_id(e.get("id")) for e in items),
+              "workflow list invalid")
+        result.extend(items)
+        if len(result)>=total or len(items)<100:break
+    else:raise RuntimeError("workflow list bound exceeded")
+    check(len(result)==total and len({e["id"] for e in result})==total,"workflow list incomplete or ambiguous")
+    return result
+
+def authorize(event,head,cloud,attempt,run_id,previous=None,read=github_read,now=None):
+    if not requested(event,attempt):
+        check(previous is None,"execution authorization revoked")
+        return None
     try:
-        pr=read("/pulls/146")
-        check(pr.get("state")=="open" and pr.get("draft") is True
-              and pr.get("head",{}).get("sha")==head
-              and pr.get("head",{}).get("ref")=="ai/astra/rc2-connected-runtime-20261128"
-              and pr.get("head",{}).get("repo",{}).get("full_name")==REPO
-              and any(l.get("name")==LABEL for l in pr.get("labels",[])),"approval PR identity mismatch")
-        comments=[]
-        for page in range(1,11):
-            batch=read("/issues/146/comments?per_page=100&page="+str(page))
-            check(isinstance(batch,list),"approval comment shape")
-            comments.extend(batch)
-            if len(batch)<100:break
-        else:raise RuntimeError("approval comment bound exceeded")
-        check(clearance(comments,head,cloud),"missing exact SOL and PM owner-attested clearance")
+        check(SHA.fullmatch(head) and SHA.fullmatch(cloud) and isinstance(run_id,str)
+              and re.fullmatch(r"[1-9][0-9]{0,19}",run_id),"invalid authorization identity")
+        sol_id,pm_id=label_ids(event["label"]["name"]);rid=int(run_id)
+        # Read exact immutable IDs; never select a later approval by scanning
+        # text. Only this label name/occurrence can consume these two IDs.
+        sol=read("/issues/comments/"+str(sol_id))
+        pm=read("/issues/comments/"+str(pm_id))
+        run=read("/actions/runs/"+run_id)
+        events=bounded_events(read)
+        runs=bounded_runs(read,head)
+        pr=read("/pulls/146") # latest PR/label check, immediately before verdict
+        token=clearance(event,head,cloud,rid,run,pr,sol,pm,events,runs,
+                        now if now is not None else dt.datetime.now(dt.timezone.utc))
+        check(previous is None or token==previous,"execution authorization changed")
+        return token
     except Exception:
-        raise RuntimeError("connected execution clearance refused; no browser launch") from None
-    return True
+        raise RuntimeError("connected execution chronology/clearance refused; no browser launch") from None
 
 def literal(value):
     # Only exact generated packet identities/markers; no SQL identifier or
@@ -109,18 +233,40 @@ def read_report(path,p):
           and obj.get("runtimeEvidence")==p["runtimeEvidence"]
           and obj.get("evidenceClass")=="isolated-synthetic-real-api-browser-not-hosted","browser report identity mismatch")
     rows=obj.get("results")
-    check(isinstance(rows,list) and len(rows)==len(CASES),"browser report case count")
-    states={}
+    check(isinstance(rows,list) and len(rows)<=2*len(CASES),"browser report case count")
+    states={};seen=set();invalid=set();complete=True
     for row in rows:
-        check(isinstance(row,dict) and row.get("id") in CASES and row["id"] not in states
-              and row.get("status") in ("PASS_BROWSER","FAIL","BLOCKED","NOT_RUN"),"browser report case shape")
-        states[row["id"]]=row["status"]
-    return states
+        if not isinstance(row,dict) or not isinstance(row.get("id"),str) or row["id"] not in CASES:
+            complete=False;continue
+        case=row["id"]
+        if case in seen or row.get("status") not in ("PASS_BROWSER","FAIL","BLOCKED","NOT_RUN"):
+            invalid.add(case);complete=False
+        else:states[case]=row["status"]
+        seen.add(case)
+    for case in invalid:states.pop(case,None)
+    return states,complete and len(states)==len(CASES)
+
+def report_outcomes(output,p,launched,orderly):
+    # A child may have committed a write before publishing its first/next
+    # result. Absence or corruption is unknown, never proof of nonexecution.
+    fallback="UNKNOWN" if launched else "NOT_RUN"
+    states=dict.fromkeys(CASES,fallback)
+    try:
+        st=output.lstat()
+        check(stat.S_ISDIR(st.st_mode) and st.st_uid==os.getuid()
+              and stat.S_IMODE(st.st_mode)==0o700,"private browser output directory")
+        reported,complete=read_report(output/"result.json",p)
+    except Exception:return states,False
+    for case,value in reported.items():
+        states[case]="UNKNOWN" if launched and value=="NOT_RUN" and not (complete and orderly) else value
+    return states,complete
 
 def receipt_status(browser,verification):
     if browser!="PASS_BROWSER":return browser
     return {"PASS":"PASS_PERSISTENCE","FAIL":"FAIL_PERSISTENCE",
-            "UI_ONLY":"PASS_BROWSER_ONLY","BLOCKED":"BLOCKED"}[verification]
+            "UI_ONLY":"PASS_BROWSER_ONLY","BLOCKED":"BLOCKED",
+            "REQUEST":"PASS_REQUEST_RECEIPT","ISOLATION":"PASS_BROWSER_ONLY",
+            "ISOLATION_FAIL":"FAIL_ISOLATION_READBACK"}[verification]
 
 class Collector:
     def __init__(self,s,p,b):
@@ -300,7 +446,7 @@ class Collector:
               and event["actor_id"]==event["target_id"]==uid and event["branch_id"]==self.p["branchId"]
               and event["new_state"]=="pending","staff request provenance mismatch")
         if row["state"]=="pending":
-            check(row["revision"]==1 and not self.final["memberships"] and not self.final["staff_receipts"],
+            check(row["revision"]==1 and not self.final["memberships"] and not self.final["global_roles"] and not self.final["staff_receipts"],
                   "pending staff request granted access")
         return uid,row
 
@@ -460,32 +606,49 @@ class Collector:
             "operations":self.confirmed,"owner-status":self.confirmed,"clinical":self.clinical,
             "clinical-admin":self.clinical_admin,"clinical-role-denial":self.clinical_denial,
             "inventory":lambda:self.balance("administrator"),"pharmacy":lambda:self.balance("veterinarian"),
-            "inventory-edit":self.inventory_edit,"accountant-denial":self.accountant,"session-transition":self.owner_access,
+            "inventory-edit":self.inventory_edit,"accountant-denial":self.accountant,
             "owner-cancel":self.cancellation,"private-attachment":self.attachment,
             "attachment-owner-isolation":lambda:self.attachment(True),"additional-lifecycle":self.lifecycle}
         outcomes={}
         try:
             for case in CASES:
-                browser=states[case];verification="UI_ONLY"
+                browser=states[case];verification="UI_ONLY";scope="browser-only"
                 if browser=="PASS_BROWSER":
-                    if not quiescent:verification="BLOCKED"
+                    if not quiescent:verification="BLOCKED";scope="browser-not-quiescent"
+                    elif case=="session-transition":
+                        # Fresh observer logins verify owner isolation only;
+                        # they cannot establish the old browser session's revocation.
+                        scope="browser-session-transition;independent-owner-isolation-only"
+                        try:
+                            self.owner_access();verification="ISOLATION"
+                            print("OWNER_ISOLATION_READBACK: session-transition PASS; independent session revocation UNVERIFIED",flush=True)
+                        except Exception:
+                            verification="ISOLATION_FAIL"
+                            print("OWNER_ISOLATION_READBACK: session-transition FAIL; independent session revocation UNVERIFIED",flush=True)
                     elif case in checks:
-                        try:checks[case]();verification="PASS"
+                        try:
+                            result=checks[case]();verification="PASS";scope="case-persistence"
+                            if case=="staff-request":
+                                verification="REQUEST"
+                                scope=("request-event;final-pending-no-branch-or-global-grant" if result[1]["state"]=="pending"
+                                       else "request-event;final-approved;intermediate-pending-no-grant-UNVERIFIED")
+                            elif case in ("admin-review","staff-persistence"):
+                                scope="final-approval-and-grant;intermediate-pending-no-grant-UNVERIFIED"
                         except Exception as exc:
-                            verification="FAIL"
+                            verification="FAIL";scope="independent-check-failed"
                             print("RECEIPT_CHECK_FAILED:",case,type(exc).__name__,flush=True)
                     elif case in ("email-callback","email-recovery","clinical-uncertain","controlled-late-response"):
                         verification="BLOCKED"
                     outcomes[case]=receipt_status(browser,verification)
                 else:
-                    outcomes[case]=browser
+                    outcomes[case]=browser;scope="browser-"+browser.lower()
                     if browser=="FAIL" and case in checks and quiescent:
                         try:
                             checks[case]()
                             partial="persisted-invariant-observed"
                         except Exception:partial="absent-or-mismatch"
                         print("PARTIAL_DB_CHECK:",case,partial,"browser failure unchanged",flush=True)
-                print("CASE_RECEIPT:",case,"browser="+browser,"result="+outcomes[case],flush=True)
+                print("CASE_RECEIPT:",case,"browser="+browser,"result="+outcomes[case],"scope="+scope,flush=True)
         finally:
             # Observer sessions are independently obtained, never counted as
             # browser sessions, and are cleaned up with local Auth logout.
@@ -522,7 +685,7 @@ def quiesce(b,baseline):
         time.sleep(1)
     return namespace_pids(b)==baseline
 
-def execute(s,p,b,collector,prefix,cloud,work,packet_path):
+def execute(s,p,b,collector,prefix,cloud,work,packet_path,recheck):
     check(collector.baseline is not None,"fresh receipt baseline required")
     output=work/"new-evidence";log=work/"browser-private.log"
     check(not output.exists() and not log.exists(),"fresh private evidence required")
@@ -533,6 +696,10 @@ def execute(s,p,b,collector,prefix,cloud,work,packet_path):
     baseline=namespace_pids(b)
     check(len(baseline)==1,"expected only fixed namespace relay before browser launch")
     with log.open("xb") as private_log:
+        # Exact authority must still hold after lengthy bootstrap, immediately
+        # before Popen. Host-side GET only; isolated browser receives no token.
+        recheck()
+        print("CONNECTED_EXECUTION_GATE: EXACT_OCCURRENCE_REVALIDATED",flush=True)
         try:
             proc=subprocess.Popen(args,cwd=cloud,env=b.ENV,stdout=private_log,stderr=subprocess.STDOUT,start_new_session=True)
             while proc.poll() is None:
@@ -553,14 +720,10 @@ def execute(s,p,b,collector,prefix,cloud,work,packet_path):
     print("BROWSER_NAMESPACE_QUIESCENT:",str(quiescent).lower(),flush=True)
     rc=proc.returncode if proc is not None else None
     print("BROWSER_EXIT:",rc,"timeout="+str(timed_out).lower(),flush=True)
-    report_valid=False
-    try:
-        st=output.lstat()
-        check(stat.S_ISDIR(st.st_mode) and st.st_uid==os.getuid() and stat.S_IMODE(st.st_mode)==0o700,"private browser output directory")
-        states=read_report(output/"result.json",p);report_valid=True
-    except Exception:
-        states=dict.fromkeys(CASES,"NOT_RUN")
-        print("BROWSER_REPORT_MISSING_OR_INVALID: no browser case promoted",flush=True)
+    states,report_valid=report_outcomes(output,p,launched=proc is not None,
+                                         orderly=quiescent and not timed_out and not launch_failed and rc in (0,1,2))
+    if not report_valid:
+        print("BROWSER_REPORT_MISSING_OR_INCOMPLETE: unresolved cases UNKNOWN after launch; valid partial states retained",flush=True)
     # No browser stdout, screenshots, packet or raw database rows uploaded.
     screenshots=0
     if report_valid:
@@ -587,4 +750,4 @@ def execute(s,p,b,collector,prefix,cloud,work,packet_path):
     if timed_out:return 124
     if rc is None:return 1
     if rc!=0:return rc if rc>0 else 128-rc
-    return 0 if report_valid and quiescent and not launch_failed and all(v in ("PASS_PERSISTENCE","PASS_BROWSER_ONLY") for v in outcomes.values()) else 1
+    return 0 if report_valid and quiescent and not launch_failed and all(v in ("PASS_PERSISTENCE","PASS_BROWSER_ONLY","PASS_REQUEST_RECEIPT") for v in outcomes.values()) else 1
