@@ -19,3 +19,6 @@ This code is intentionally not executed or authorized in this PR. Recreate each 
 
 ## Limitations
 No managed recovery equivalence or clinical activation. Prior isolated full-stack recovery 18/18 remains separate accepted evidence. Both existing hosted projects untouched; R01 still blocked. If CI cannot establish exact internal networking, native Mailpit template, TLS or full fixtures, stop with actual stage failure; no insecure fallback. Frozen RC2/default flags/23 migrations and CLOUD source remain intact.
+
+## Startup and diagnostic refinement
+The initial internal network attempt refused CLI startup; the pinned CLI readiness/migration driver requires localhost PostgreSQL. The conditional fixed-port relay monitors only the three exact local service containers and their sole internal network, retaining internal bridge and adding scoped host INPUT denial for new container-initiated traffic. Docker default host binding is loopback. Second actual run proved six real services, 23 migrations, external container DNS/IP denial and a loopback-only network namespace. Mail parser invocation remained blocked; final refinement separately tests Node and Chromium transport before seed and emits only controlled diagnostic categories and Mailpit response-shape facts (not message content), using the unchanged CLOUD parser. Exact current CI remains the authority.

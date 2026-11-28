@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 import time
 from zoneinfo import ZoneInfo
 
@@ -196,7 +197,8 @@ def create_namespace(work):
     conf=Path("/etc/netns")/NS
     run(["sudo","mkdir","-p",str(conf)])
     for filename,contents in (("hosts","127.0.0.1 localhost "+ALIAS+"\n::1 localhost\n"),
-                              ("resolv.conf","nameserver 192.0.2.1\noptions timeout:1 attempts:1\n")):
+                              ("resolv.conf","nameserver 192.0.2.1\noptions timeout:1 attempts:1\n"),
+                              ("nsswitch.conf",Path("/etc/nsswitch.conf").read_text().replace(next(x for x in Path("/etc/nsswitch.conf").read_text().splitlines() if x.startswith("hosts:")),"hosts: files dns"))):
         run(["sudo","tee",str(conf/filename)],data=contents.encode())
     links=json.loads(run(["sudo","ip","-n",NS,"-j","link","show"]))
     require([x["ifname"] for x in links]==["lo"],"namespace has non-loopback interface")
@@ -222,6 +224,25 @@ def launch(args):
         raise
     finally: sel.close()
 
+def isolated_node(prefix,cloud,args,timeout=90):
+    proc=subprocess.run(prefix+["node",str(HERE/"probe.mjs"),*args],cwd=cloud,
+                        env=b.ENV,capture_output=True,timeout=timeout)
+    # Only exact controlled marker lines, never raw stdout/stderr or mail/OTP.
+    for line in proc.stdout.decode("utf-8","replace").splitlines():
+        if re.fullmatch(r"(PASS|PROBE_BLOCKED|MAIL_SHAPE): [A-Za-z0-9 ,.:_()/=-]{1,200}",line):
+            print(line,flush=True)
+    require(proc.returncode==0,"isolated Node probe refused; controlled marker above")
+    return proc.stdout.decode("utf-8","replace")
+
+def host_mail_check():
+    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),b.NoRedirect())
+    with opener.open("http://127.0.0.1:54324/api/v1/messages?limit=100",timeout=8) as response:
+        payload=json.load(response)
+    require(isinstance(payload.get("messages"),list) and isinstance(payload.get("total"),int),"host Mailpit response shape")
+    # No raw message or recipient. Check actual mail service independently
+    # of namespace relay and the exact CLOUD parser.
+    print("HOST_MAIL: messages="+str(len(payload["messages"]))+" total="+str(payload["total"]),flush=True)
+
 def seed(s,work,cloud,prefix,pub):
     stage=b.stage
     stage("real_mail_and_seed_actors")
@@ -235,8 +256,11 @@ def seed(s,work,cloud,prefix,pub):
         account=accounts[role]
         signup=s.http("POST","/auth/v1/signup",body=account,expected=(200,201))
         require(not signup.get("access_token"),"signup unexpectedly auto-confirmed")
-        otp=run(prefix+["node",str(HERE/"probe.mjs"),"otp",str(cloud),str(scratch),account["email"]],timeout=60).decode()
-        require(re.fullmatch(r"[0-9]{6,8}",otp),"actual Mailpit OTP format")
+        host_mail_check()
+        output=isolated_node(prefix,cloud,["otp",str(cloud),str(scratch),account["email"]],timeout=60)
+        codes=[line for line in output.splitlines() if re.fullmatch(r"[0-9]{6,8}",line)]
+        require(len(codes)==1,"actual Mailpit OTP format")
+        otp=codes[0]
         s.http("POST","/auth/v1/verify",body={"email":account["email"],"token":otp,"type":"signup"})
         result=s.http("POST","/auth/v1/token?grant_type=password",body=account)
         actor=(result["user"]["id"],result["access_token"])
@@ -426,16 +450,17 @@ def main():
             prefix=isolated_prefix(work,home)
             procs.append(launch([sys.executable,str(HERE/"relay.py"),"host",str(work)]))
             procs.append(launch(prefix+[sys.executable,str(HERE/"relay.py"),"namespace",str(work)]))
+            b.stage("real_node_chromium_transport_preflight")
+            transport=work/"transport.json";packet_write(transport,{"publishableKey":pub})
+            isolated_node(prefix,cloud,["transport",str(cloud),str(transport)],timeout=90)
+            host_mail_check()
             # No packet until real fixture seed and enforced controls; probe
             # consumes it in the same namespace and verifies all assertions.
             packet=seed(s,work,cloud,prefix,pub)
             path=work/"runtime.json";packet_write(path,packet)
             b.stage("real_node_chromium_and_cloud_v2_preflight")
-            result=run(prefix+["node",str(HERE/"probe.mjs"),"preflight",str(cloud),str(path)],cwd=cloud,timeout=90).decode()
-            # Only fixed PASS lines from exact reviewed preflight source.
-            for line in result.splitlines():
-                if line.startswith("PASS:"):print(line,flush=True)
-            require(result.count("PASS:")==3,"missing actual Node/Chromium preflight checks")
+            result=isolated_node(prefix,cloud,["preflight",str(cloud),str(path)],timeout=90)
+            require("PASS: exact CLOUD v2 packet and actual catalog/mail freshness" in result,"missing actual packet preflight")
             mark("actual private version 2 packet validated against exact CLOUD guard in same-job runtime")
             print("CONNECTED_RUNTIME_PREFLIGHT_PASS; CONNECTED_APPLICATION_SCENARIOS_NOT_RUN",flush=True)
             # Deliberately no execution hook in automatic PR CI. After separate
