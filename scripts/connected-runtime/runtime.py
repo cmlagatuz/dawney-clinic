@@ -20,7 +20,7 @@ import tempfile
 import urllib.request
 import time
 from zoneinfo import ZoneInfo
-from receipts import Collector, authorize, execute
+from receipts import Collector, authorize, execute, diagnostic, GateRefusal
 
 HERE=Path(__file__).resolve().parent
 ROOT=HERE.parents[1]
@@ -595,6 +595,20 @@ def main():
         require(git("rev-parse","HEAD",cwd=cloud)==C,"CLOUD checkout changed")
         require(authorize(event,head,C,attempt,run_id,previous=execution_grant)==execution_grant,"execution authority changed")
     print("CONNECTED_EXECUTION_GATE:", "AUTHORIZED_EXACT_OCCURRENCE" if execution_grant else "PREFLIGHT_ONLY",flush=True)
+    diagnostic_ok=True
+    if not execution_grant and event.get("action")=="synchronize" and attempt=="1":
+        # Only the new ordinary source-sync run: never use a labeled event or
+        # rerun to diagnose. Continue isolated preflight even if host API fails,
+        # but report the overall verification as failed after baseline.
+        try:
+            diagnostic(event,head,C,attempt,run_id)
+            print("GATE_DIAGNOSTIC_RESULT: PASS; PREFLIGHT ONLY",flush=True)
+        except GateRefusal as exc:
+            diagnostic_ok=False
+            print("GATE_DIAGNOSTIC_RESULT: FAIL",str(exc),flush=True)
+        except Exception:
+            diagnostic_ok=False
+            print("GATE_DIAGNOSTIC_RESULT: FAIL INTERNAL_UNCLASSIFIED; PREFLIGHT ONLY",flush=True)
     git("merge-base","--is-ancestor",A,"HEAD")
     require(set(git("diff","--name-only",A,"HEAD").splitlines())=={"scripts/connected-runtime/runtime.py","scripts/connected-runtime/relay.py","scripts/connected-runtime/probe.mjs",".github/workflows/rc2-connected-runtime.yml","docs/RC2_CONNECTED_RUNTIME.md","scripts/connected-runtime/receipts.py","scripts/connected-runtime/test_receipts.py","scripts/connected-runtime/test_startup.py"},"unexpected verification delta")
     for path,tree in (("web",WEB),("supabase","8750a8be478c56acc5b6e9740946138f0b2f39f7"),("scripts/recovery","f105bb506be210707683eb5e4a988383b0ee49ad")):
@@ -690,6 +704,7 @@ def main():
             collector.prepare()
             if not execution_grant:
                 print("CONNECTED_RUNTIME_PREFLIGHT_PASS; CONNECTED_APPLICATION_SCENARIOS_NOT_RUN",flush=True)
+                if not diagnostic_ok:return 1
             else:
                 print("CONNECTED_RUNTIME_PREFLIGHT_PASS; EXPLICIT_CONNECTED_EXECUTION_AUTHORIZED",flush=True)
                 b.stage("connected_application_and_authoritative_receipts")

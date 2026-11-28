@@ -4,11 +4,16 @@ import datetime as dt
 import json
 from pathlib import Path
 import tempfile
+import urllib.error
+import socket
+import ssl
 import unittest
 from unittest.mock import Mock, patch
 from receipts import (CASES, OWNER, OWNER_ID, REPO, REPO_ID, PR_ID, BRANCH, WORKFLOW,
     WORKFLOW_ID, LABEL, requested, clearance, authorize, read_report, report_outcomes,
-    receipt_status, literal, Collector, execute, unavailable_readback)
+    receipt_status, literal, Collector, execute, unavailable_readback,
+    GateRefusal, github_read, diagnostic, HISTORICAL_HEAD, HISTORICAL_RUN, HISTORICAL_SOL, HISTORICAL_PM,
+    HISTORICAL_EVENT, http_reason)
 
 class Contract(unittest.TestCase):
     def setUp(self):
@@ -210,6 +215,74 @@ class Contract(unittest.TestCase):
         self.assertEqual(unavailable_readback("public","PASS_BROWSER"),"PASS_BROWSER_ONLY")
         for state in ("UNKNOWN","FAIL","BLOCKED","NOT_RUN"):
             self.assertEqual(unavailable_readback("staff-request",state),state)
+    def test_gate_fixed_reason_and_stage(self):
+        for path,exc,code in (
+            ("/issues/comments/101",urllib.error.HTTPError("https://example.invalid/secret",403,"secret",{"X-RateLimit-Remaining":"0"},None),"API_RATE_LIMIT"),
+            ("/issues/comments/101",urllib.error.HTTPError("https://example.invalid/secret",404,"secret",{},None),"HTTP_404"),
+            ("/issues/comments/101",urllib.error.HTTPError("https://example.invalid/secret",503,"secret",{},None),"HTTP_5XX"),
+            ("/issues/comments/101",urllib.error.URLError(socket.gaierror("secret")),"API_DNS"),
+            ("/issues/comments/101",urllib.error.URLError(ssl.SSLError("secret")),"API_TLS"),
+            ("/issues/comments/101",TimeoutError("secret"),"API_TIMEOUT"),
+            ("/issues/comments/101",OSError("secret"),"API_TRANSPORT")):
+            def read(p):
+                if p==path:raise exc
+                return self.read(p)
+            with self.subTest(code=code),self.assertRaises(GateRefusal) as cm:
+                authorize(self.event,self.head,self.cloud,"1","731",read=read,now=self.now)
+            self.assertEqual((cm.exception.stage,cm.exception.code),("ENTRY_SOL_COMMENT",code))
+            self.assertNotIn("secret",str(cm.exception))
+    def test_distinguish_predicate_failures(self):
+        for attr,value,code in (
+            ("pr",{**self.pr,"labels":[]},"LIVE_PR_LABEL_IDENTITY"),
+            ("pm",{**self.pm,"created_at":self.at("09:00:00"),"updated_at":self.at("09:00:00")},"CHRONOLOGY_ORDER"),
+            ("run",{**self.run,"status":"queued"},"WORKFLOW_STATUS_NOT_IN_PROGRESS"),
+            ("run",{**self.run,"pull_requests":[]},"WORKFLOW_PR_NOT_VISIBLE"),
+            ("events",[],"LABEL_HISTORY_MISSING_OR_NOT_VISIBLE"),
+            ("runs",[],"WORKFLOW_RUN_NOT_VISIBLE"),
+            ("sol",[],"SCHEMA_COMMENT")):
+            saved=getattr(self,attr);setattr(self,attr,value)
+            try:
+                with self.subTest(code=code),self.assertRaises(GateRefusal) as cm:self.auth()
+                self.assertEqual(cm.exception.code,code)
+            finally:setattr(self,attr,saved)
+        def malformed(path):
+            if path.startswith("/actions/runs?"):return {"total_count":2,"workflow_runs":[self.run]}
+            return self.read(path)
+        with self.assertRaises(GateRefusal) as cm:
+            authorize(self.event,self.head,self.cloud,"1","731",read=malformed,now=self.now)
+        self.assertEqual((cm.exception.stage,cm.exception.code),("ENTRY_RUN_LIST","PAGINATION_RUN_INCOMPLETE"))
+        with self.assertRaises(GateRefusal) as cm:
+            authorize({**self.event,"sender":{"id":0,"login":"other"}},self.head,self.cloud,"1","731",read=self.read)
+        self.assertEqual(cm.exception.code,"EVENT_IDENTITY")
+    def test_http_reason_no_raw_values(self):
+        self.assertEqual(http_reason(429,{}),"API_RATE_LIMIT")
+        self.assertEqual(http_reason(403,{"Retry-After":"secret"}),"API_RATE_LIMIT")
+        self.assertEqual(http_reason(403,{}),"HTTP_403")
+        self.assertEqual(http_reason(302,{}),"HTTP_REDIRECT_REFUSED")
+        self.assertEqual(http_reason(418,{}),"HTTP_4XX")
+        with patch("receipts.urllib.request.build_opener") as opener:
+            response=opener.return_value.open.return_value.__enter__.return_value
+            response.status=200;response.read.return_value=b"not json: secret"
+            with self.assertRaises(GateRefusal) as cm:github_read("/pulls/146")
+            self.assertEqual(cm.exception.code,"SCHEMA_JSON")
+            self.assertNotIn("secret",str(cm.exception))
+    def test_diagnostic_only_synchronize_never_grants(self):
+        event={**self.event,"action":"synchronize"}
+        sol=self.comment(HISTORICAL_SOL,"SOL CONNECTED RUNTIME AND RECEIPT PASS "+HISTORICAL_HEAD+" "+self.cloud,"09:00:00")
+        pm=self.comment(HISTORICAL_PM,"PM CONNECTED EXECUTION CLEARANCE "+HISTORICAL_HEAD+" "+self.cloud+" SOL="+str(HISTORICAL_SOL),"09:00:02")
+        old={**self.run,"id":HISTORICAL_RUN,"head_sha":HISTORICAL_HEAD,"status":"completed","conclusion":"failure"}
+        history=[{**self.events[0],"id":HISTORICAL_EVENT,"label":{"name":LABEL+"-"+str(HISTORICAL_SOL)+"-"+str(HISTORICAL_PM)}}]
+        def read(path):
+            fixed={"/issues/comments/"+str(HISTORICAL_SOL):sol,"/issues/comments/"+str(HISTORICAL_PM):pm,
+                   "/actions/runs/"+str(HISTORICAL_RUN):old,"/issues/146/events?per_page=100&page=1":history}
+            return copy.deepcopy(fixed[path]) if path in fixed else self.read(path)
+        with patch("receipts.authorize") as auth,patch("receipts.clearance") as clearance_mock,patch("receipts.execute") as launch:
+            self.assertIsNone(diagnostic(event,self.head,self.cloud,"1","731",read=read))
+            auth.assert_not_called();clearance_mock.assert_not_called();launch.assert_not_called()
+        never=Mock(side_effect=AssertionError("must not read"))
+        for e,attempt in ((self.event,"1"),(event,"2")):
+            with self.assertRaises(GateRefusal):diagnostic(e,self.head,self.cloud,attempt,"731",read=never)
+        never.assert_not_called()
     def test_literal(self):
         self.assertEqual(literal("a'b"),"'a''b'")
         with self.assertRaises(RuntimeError):literal("a\\b")

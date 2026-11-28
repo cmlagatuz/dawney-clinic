@@ -7,6 +7,9 @@ import os
 from pathlib import Path
 import re
 import stat
+import socket
+import ssl
+import urllib.error
 import subprocess
 import time
 import urllib.request
@@ -35,6 +38,18 @@ SHA=re.compile(r"[a-f0-9]{40}")
 def check(ok,reason):
     if not ok: raise RuntimeError(reason)
 
+# Fixed safe codes only. No exception messages or remote strings in output.
+_GATE_CODES=frozenset(["API_DNS","API_RATE_LIMIT","API_TIMEOUT","API_TLS","API_TRANSPORT","APPROVAL_IDENTITY","AUTHORIZATION_CHANGED","CHRONOLOGY_ORDER","CHRONOLOGY_RUN_WINDOW","CHRONOLOGY_STALE_APPROVAL","CURRENT_PR","DIAGNOSTIC_COMMENTS","DIAGNOSTIC_CURRENT_PR","DIAGNOSTIC_CURRENT_RUN","DIAGNOSTIC_EVENT_HISTORY","DIAGNOSTIC_EVENT_IDENTITY","DIAGNOSTIC_HISTORICAL_CHRONOLOGY","DIAGNOSTIC_HISTORICAL_RUN","DIAGNOSTIC_HISTORICAL_RUN_IDENTITY","DIAGNOSTIC_HISTORY_NOT_VISIBLE","DIAGNOSTIC_RUN_LIST","DIAGNOSTIC_TIMESTAMP","EVENT_HISTORY","EVENT_IDENTITY","EVENT_PR_LABEL_IDENTITY","EVENT_REVOKED","EXECUTION_IDENTITY","HTTP_","HTTP_401","HTTP_403","HTTP_404","HTTP_422","HTTP_4XX","HTTP_5XX","HTTP_REDIRECT_REFUSED","HTTP_STATUS_OTHER","INTERNAL_UNCLASSIFIED","LABEL_EVENT_IDENTITY","LABEL_HISTORY_AMBIGUOUS","LABEL_HISTORY_MISSING_OR_NOT_VISIBLE","LIVE_PR_LABEL_IDENTITY","PAGINATION_EVENTS_BOUND","PAGINATION_EVENTS_DUPLICATE","PAGINATION_RUN_BOUND","PAGINATION_RUN_COUNT","PAGINATION_RUN_INCOMPLETE","PM_COMMENT","PR_LABEL_IDENTITY","PR_STATE_CHANGED","RUN_LIST","SCHEMA_COMMENT","SCHEMA_EVENTS","SCHEMA_FIELDS","SCHEMA_JSON","SCHEMA_RESPONSE_BOUND","SCHEMA_RUNS","SCHEMA_RUN_LIST","SCHEMA_TIMESTAMP","SCHEMA_WORKFLOW","SCHEMA_WORKFLOW_PRS","SOL_COMMENT","WORKFLOW_IDENTITY","WORKFLOW_LIST_IDENTITY","WORKFLOW_OCCURRENCE_AMBIGUOUS","WORKFLOW_PR_IDENTITY","WORKFLOW_PR_NOT_VISIBLE","WORKFLOW_RUN_NOT_VISIBLE","WORKFLOW_STATUS_NOT_IN_PROGRESS"])
+_GATE_STAGES=frozenset(["EVENT","ENTRY","RECHECK","SOL_COMMENT","PM_COMMENT","RUN","EVENT_HISTORY","RUN_LIST","CURRENT_PR","PREDICATES","DIAGNOSTIC_COMMENTS","DIAGNOSTIC_HISTORICAL_RUN","DIAGNOSTIC_EVENT_HISTORY","DIAGNOSTIC_TIMESTAMP","DIAGNOSTIC_CURRENT_RUN","DIAGNOSTIC_RUN_LIST","DIAGNOSTIC_CURRENT_PR","CHECK","ENTRY_EVENT","ENTRY_ENTRY","ENTRY_RECHECK","ENTRY_SOL_COMMENT","ENTRY_PM_COMMENT","ENTRY_RUN","ENTRY_EVENT_HISTORY","ENTRY_RUN_LIST","ENTRY_CURRENT_PR","ENTRY_PREDICATES","ENTRY_DIAGNOSTIC_COMMENTS","ENTRY_DIAGNOSTIC_HISTORICAL_RUN","ENTRY_DIAGNOSTIC_EVENT_HISTORY","ENTRY_DIAGNOSTIC_TIMESTAMP","ENTRY_DIAGNOSTIC_CURRENT_RUN","ENTRY_DIAGNOSTIC_RUN_LIST","ENTRY_DIAGNOSTIC_CURRENT_PR","ENTRY_CHECK","RECHECK_EVENT","RECHECK_ENTRY","RECHECK_RECHECK","RECHECK_SOL_COMMENT","RECHECK_PM_COMMENT","RECHECK_RUN","RECHECK_EVENT_HISTORY","RECHECK_RUN_LIST","RECHECK_CURRENT_PR","RECHECK_PREDICATES","RECHECK_DIAGNOSTIC_COMMENTS","RECHECK_DIAGNOSTIC_HISTORICAL_RUN","RECHECK_DIAGNOSTIC_EVENT_HISTORY","RECHECK_DIAGNOSTIC_TIMESTAMP","RECHECK_DIAGNOSTIC_CURRENT_RUN","RECHECK_DIAGNOSTIC_RUN_LIST","RECHECK_DIAGNOSTIC_CURRENT_PR","RECHECK_CHECK"])
+class GateRefusal(RuntimeError):
+    def __init__(self,code,stage="CHECK"):
+        self.code=code if code in _GATE_CODES else "INTERNAL_UNCLASSIFIED"
+        self.stage=stage if stage in _GATE_STAGES else "CHECK"
+        super().__init__("GATE_REFUSED:"+self.stage+":"+self.code+"; no browser launch")
+
+def gate_check(ok,code):
+    if not ok:raise GateRefusal(code)
+
 def is_owner(value):
     return isinstance(value,dict) and value.get("login")==OWNER and value.get("id")==OWNER_ID
 
@@ -54,10 +69,10 @@ def requested(event,attempt):
 def timestamp(value):
     # GitHub REST timestamps have second precision. Equal approval/trigger
     # timestamps are ambiguous and refused rather than ordered by guessed IDs.
-    check(isinstance(value,str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z",value),
-          "unverified GitHub timestamp")
+    gate_check(isinstance(value,str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z",value),
+          "SCHEMA_TIMESTAMP")
     try:return dt.datetime.strptime(value,"%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
-    except ValueError:raise RuntimeError("unverified GitHub timestamp") from None
+    except ValueError:raise GateRefusal("SCHEMA_TIMESTAMP") from None
 
 def positive_id(value):
     return type(value) is int and value>0
@@ -71,23 +86,28 @@ def exact_pr(pr,head,label):
             and [l.get("id") for l in pr.get("labels",[]) if l.get("name")==label.get("name")]==[label["id"]])
 
 def approval_comment(comment,cid,body):
-    check(comment.get("id")==cid and is_owner(comment.get("user")) and comment.get("author_association")=="OWNER"
+    gate_check(isinstance(comment,dict),"SCHEMA_COMMENT")
+    gate_check(comment.get("id")==cid and is_owner(comment.get("user")) and comment.get("author_association")=="OWNER"
           and comment.get("issue_url")=="https://api.github.com/repos/"+REPO+"/issues/146"
           and comment.get("body")==body and comment.get("created_at")==comment.get("updated_at"),
-          "exact immutable owner approval mismatch")
+          "APPROVAL_IDENTITY")
     return timestamp(comment.get("created_at"))
 
 def run_identity(run,run_id,head):
-    check(run.get("id")==run_id and run.get("workflow_id")==WORKFLOW_ID and run.get("path")==WORKFLOW
+    gate_check(isinstance(run,dict),"SCHEMA_WORKFLOW")
+    gate_check(run.get("status")=="in_progress","WORKFLOW_STATUS_NOT_IN_PROGRESS")
+    gate_check(run.get("id")==run_id and run.get("workflow_id")==WORKFLOW_ID and run.get("path")==WORKFLOW
           and run.get("event")=="pull_request" and run.get("run_attempt")==1
-          and run.get("head_sha")==head and run.get("head_branch")==BRANCH and run.get("status")=="in_progress"
+          and run.get("head_sha")==head and run.get("head_branch")==BRANCH
           and run.get("repository",{}).get("id")==REPO_ID and run.get("repository",{}).get("full_name")==REPO
           and run.get("head_repository",{}).get("id")==REPO_ID
-          and is_owner(run.get("actor")) and is_owner(run.get("triggering_actor")),"workflow occurrence identity mismatch")
+          and is_owner(run.get("actor")) and is_owner(run.get("triggering_actor")),"WORKFLOW_IDENTITY")
     prs=run.get("pull_requests")
-    check(isinstance(prs,list) and len(prs)==1 and prs[0].get("id")==PR_ID and prs[0].get("number")==146
+    gate_check(isinstance(prs,list),"SCHEMA_WORKFLOW_PRS")
+    gate_check(bool(prs),"WORKFLOW_PR_NOT_VISIBLE")
+    gate_check(isinstance(prs,list) and len(prs)==1 and prs[0].get("id")==PR_ID and prs[0].get("number")==146
           and prs[0].get("head",{}).get("sha")==head and prs[0].get("head",{}).get("ref")==BRANCH
-          and prs[0].get("head",{}).get("repo",{}).get("id")==REPO_ID,"workflow PR identity mismatch")
+          and prs[0].get("head",{}).get("repo",{}).get("id")==REPO_ID,"WORKFLOW_PR_IDENTITY")
     return timestamp(run.get("created_at"))
 
 def clearance(event,head,cloud,run_id,run,pr,sol,pm,events,runs,now):
@@ -96,10 +116,11 @@ def clearance(event,head,cloud,run_id,run,pr,sol,pm,events,runs,now):
     Exact comment IDs in a single-use label avoid guessing which approval
     pair or historical label event an invocation refers to.
     """
-    check(SHA.fullmatch(head) and SHA.fullmatch(cloud) and positive_id(run_id),"invalid execution identity")
-    check(requested(event,"1"),"not an exact owner label event")
+    gate_check(SHA.fullmatch(head) and SHA.fullmatch(cloud) and positive_id(run_id),"EXECUTION_IDENTITY")
+    gate_check(requested(event,"1"),"EVENT_IDENTITY")
     label=event["label"];sol_id,pm_id=label_ids(label["name"])
-    check(exact_pr(event["pull_request"],head,label) and exact_pr(pr,head,label),"changed PR or label identity")
+    gate_check(exact_pr(event["pull_request"],head,label),"EVENT_PR_LABEL_IDENTITY")
+    gate_check(exact_pr(pr,head,label),"LIVE_PR_LABEL_IDENTITY")
     sol_time=approval_comment(sol,sol_id,"SOL CONNECTED RUNTIME AND RECEIPT PASS "+head+" "+cloud)
     pm_time=approval_comment(pm,pm_id,"PM CONNECTED EXECUTION CLEARANCE "+head+" "+cloud+" SOL="+str(sol_id))
     # An approval ID may not appear in another execution label occurrence,
@@ -109,100 +130,221 @@ def clearance(event,head,cloud,run_id,run,pr,sol,pm,events,runs,now):
         if e.get("event") not in ("labeled","unlabeled"):continue
         ids=label_ids(e.get("label",{}).get("name"))
         if ids and set(ids).intersection((sol_id,pm_id)):relevant.append(e)
-    check(len(relevant)==1,"missing, ambiguous or replayed execution label")
+    gate_check(bool(relevant),"LABEL_HISTORY_MISSING_OR_NOT_VISIBLE")
+    gate_check(len(relevant)==1,"LABEL_HISTORY_AMBIGUOUS")
     trigger=relevant[0]
-    check(trigger.get("event")=="labeled" and trigger.get("label",{}).get("name")==label["name"]
-          and positive_id(trigger.get("id")) and is_owner(trigger.get("actor")),"execution label occurrence mismatch")
+    gate_check(trigger.get("event")=="labeled" and trigger.get("label",{}).get("name")==label["name"]
+          and positive_id(trigger.get("id")) and is_owner(trigger.get("actor")),"LABEL_EVENT_IDENTITY")
     trigger_time=timestamp(trigger.get("created_at"))
-    check(sol_time<pm_time<trigger_time,"approval chronology unverified")
-    check(pm_time-sol_time<=dt.timedelta(hours=24) and trigger_time-pm_time<=dt.timedelta(minutes=15),
-          "stale approvals")
+    gate_check(sol_time<pm_time<trigger_time,"CHRONOLOGY_ORDER")
+    gate_check(pm_time-sol_time<=dt.timedelta(hours=24) and trigger_time-pm_time<=dt.timedelta(minutes=15),
+          "CHRONOLOGY_STALE_APPROVAL")
     # Any post-approval force push, close/reopen or draft-state transition
     # invalidates the pair; current PR/head and event snapshot also must match.
     for e in events:
         if e.get("event") in ("head_ref_force_pushed","closed","reopened","ready_for_review","convert_to_draft"):
-            check(timestamp(e.get("created_at"))<sol_time,"PR state changed since approval")
+            gate_check(timestamp(e.get("created_at"))<sol_time,"PR_STATE_CHANGED")
     created=run_identity(run,run_id,head)
-    check(trigger_time<=created<=trigger_time+dt.timedelta(minutes=2)
-          and created<=now<=trigger_time+dt.timedelta(minutes=35),"stale or unrelated workflow occurrence")
+    gate_check(trigger_time<=created<=trigger_time+dt.timedelta(minutes=2)
+          and created<=now<=trigger_time+dt.timedelta(minutes=35),"CHRONOLOGY_RUN_WINDOW")
     # Only one matching workflow run may exist since this label occurrence.
     # Ordinary workflow runs on the same commit can make this ambiguous; fail
     # closed rather than infer causation from a near timestamp or latest label.
     matching=[]
     for candidate in runs:
-        check(candidate.get("head_sha")==head and candidate.get("event")=="pull_request","workflow list identity mismatch")
+        gate_check(candidate.get("head_sha")==head and candidate.get("event")=="pull_request","WORKFLOW_LIST_IDENTITY")
         if candidate.get("workflow_id")==WORKFLOW_ID and timestamp(candidate.get("created_at"))>=trigger_time:
             matching.append(candidate)
-    check(len(matching)==1 and matching[0].get("id")==run_id
+    gate_check(bool(matching),"WORKFLOW_RUN_NOT_VISIBLE")
+    gate_check(len(matching)==1 and matching[0].get("id")==run_id
           and matching[0].get("created_at")==run.get("created_at") and matching[0].get("run_attempt")==1,
-          "ambiguous or replayed workflow occurrence")
+          "WORKFLOW_OCCURRENCE_AMBIGUOUS")
     # Immutable comparison token retained only in the host process, never in
     # the private browser packet/environment. Re-read and compare before launch.
     return (head,cloud,label["name"],label["id"],sol_id,sol["created_at"],pm_id,pm["created_at"],
             trigger["id"],trigger["created_at"],run_id,run["created_at"])
 
+def http_reason(status,headers):
+    # Never read/log a rejected response body or arbitrary header value.
+    if status==429 or (status==403 and headers is not None and
+                       (headers.get("X-RateLimit-Remaining")=="0" or headers.get("Retry-After") is not None)):
+        return "API_RATE_LIMIT"
+    if status in (401,403,404,422):return "HTTP_"+str(status)
+    if 300<=status<400:return "HTTP_REDIRECT_REFUSED"
+    if 400<=status<500:return "HTTP_4XX"
+    if 500<=status<600:return "HTTP_5XX"
+    return "HTTP_STATUS_OTHER"
+
+def transport_reason(exc):
+    reason=exc.reason if isinstance(exc,urllib.error.URLError) else exc
+    if isinstance(reason,ssl.SSLError):return "API_TLS"
+    if isinstance(reason,socket.gaierror):return "API_DNS"
+    if isinstance(reason,TimeoutError):return "API_TIMEOUT"
+    return "API_TRANSPORT"
+
 def github_read(path):
-    # Host control plane only, fixed public GitHub API, no token/redirect/proxy.
+    # Same existing anonymous GET-only host control plane; fixed HTTPS
+    # origin, no token, redirect, proxy, retry or response-body logging.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args,**kwargs):return None
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
-    with opener.open(urllib.request.Request("https://api.github.com/repos/"+REPO+path,
-                     headers={"Accept":"application/vnd.github+json","User-Agent":"Dawney isolated acceptance gate",
-                              "Cache-Control":"no-cache","X-GitHub-Api-Version":"2022-11-28"}),timeout=12) as response:
-        check(response.status==200,"approval source unavailable")
-        data=response.read(2_000_001)
-        check(len(data)<=2_000_000,"approval response bound exceeded")
-        return json.loads(data)
+    try:
+        with opener.open(urllib.request.Request("https://api.github.com/repos/"+REPO+path,
+                         headers={"Accept":"application/vnd.github+json","User-Agent":"Dawney isolated acceptance gate",
+                                  "Cache-Control":"no-cache","X-GitHub-Api-Version":"2022-11-28"}),timeout=12) as response:
+            if response.status!=200:raise GateRefusal(http_reason(response.status,response.headers))
+            data=response.read(2_000_001)
+            gate_check(len(data)<=2_000_000,"SCHEMA_RESPONSE_BOUND")
+            return json.loads(data)
+    except urllib.error.HTTPError as exc:
+        raise GateRefusal(http_reason(exc.code,exc.headers)) from None
+    except (urllib.error.URLError,OSError) as exc:
+        raise GateRefusal(transport_reason(exc)) from None
+    except (json.JSONDecodeError,UnicodeError):
+        raise GateRefusal("SCHEMA_JSON") from None
 
 def bounded_events(read):
     result=[]
     for page in range(1,11):
         batch=read("/issues/146/events?per_page=100&page="+str(page))
-        check(isinstance(batch,list) and len(batch)<=100 and all(isinstance(e,dict) and positive_id(e.get("id")) for e in batch),
-              "issue event response invalid")
+        gate_check(isinstance(batch,list) and len(batch)<=100 and all(isinstance(e,dict) and positive_id(e.get("id")) for e in batch),
+              "SCHEMA_EVENTS")
         result.extend(batch)
         if len(batch)<100:break
-    else:raise RuntimeError("issue event bound exceeded")
-    check(len({e["id"] for e in result})==len(result),"issue event pagination ambiguous")
+    else:raise GateRefusal("PAGINATION_EVENTS_BOUND")
+    gate_check(len({e["id"] for e in result})==len(result),"PAGINATION_EVENTS_DUPLICATE")
     return result
 
 def bounded_runs(read,head):
     result=[];total=None
     for page in range(1,11):
         batch=read("/actions/runs?head_sha="+head+"&event=pull_request&per_page=100&page="+str(page))
+        gate_check(isinstance(batch,dict),"SCHEMA_RUN_LIST")
         count=batch.get("total_count")
-        check(type(count) is int and 0<=count<1000 and (total is None or total==count),"workflow count ambiguous")
+        gate_check(type(count) is int and 0<=count<1000 and (total is None or total==count),"PAGINATION_RUN_COUNT")
         total=count;items=batch.get("workflow_runs")
-        check(isinstance(items,list) and len(items)<=100 and all(isinstance(e,dict) and positive_id(e.get("id")) for e in items),
-              "workflow list invalid")
+        gate_check(isinstance(items,list) and len(items)<=100 and all(isinstance(e,dict) and positive_id(e.get("id")) for e in items),
+              "SCHEMA_RUNS")
         result.extend(items)
         if len(result)>=total or len(items)<100:break
-    else:raise RuntimeError("workflow list bound exceeded")
-    check(len(result)==total and len({e["id"] for e in result})==total,"workflow list incomplete or ambiguous")
+    else:raise GateRefusal("PAGINATION_RUN_BOUND")
+    gate_check(len(result)==total and len({e["id"] for e in result})==total,"PAGINATION_RUN_INCOMPLETE")
     return result
 
+def staged(stage,call,*args):
+    # Only fixed stage/reason codes are allowed out of the gate. In particular
+    # do not interpolate raw exceptions, URLs, event contents or response bodies.
+    try:return call(*args)
+    except GateRefusal as exc:raise GateRefusal(exc.code,stage) from None
+    except urllib.error.HTTPError as exc:raise GateRefusal(http_reason(exc.code,exc.headers),stage) from None
+    except (urllib.error.URLError,OSError) as exc:raise GateRefusal(transport_reason(exc),stage) from None
+    except (KeyError,TypeError,AttributeError,ValueError,IndexError):
+        raise GateRefusal("SCHEMA_FIELDS",stage) from None
+    except Exception:raise GateRefusal("INTERNAL_UNCLASSIFIED",stage) from None
+
 def authorize(event,head,cloud,attempt,run_id,previous=None,read=github_read,now=None):
-    if not requested(event,attempt):
-        check(previous is None,"execution authorization revoked")
+    if not staged("EVENT",requested,event,attempt):
+        gate_check(previous is None,"EVENT_REVOKED")
+        # Ordinary events remain network-free in the authorization function.
+        # An explicitly attempted first-use label with a wrong owner/identity
+        # is still refused; report the rejection without echoing the label.
+        if isinstance(event,dict) and event.get("action")=="labeled" and attempt=="1" and label_ids(event.get("label",{}).get("name")):
+            raise GateRefusal("EVENT_IDENTITY","EVENT")
         return None
+    stage="RECHECK" if previous is not None else "ENTRY"
     try:
-        check(SHA.fullmatch(head) and SHA.fullmatch(cloud) and isinstance(run_id,str)
-              and re.fullmatch(r"[1-9][0-9]{0,19}",run_id),"invalid authorization identity")
+        gate_check(SHA.fullmatch(head) and SHA.fullmatch(cloud) and isinstance(run_id,str)
+                  and re.fullmatch(r"[1-9][0-9]{0,19}",run_id),"EXECUTION_IDENTITY")
         sol_id,pm_id=label_ids(event["label"]["name"]);rid=int(run_id)
-        # Read exact immutable IDs; never select a later approval by scanning
-        # text. Only this label name/occurrence can consume these two IDs.
-        sol=read("/issues/comments/"+str(sol_id))
-        pm=read("/issues/comments/"+str(pm_id))
-        run=read("/actions/runs/"+run_id)
-        events=bounded_events(read)
-        runs=bounded_runs(read,head)
-        pr=read("/pulls/146") # latest PR/label check, immediately before verdict
-        token=clearance(event,head,cloud,rid,run,pr,sol,pm,events,runs,
-                        now if now is not None else dt.datetime.now(dt.timezone.utc))
-        check(previous is None or token==previous,"execution authorization changed")
+        sol=staged("SOL_COMMENT",read,"/issues/comments/"+str(sol_id))
+        pm=staged("PM_COMMENT",read,"/issues/comments/"+str(pm_id))
+        run=staged("RUN",read,"/actions/runs/"+run_id)
+        events=staged("EVENT_HISTORY",bounded_events,read)
+        runs=staged("RUN_LIST",bounded_runs,read,head)
+        pr=staged("CURRENT_PR",read,"/pulls/146")
+        token=staged("PREDICATES",clearance,event,head,cloud,rid,run,pr,sol,pm,events,runs,
+                     now if now is not None else dt.datetime.now(dt.timezone.utc))
+        gate_check(previous is None or token==previous,"AUTHORIZATION_CHANGED")
         return token
+    except GateRefusal as exc:
+        raise GateRefusal(exc.code,stage+"_"+exc.stage) from None
+    except (KeyError,TypeError,AttributeError,ValueError):
+        raise GateRefusal("SCHEMA_FIELDS",stage) from None
     except Exception:
-        raise RuntimeError("connected execution chronology/clearance refused; no browser launch") from None
+        raise GateRefusal("INTERNAL_UNCLASSIFIED",stage) from None
+
+# Fixed, read-only historical evidence probe. It cannot mint/return an
+# authorization grant, never calls clearance()/authorize()/execute(), and
+# does not modify, apply or reuse the consumed approval occurrence.
+HISTORICAL_HEAD="1f6c8e953cb7a1149ade5e264e04634363eb9db3"
+HISTORICAL_RUN=46133533360
+HISTORICAL_SOL=7237665803
+HISTORICAL_PM=7237667236
+HISTORICAL_EVENT=37543590901
+
+def diagnostic(event,head,cloud,attempt,run_id,read=github_read):
+    gate_check(event.get("action")=="synchronize" and attempt=="1"
+               and event.get("number")==146 and event.get("repository",{}).get("id")==REPO_ID
+               and event.get("repository",{}).get("full_name")==REPO
+               and SHA.fullmatch(head) and head!=HISTORICAL_HEAD and SHA.fullmatch(cloud)
+               and isinstance(run_id,str) and re.fullmatch(r"[1-9][0-9]{0,19}",run_id)
+               and int(run_id)!=HISTORICAL_RUN,"DIAGNOSTIC_EVENT_IDENTITY")
+    # Current ordinary-run metadata is the actual same-host API/schema probe,
+    # not a simulated labeled webhook. Never manufacture an event or clock.
+    def current():
+        run=read("/actions/runs/"+run_id)
+        run_identity(run,int(run_id),head)
+        return run
+    def history():
+        events=bounded_events(read)
+        gate_check(any(e.get("id")==HISTORICAL_EVENT and e.get("event")=="labeled"
+                      and is_owner(e.get("actor"))
+                      and label_ids(e.get("label",{}).get("name"))==(HISTORICAL_SOL,HISTORICAL_PM)
+                      for e in events),"DIAGNOSTIC_HISTORY_NOT_VISIBLE")
+        return events
+    def old_comments():
+        sol=read("/issues/comments/"+str(HISTORICAL_SOL))
+        pm=read("/issues/comments/"+str(HISTORICAL_PM))
+        a=approval_comment(sol,HISTORICAL_SOL,"SOL CONNECTED RUNTIME AND RECEIPT PASS "+HISTORICAL_HEAD+" "+cloud)
+        b=approval_comment(pm,HISTORICAL_PM,"PM CONNECTED EXECUTION CLEARANCE "+HISTORICAL_HEAD+" "+cloud+" SOL="+str(HISTORICAL_SOL))
+        return a,b
+    def old_run():
+        run=read("/actions/runs/"+str(HISTORICAL_RUN))
+        gate_check(isinstance(run,dict) and run.get("id")==HISTORICAL_RUN
+                   and run.get("head_sha")==HISTORICAL_HEAD and run.get("workflow_id")==WORKFLOW_ID
+                   and run.get("run_attempt")==1 and run.get("status")=="completed"
+                   and run.get("conclusion")=="failure","DIAGNOSTIC_HISTORICAL_RUN_IDENTITY")
+        return run
+    def run_list():
+        rows=bounded_runs(read,head)
+        gate_check(all(e.get("head_sha")==head and e.get("event")=="pull_request" for e in rows),"WORKFLOW_LIST_IDENTITY")
+        gate_check(any(e.get("id")==int(run_id) and e.get("workflow_id")==WORKFLOW_ID for e in rows),"WORKFLOW_RUN_NOT_VISIBLE")
+        return rows
+    def current_pr():
+        pr=read("/pulls/146")
+        gate_check(isinstance(pr,dict) and pr.get("id")==PR_ID and pr.get("number")==146
+                   and pr.get("state")=="open" and pr.get("draft") is True
+                   and pr.get("head",{}).get("sha")==head and pr.get("head",{}).get("ref")==BRANCH
+                   and pr.get("head",{}).get("repo",{}).get("id")==REPO_ID
+                   and pr.get("head",{}).get("repo",{}).get("full_name")==REPO,"LIVE_PR_LABEL_IDENTITY")
+        return pr
+    # Same first two comment endpoints and run, events, list, PR types;
+    # no historical grant is evaluated or accepted. Bounded, one pass.
+    a,b=staged("DIAGNOSTIC_COMMENTS",old_comments)
+    print("GATE_DIAGNOSTIC: historical-comments PASS",flush=True)
+    old=staged("DIAGNOSTIC_HISTORICAL_RUN",old_run)
+    print("GATE_DIAGNOSTIC: completed-historical-run PASS",flush=True)
+    events=staged("DIAGNOSTIC_EVENT_HISTORY",history)
+    trigger=staged("DIAGNOSTIC_TIMESTAMP",timestamp,next(e["created_at"] for e in events if e["id"]==HISTORICAL_EVENT))
+    created=staged("DIAGNOSTIC_TIMESTAMP",timestamp,old.get("created_at"))
+    gate_check(a<b<trigger<=created,"DIAGNOSTIC_HISTORICAL_CHRONOLOGY")
+    print("GATE_DIAGNOSTIC: retained-event-chronology PASS",flush=True)
+    staged("DIAGNOSTIC_CURRENT_RUN",current)
+    print("GATE_DIAGNOSTIC: current-in-progress-run-identity PASS",flush=True)
+    staged("DIAGNOSTIC_RUN_LIST",run_list)
+    print("GATE_DIAGNOSTIC: current-run-pagination PASS",flush=True)
+    staged("DIAGNOSTIC_CURRENT_PR",current_pr)
+    print("GATE_DIAGNOSTIC: current-pr-identity PASS; NO EXECUTION GRANT",flush=True)
 
 def literal(value):
     # Only exact generated packet identities/markers; no SQL identifier or
