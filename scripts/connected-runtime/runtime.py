@@ -19,6 +19,7 @@ import tempfile
 import urllib.request
 import time
 from zoneinfo import ZoneInfo
+from receipts import Collector, authorize, execute
 
 HERE=Path(__file__).resolve().parent
 ROOT=HERE.parents[1]
@@ -486,8 +487,10 @@ def main():
     os.umask(0o077)
     b.ENV={"PATH":os.environ["PATH"],"LANG":"C.UTF-8","LC_ALL":"C.UTF-8","CI":"true"}
     require(git("rev-parse","HEAD")==event["pull_request"]["head"]["sha"],"wrong job checkout")
+    execute_authorized=authorize(event,git("rev-parse","HEAD"),C,os.environ.get("GITHUB_RUN_ATTEMPT",""))
+    print("CONNECTED_EXECUTION_GATE:", "AUTHORIZED_EXPLICIT_LABEL" if execute_authorized else "PREFLIGHT_ONLY",flush=True)
     git("merge-base","--is-ancestor",A,"HEAD")
-    require(set(git("diff","--name-only",A,"HEAD").splitlines())=={"scripts/connected-runtime/runtime.py","scripts/connected-runtime/relay.py","scripts/connected-runtime/probe.mjs",".github/workflows/rc2-connected-runtime.yml","docs/RC2_CONNECTED_RUNTIME.md"},"unexpected verification delta")
+    require(set(git("diff","--name-only",A,"HEAD").splitlines())=={"scripts/connected-runtime/runtime.py","scripts/connected-runtime/relay.py","scripts/connected-runtime/probe.mjs",".github/workflows/rc2-connected-runtime.yml","docs/RC2_CONNECTED_RUNTIME.md","scripts/connected-runtime/receipts.py","scripts/connected-runtime/test_receipts.py"},"unexpected verification delta")
     for path,tree in (("web",WEB),("supabase","8750a8be478c56acc5b6e9740946138f0b2f39f7"),("scripts/recovery","f105bb506be210707683eb5e4a988383b0ee49ad")):
         require(git("rev-parse","HEAD:"+path)==tree,"frozen tree mismatch "+path)
     require(git("hash-object","scripts/fullstack-synthetic/rehearse.py")=="65a414531e44e8f1cfb85dad418cfeb5fa0a3841","accepted recovery harness changed")
@@ -574,10 +577,15 @@ def main():
             require("PASS: exact CLOUD v2 packet and actual catalog/mail freshness" in result,"missing actual packet preflight")
             mark("actual private version 2 packet validated against exact CLOUD guard in same-job runtime")
             print("OPTIONAL_AUTH_LINKS_BLOCKED: OTP-only local template; callback and recovery links unqualified",flush=True)
-            print("CONNECTED_RUNTIME_PREFLIGHT_PASS; CONNECTED_APPLICATION_SCENARIOS_NOT_RUN",flush=True)
-            # Deliberately no execution hook in automatic PR CI. After separate
-            # SOL/PM review, same-job invocation uses this exact prefix, packet,
-            # and checkout before finally. A new authorized revision is needed.
+            b.stage("authoritative_receipt_baseline")
+            collector=Collector(s,packet,b)
+            collector.prepare()
+            if not execute_authorized:
+                print("CONNECTED_RUNTIME_PREFLIGHT_PASS; CONNECTED_APPLICATION_SCENARIOS_NOT_RUN",flush=True)
+            else:
+                print("CONNECTED_RUNTIME_PREFLIGHT_PASS; EXPLICIT_CONNECTED_EXECUTION_AUTHORIZED",flush=True)
+                b.stage("connected_application_and_authoritative_receipts")
+                return execute(s,packet,b,collector,prefix,cloud,work,path)
         finally:
             for p in reversed(procs):
                 if p.poll() is None:p.terminate()
@@ -596,7 +604,7 @@ def main():
             if checked:git("worktree","remove","--force",str(cloud))
 
 if __name__=="__main__":
-    try:main()
+    try:sys.exit(main())
     except Exception as e:
         print("BLOCKED/FAILED:",b.STAGE,type(e).__name__,str(e) if isinstance(e,RuntimeError) else "sanitized runtime error",flush=True)
         sys.exit(1)

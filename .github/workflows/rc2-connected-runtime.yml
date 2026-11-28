@@ -1,6 +1,7 @@
 name: RC2 connected runtime preflight (isolated)
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - 'scripts/connected-runtime/**'
       - '.github/workflows/rc2-connected-runtime.yml'
@@ -11,7 +12,7 @@ jobs:
   qualify:
     if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'ai/astra/rc2-connected-runtime-20261128'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,7 +30,8 @@ jobs:
             sudo apt-get install -y --no-install-recommends libnss3-tools
           fi
           command -v google-chrome || command -v chromium
-          python3 -m py_compile scripts/connected-runtime/runtime.py scripts/connected-runtime/relay.py
+          python3 -m py_compile scripts/connected-runtime/runtime.py scripts/connected-runtime/relay.py scripts/connected-runtime/receipts.py
+          python3 -m unittest discover -s scripts/connected-runtime -p test_receipts.py -v
           node --check scripts/connected-runtime/probe.mjs
-      - name: Actual isolated runtime preflight only (not connected scenarios)
+      - name: Actual isolated preflight (connected execution only after exact explicit clearance)
         run: python3 -u scripts/connected-runtime/runtime.py
