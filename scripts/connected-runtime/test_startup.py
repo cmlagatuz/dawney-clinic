@@ -4,10 +4,14 @@ import json
 import subprocess
 import unittest
 from unittest.mock import patch
-from runtime import LoopbackRelays, WatcherFault, NET
+from runtime import LoopbackRelays, WatcherFault, NET, b
 
 class WatcherTests(unittest.TestCase):
     def setUp(self):
+        # Production main initializes the accepted harness environment. Mock
+        # it here without importing runner credentials or touching Docker.
+        env=patch.object(b,"ENV",{},create=True)
+        env.start();self.addCleanup(env.stop)
         self.r=LoopbackRelays("synthetic-test","172.30.0.0/24","a"*64)
         self.name="supabase_db_synthetic-test"
         self.item={"Name":"/"+self.name,"Id":"b"*64,
