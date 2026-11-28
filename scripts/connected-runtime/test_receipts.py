@@ -4,6 +4,7 @@ import datetime as dt
 import json
 from pathlib import Path
 import tempfile
+import os
 import urllib.error
 import socket
 import ssl
@@ -13,7 +14,7 @@ from receipts import (CASES, OWNER, OWNER_ID, REPO, REPO_ID, PR_ID, BRANCH, WORK
     WORKFLOW_ID, LABEL, requested, clearance, authorize, read_report, report_outcomes,
     receipt_status, literal, Collector, execute, unavailable_readback,
     GateRefusal, github_read, diagnostic, HISTORICAL_HEAD, HISTORICAL_RUN, HISTORICAL_SOL, HISTORICAL_PM,
-    HISTORICAL_EVENT, http_reason)
+    HISTORICAL_EVENT, http_reason, host_reader, credential_isolation)
 
 class Contract(unittest.TestCase):
     def setUp(self):
@@ -263,7 +264,7 @@ class Contract(unittest.TestCase):
         with patch("receipts.urllib.request.build_opener") as opener:
             response=opener.return_value.open.return_value.__enter__.return_value
             response.status=200;response.read.return_value=b"not json: secret"
-            with self.assertRaises(GateRefusal) as cm:github_read("/pulls/146")
+            with self.assertRaises(GateRefusal) as cm:github_read("/pulls/146",token="fake-test-token")
             self.assertEqual(cm.exception.code,"SCHEMA_JSON")
             self.assertNotIn("secret",str(cm.exception))
     def test_diagnostic_only_synchronize_never_grants(self):
@@ -283,6 +284,69 @@ class Contract(unittest.TestCase):
         for e,attempt in ((self.event,"1"),(event,"2")):
             with self.assertRaises(GateRefusal):diagnostic(e,self.head,self.cloud,attempt,"731",read=never)
         never.assert_not_called()
+    def test_authenticated_get_only_and_path_refusal(self):
+        fake="fake-test-token"
+        with patch("receipts.urllib.request.build_opener") as opener:
+            response=opener.return_value.open.return_value.__enter__.return_value
+            response.status=200;response.read.return_value=b'{"id":146}'
+            self.assertEqual(github_read("/pulls/146",token=fake),{"id":146})
+            req=opener.return_value.open.call_args.args[0]
+            self.assertEqual(req.full_url,"https://api.github.com/repos/"+REPO+"/pulls/146")
+            self.assertEqual(req.get_method(),"GET")
+            self.assertEqual(req.get_header("Authorization"),"Bearer "+fake)
+            proxy,redirect=opener.call_args.args
+            self.assertEqual(proxy.proxies,{})
+            self.assertIsNone(redirect.redirect_request(None,None,302,None,None,"https://example.invalid"))
+            opener.reset_mock()
+            for path in ("https://example.invalid","/../other","/pulls/147","/pulls/146?x=1","/actions/runs/1%2f..",
+                         "/issues/146/events?per_page=100&page=11","/actions/runs?head_sha=bad&event=pull_request&per_page=100&page=1"):
+                with self.subTest(path=path),self.assertRaises(GateRefusal) as cm:github_read(path,token=fake)
+                self.assertEqual(cm.exception.code,"AUTH_PATH_REFUSED")
+            opener.assert_not_called()
+    def test_missing_invalid_denied_and_limited_token_fail_closed(self):
+        with patch("receipts.urllib.request.build_opener") as opener:
+            for value,code in ((None,"AUTH_TOKEN_MISSING"),("","AUTH_TOKEN_MISSING"),("bad\nsecret","AUTH_TOKEN_FORMAT")):
+                with self.assertRaises(GateRefusal) as cm:github_read("/pulls/146",token=value)
+                self.assertEqual(cm.exception.code,code)
+                self.assertNotIn("secret",str(cm.exception))
+            opener.assert_not_called()
+            for status,headers,code in ((401,{},"HTTP_401"),(403,{},"HTTP_403"),(429,{},"API_RATE_LIMIT"),(302,{},"HTTP_REDIRECT_REFUSED")):
+                opener.reset_mock()
+                opener.return_value.open.side_effect=urllib.error.HTTPError("https://example.invalid/secret",status,"secret",headers,None)
+                with self.assertRaises(GateRefusal) as cm:github_read("/pulls/146",token="fake-test-token")
+                self.assertEqual(cm.exception.code,code)
+                self.assertNotIn("secret",str(cm.exception))
+                opener.return_value.open.assert_called_once()
+    def test_host_reader_removes_token_before_child_and_keeps_private_reader(self):
+        env={"GITHUB_ACTIONS":"true","RUNNER_ENVIRONMENT":"github-hosted","GITHUB_REPOSITORY":REPO,"GITHUB_TOKEN":"fake-test-token"}
+        with patch.dict(os.environ,env,clear=True),patch("receipts.ctypes.CDLL") as libc,patch("receipts.github_read") as get:
+            libc.return_value.prctl.return_value=0
+            reader=host_reader()
+            self.assertNotIn("GITHUB_TOKEN",os.environ)
+            self.assertEqual(libc.return_value.prctl.call_args_list[0].args,(4,0,0,0,0))
+            reader("/pulls/146")
+            get.assert_called_once_with("/pulls/146",token="fake-test-token")
+            with patch("receipts.subprocess.run") as child:
+                child.return_value.returncode=0;child.return_value.stdout=child.return_value.stderr=b""
+                credential_isolation({"PATH":"/usr/bin"})
+                self.assertEqual(child.call_args.kwargs["env"],{"PATH":"/usr/bin"})
+                self.assertNotIn("fake-test-token",str(child.call_args))
+                child.return_value.returncode=3
+                with self.assertRaises(GateRefusal):credential_isolation({"PATH":"/usr/bin"})
+                with self.assertRaises(GateRefusal):credential_isolation({"GITHUB_TOKEN":"fake-test-token"})
+        with patch.dict(os.environ,env,clear=True),patch("receipts.ctypes.CDLL") as libc:
+            libc.return_value.prctl.return_value=1
+            with self.assertRaises(GateRefusal) as cm:host_reader()
+            self.assertEqual(cm.exception.code,"AUTH_PROCESS_PROTECTION")
+    def test_authenticated_failure_at_entry_and_recheck_never_grants(self):
+        for previous,stage in ((None,"ENTRY_SOL_COMMENT"),(self.auth(),"RECHECK_SOL_COMMENT")):
+            with patch("receipts.urllib.request.build_opener") as opener:
+                opener.return_value.open.side_effect=urllib.error.HTTPError("https://example.invalid",403,"secret",{},None)
+                with self.assertRaises(GateRefusal) as cm:
+                    authorize(self.event,self.head,self.cloud,"1","731",previous=previous,
+                              read=lambda path:github_read(path,token="fake-test-token"),now=self.now)
+                self.assertEqual((cm.exception.stage,cm.exception.code),(stage,"HTTP_403"))
+                opener.return_value.open.assert_called_once()
     def test_literal(self):
         self.assertEqual(literal("a'b"),"'a''b'")
         with self.assertRaises(RuntimeError):literal("a\\b")

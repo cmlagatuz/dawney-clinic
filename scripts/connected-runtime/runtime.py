@@ -20,7 +20,7 @@ import tempfile
 import urllib.request
 import time
 from zoneinfo import ZoneInfo
-from receipts import Collector, authorize, execute, diagnostic, GateRefusal
+from receipts import Collector, authorize, execute, diagnostic, GateRefusal, host_reader, credential_isolation
 
 HERE=Path(__file__).resolve().parent
 ROOT=HERE.parents[1]
@@ -582,18 +582,22 @@ insert into public.clinic_service_species values('{fixture_service}','dog');""")
 
 def main():
     require(os.environ.get("GITHUB_ACTIONS")=="true" and os.environ.get("RUNNER_ENVIRONMENT")=="github-hosted","disposable GitHub-hosted only")
+    # Consume the step-only credential before any subprocess is started.
+    read=host_reader()
     event=json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
     require(event["repository"]["full_name"]=="cmlagatuz/dawney-clinic" and event["repository"]["private"] is False
             and event["pull_request"]["head"]["repo"]["full_name"]=="cmlagatuz/dawney-clinic","exact public repository PR only")
     os.umask(0o077)
     b.ENV={"PATH":os.environ["PATH"],"LANG":"C.UTF-8","LC_ALL":"C.UTF-8","CI":"true"}
+    credential_isolation(b.ENV)
+    print("PASS: host API credential removed from inherited env; actual same-UID child cannot open parent environ",flush=True)
     require(git("rev-parse","HEAD")==event["pull_request"]["head"]["sha"],"wrong job checkout")
     head=git("rev-parse","HEAD");attempt=os.environ.get("GITHUB_RUN_ATTEMPT","");run_id=os.environ.get("GITHUB_RUN_ID","")
-    execution_grant=authorize(event,head,C,attempt,run_id)
+    execution_grant=authorize(event,head,C,attempt,run_id,read=read)
     def recheck():
         require(execution_grant is not None and git("rev-parse","HEAD")==head,"execution source or grant changed")
         require(git("rev-parse","HEAD",cwd=cloud)==C,"CLOUD checkout changed")
-        require(authorize(event,head,C,attempt,run_id,previous=execution_grant)==execution_grant,"execution authority changed")
+        require(authorize(event,head,C,attempt,run_id,previous=execution_grant,read=read)==execution_grant,"execution authority changed")
     print("CONNECTED_EXECUTION_GATE:", "AUTHORIZED_EXACT_OCCURRENCE" if execution_grant else "PREFLIGHT_ONLY",flush=True)
     diagnostic_ok=True
     if not execution_grant and event.get("action")=="synchronize" and attempt=="1":
@@ -601,7 +605,7 @@ def main():
         # rerun to diagnose. Continue isolated preflight even if host API fails,
         # but report the overall verification as failed after baseline.
         try:
-            diagnostic(event,head,C,attempt,run_id)
+            diagnostic(event,head,C,attempt,run_id,read=read)
             print("GATE_DIAGNOSTIC_RESULT: PASS; PREFLIGHT ONLY",flush=True)
         except GateRefusal as exc:
             diagnostic_ok=False

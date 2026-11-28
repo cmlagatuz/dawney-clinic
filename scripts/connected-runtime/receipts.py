@@ -1,5 +1,7 @@
 """Read-only independent receipts for the exact CLOUD runner, never a seed substitute."""
 import base64
+import ctypes
+import sys
 import datetime as dt
 import hashlib
 import json
@@ -39,7 +41,7 @@ def check(ok,reason):
     if not ok: raise RuntimeError(reason)
 
 # Fixed safe codes only. No exception messages or remote strings in output.
-_GATE_CODES=frozenset(["API_DNS","API_RATE_LIMIT","API_TIMEOUT","API_TLS","API_TRANSPORT","APPROVAL_IDENTITY","AUTHORIZATION_CHANGED","CHRONOLOGY_ORDER","CHRONOLOGY_RUN_WINDOW","CHRONOLOGY_STALE_APPROVAL","CURRENT_PR","DIAGNOSTIC_COMMENTS","DIAGNOSTIC_CURRENT_PR","DIAGNOSTIC_CURRENT_RUN","DIAGNOSTIC_EVENT_HISTORY","DIAGNOSTIC_EVENT_IDENTITY","DIAGNOSTIC_HISTORICAL_CHRONOLOGY","DIAGNOSTIC_HISTORICAL_RUN","DIAGNOSTIC_HISTORICAL_RUN_IDENTITY","DIAGNOSTIC_HISTORY_NOT_VISIBLE","DIAGNOSTIC_RUN_LIST","DIAGNOSTIC_TIMESTAMP","EVENT_HISTORY","EVENT_IDENTITY","EVENT_PR_LABEL_IDENTITY","EVENT_REVOKED","EXECUTION_IDENTITY","HTTP_","HTTP_401","HTTP_403","HTTP_404","HTTP_422","HTTP_4XX","HTTP_5XX","HTTP_REDIRECT_REFUSED","HTTP_STATUS_OTHER","INTERNAL_UNCLASSIFIED","LABEL_EVENT_IDENTITY","LABEL_HISTORY_AMBIGUOUS","LABEL_HISTORY_MISSING_OR_NOT_VISIBLE","LIVE_PR_LABEL_IDENTITY","PAGINATION_EVENTS_BOUND","PAGINATION_EVENTS_DUPLICATE","PAGINATION_RUN_BOUND","PAGINATION_RUN_COUNT","PAGINATION_RUN_INCOMPLETE","PM_COMMENT","PR_LABEL_IDENTITY","PR_STATE_CHANGED","RUN_LIST","SCHEMA_COMMENT","SCHEMA_EVENTS","SCHEMA_FIELDS","SCHEMA_JSON","SCHEMA_RESPONSE_BOUND","SCHEMA_RUNS","SCHEMA_RUN_LIST","SCHEMA_TIMESTAMP","SCHEMA_WORKFLOW","SCHEMA_WORKFLOW_PRS","SOL_COMMENT","WORKFLOW_IDENTITY","WORKFLOW_LIST_IDENTITY","WORKFLOW_OCCURRENCE_AMBIGUOUS","WORKFLOW_PR_IDENTITY","WORKFLOW_PR_NOT_VISIBLE","WORKFLOW_RUN_NOT_VISIBLE","WORKFLOW_STATUS_NOT_IN_PROGRESS"])
+_GATE_CODES=frozenset(["AUTH_TOKEN_MISSING","AUTH_TOKEN_FORMAT","AUTH_HOST_CONTEXT","AUTH_PROCESS_PROTECTION","AUTH_PATH_REFUSED","AUTH_ENV_ISOLATION","API_DNS","API_RATE_LIMIT","API_TIMEOUT","API_TLS","API_TRANSPORT","APPROVAL_IDENTITY","AUTHORIZATION_CHANGED","CHRONOLOGY_ORDER","CHRONOLOGY_RUN_WINDOW","CHRONOLOGY_STALE_APPROVAL","CURRENT_PR","DIAGNOSTIC_COMMENTS","DIAGNOSTIC_CURRENT_PR","DIAGNOSTIC_CURRENT_RUN","DIAGNOSTIC_EVENT_HISTORY","DIAGNOSTIC_EVENT_IDENTITY","DIAGNOSTIC_HISTORICAL_CHRONOLOGY","DIAGNOSTIC_HISTORICAL_RUN","DIAGNOSTIC_HISTORICAL_RUN_IDENTITY","DIAGNOSTIC_HISTORY_NOT_VISIBLE","DIAGNOSTIC_RUN_LIST","DIAGNOSTIC_TIMESTAMP","EVENT_HISTORY","EVENT_IDENTITY","EVENT_PR_LABEL_IDENTITY","EVENT_REVOKED","EXECUTION_IDENTITY","HTTP_","HTTP_401","HTTP_403","HTTP_404","HTTP_422","HTTP_4XX","HTTP_5XX","HTTP_REDIRECT_REFUSED","HTTP_STATUS_OTHER","INTERNAL_UNCLASSIFIED","LABEL_EVENT_IDENTITY","LABEL_HISTORY_AMBIGUOUS","LABEL_HISTORY_MISSING_OR_NOT_VISIBLE","LIVE_PR_LABEL_IDENTITY","PAGINATION_EVENTS_BOUND","PAGINATION_EVENTS_DUPLICATE","PAGINATION_RUN_BOUND","PAGINATION_RUN_COUNT","PAGINATION_RUN_INCOMPLETE","PM_COMMENT","PR_LABEL_IDENTITY","PR_STATE_CHANGED","RUN_LIST","SCHEMA_COMMENT","SCHEMA_EVENTS","SCHEMA_FIELDS","SCHEMA_JSON","SCHEMA_RESPONSE_BOUND","SCHEMA_RUNS","SCHEMA_RUN_LIST","SCHEMA_TIMESTAMP","SCHEMA_WORKFLOW","SCHEMA_WORKFLOW_PRS","SOL_COMMENT","WORKFLOW_IDENTITY","WORKFLOW_LIST_IDENTITY","WORKFLOW_OCCURRENCE_AMBIGUOUS","WORKFLOW_PR_IDENTITY","WORKFLOW_PR_NOT_VISIBLE","WORKFLOW_RUN_NOT_VISIBLE","WORKFLOW_STATUS_NOT_IN_PROGRESS"])
 _GATE_STAGES=frozenset(["EVENT","ENTRY","RECHECK","SOL_COMMENT","PM_COMMENT","RUN","EVENT_HISTORY","RUN_LIST","CURRENT_PR","PREDICATES","DIAGNOSTIC_COMMENTS","DIAGNOSTIC_HISTORICAL_RUN","DIAGNOSTIC_EVENT_HISTORY","DIAGNOSTIC_TIMESTAMP","DIAGNOSTIC_CURRENT_RUN","DIAGNOSTIC_RUN_LIST","DIAGNOSTIC_CURRENT_PR","CHECK","ENTRY_EVENT","ENTRY_ENTRY","ENTRY_RECHECK","ENTRY_SOL_COMMENT","ENTRY_PM_COMMENT","ENTRY_RUN","ENTRY_EVENT_HISTORY","ENTRY_RUN_LIST","ENTRY_CURRENT_PR","ENTRY_PREDICATES","ENTRY_DIAGNOSTIC_COMMENTS","ENTRY_DIAGNOSTIC_HISTORICAL_RUN","ENTRY_DIAGNOSTIC_EVENT_HISTORY","ENTRY_DIAGNOSTIC_TIMESTAMP","ENTRY_DIAGNOSTIC_CURRENT_RUN","ENTRY_DIAGNOSTIC_RUN_LIST","ENTRY_DIAGNOSTIC_CURRENT_PR","ENTRY_CHECK","RECHECK_EVENT","RECHECK_ENTRY","RECHECK_RECHECK","RECHECK_SOL_COMMENT","RECHECK_PM_COMMENT","RECHECK_RUN","RECHECK_EVENT_HISTORY","RECHECK_RUN_LIST","RECHECK_CURRENT_PR","RECHECK_PREDICATES","RECHECK_DIAGNOSTIC_COMMENTS","RECHECK_DIAGNOSTIC_HISTORICAL_RUN","RECHECK_DIAGNOSTIC_EVENT_HISTORY","RECHECK_DIAGNOSTIC_TIMESTAMP","RECHECK_DIAGNOSTIC_CURRENT_RUN","RECHECK_DIAGNOSTIC_RUN_LIST","RECHECK_DIAGNOSTIC_CURRENT_PR","RECHECK_CHECK"])
 class GateRefusal(RuntimeError):
     def __init__(self,code,stage="CHECK"):
@@ -182,16 +184,63 @@ def transport_reason(exc):
     if isinstance(reason,TimeoutError):return "API_TIMEOUT"
     return "API_TRANSPORT"
 
-def github_read(path):
-    # Same existing anonymous GET-only host control plane; fixed HTTPS
-    # origin, no token, redirect, proxy, retry or response-body logging.
+def host_reader():
+    # The step shell execs this trusted Python process. Linux retains the
+    # initial environ in /proc even after unsetenv, so remove the credential
+    # from inherited env AND deny same-UID /proc/ptrace reads before children.
+    gate_check(sys.platform=="linux" and os.environ.get("GITHUB_ACTIONS")=="true"
+               and os.environ.get("RUNNER_ENVIRONMENT")=="github-hosted"
+               and os.environ.get("GITHUB_REPOSITORY")==REPO,"AUTH_HOST_CONTEXT")
+    try:
+        libc=ctypes.CDLL(None,use_errno=True)
+        gate_check(libc.prctl(4,0,0,0,0)==0 and libc.prctl(3,0,0,0,0)==0,"AUTH_PROCESS_PROTECTION")
+    except Exception:raise GateRefusal("AUTH_PROCESS_PROTECTION") from None
+    token=os.environ.pop("GITHUB_TOKEN",None)
+    validate_token(token)
+    # Do not pass this closure or token to the runtime packet or any child.
+    def read(path):return github_read(path,token=token)
+    return read
+
+def validate_token(token):
+    gate_check(isinstance(token,str) and bool(token),"AUTH_TOKEN_MISSING")
+    # Opaque GitHub-issued token, no assumption about token prefix/version.
+    # ASCII visible characters only; refuse header/control injection.
+    gate_check(re.fullmatch(r"[!-~]{1,4096}",token) is not None,"AUTH_TOKEN_FORMAT")
+
+def credential_isolation(env):
+    gate_check("GITHUB_TOKEN" not in os.environ and "GITHUB_TOKEN" not in env,"AUTH_ENV_ISOLATION")
+    # Real same-UID child tests both inherited environment and the parent's
+    # original /proc environ without reading/printing any data. Open alone
+    # must be denied; an unexpected open is a failed preflight.
+    code=("import os,sys\n"
+          "if 'GITHUB_TOKEN' in os.environ:sys.exit(1)\n"
+          "try:\n fd=os.open('/proc/'+sys.argv[1]+'/environ',os.O_RDONLY)\n"
+          "except PermissionError:sys.exit(0)\n"
+          "except OSError:sys.exit(2)\n"
+          "else:os.close(fd);sys.exit(3)\n")
+    try:
+        result=subprocess.run([sys.executable,"-c",code,str(os.getpid())],env=env,
+                              capture_output=True,timeout=8)
+        gate_check(result.returncode==0 and not result.stdout and not result.stderr,"AUTH_ENV_ISOLATION")
+    except Exception:raise GateRefusal("AUTH_ENV_ISOLATION") from None
+
+def github_read(path,*,token=None):
+    # Authenticated host-only GETs. Strict path allowlist before attaching
+    # bearer; fixed origin/repo, TLS, no proxy, redirect, retry or fallback.
+    validate_token(token)
+    gate_check(isinstance(path,str) and re.fullmatch(
+        r"(?:/issues/comments/[1-9][0-9]{0,19}|/actions/runs/[1-9][0-9]{0,19}|"
+        r"/issues/146/events\?per_page=100&page=(?:[1-9]|10)|"
+        r"/actions/runs\?head_sha=[a-f0-9]{40}&event=pull_request&per_page=100&page=(?:[1-9]|10)|"
+        r"/pulls/146)",path) is not None,"AUTH_PATH_REFUSED")
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args,**kwargs):return None
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
     try:
         with opener.open(urllib.request.Request("https://api.github.com/repos/"+REPO+path,
                          headers={"Accept":"application/vnd.github+json","User-Agent":"Dawney isolated acceptance gate",
-                                  "Cache-Control":"no-cache","X-GitHub-Api-Version":"2022-11-28"}),timeout=12) as response:
+                                  "Cache-Control":"no-cache","X-GitHub-Api-Version":"2022-11-28",
+                                  "Authorization":"Bearer "+token},method="GET"),timeout=12) as response:
             if response.status!=200:raise GateRefusal(http_reason(response.status,response.headers))
             data=response.read(2_000_001)
             gate_check(len(data)<=2_000_000,"SCHEMA_RESPONSE_BOUND")

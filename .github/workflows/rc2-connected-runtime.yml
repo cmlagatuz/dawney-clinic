@@ -8,6 +8,8 @@ on:
       - 'docs/RC2_CONNECTED_RUNTIME.md'
 permissions:
   contents: read
+  pull-requests: read
+  actions: read
 jobs:
   qualify:
     if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'ai/astra/rc2-connected-runtime-20261128'
@@ -34,4 +36,6 @@ jobs:
           python3 -m unittest discover -s scripts/connected-runtime -p 'test_*.py' -v
           node --check scripts/connected-runtime/probe.mjs
       - name: Actual isolated preflight (connected execution only after exact explicit clearance)
-        run: python3 -u scripts/connected-runtime/runtime.py
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: exec python3 -u scripts/connected-runtime/runtime.py
